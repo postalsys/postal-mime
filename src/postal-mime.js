@@ -180,12 +180,22 @@ export default class PostalMime {
 
         let message = {};
 
-        for (let key of ['from', 'sender', 'reply-to', 'delivered-to', 'return-path']) {
+        for (let key of ['from', 'sender', 'reply-to']) {
             let addressHeader = this.root.headers.find(line => line.key === key);
             if (addressHeader && addressHeader.value) {
                 let addresses = addressParser(addressHeader.value);
                 if (addresses && addresses.length) {
                     message[key.replace(/\-(.)/g, (o, c) => c.toUpperCase())] = addresses[0];
+                }
+            }
+        }
+
+        for (let key of ['delivered-to', 'return-path']) {
+            let addressHeader = this.root.headers.find(line => line.key === key);
+            if (addressHeader && addressHeader.value) {
+                let addresses = addressParser(addressHeader.value);
+                if (addresses && addresses.length && addresses[0].address) {
+                    message[key.replace(/\-(.)/g, (o, c) => c.toUpperCase())] = addresses[0].address;
                 }
             }
         }
