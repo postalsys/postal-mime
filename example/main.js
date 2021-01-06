@@ -1,4 +1,6 @@
-const myWorker = new SharedWorker('../src/postalmime.js');
+/* globals SharedWorker, document, postalMime */
+
+const PostalMime = postalMime.default;
 
 document.getElementById('btn').addEventListener('click', () => {
     // convert text into an ArrayBuffer and transfer to worker
@@ -8,13 +10,15 @@ document.getElementById('btn').addEventListener('click', () => {
 
     fr.onload = function (e) {
         const ab = e.target.result;
-        myWorker.port.postMessage({ content: ab }, [ab]);
+
+        const parser = new PostalMime();
+        parser
+            .parse(ab)
+            .then(result => {
+                console.log(result);
+            })
+            .catch(err => console.error(err));
     };
 
     fr.readAsArrayBuffer(blob);
 });
-
-myWorker.port.onmessage = function (e) {
-    console.log(e.data);
-    console.log('Message received from worker');
-};

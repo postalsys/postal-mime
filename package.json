@@ -1,12 +1,19 @@
 {
-  "name": "postalmime",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+    "name": "postal-mime",
+    "version": "1.0.0",
+    "description": "",
+    "main": "dist/postal-mime.js",
+    "scripts": {
+        "test": "eslint",
+        "build": "webpack"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "devDependencies": {
+        "eslint": "^7.17.0",
+        "eslint-cli": "^1.1.1",
+        "webpack": "^5.11.1",
+        "webpack-cli": "^4.3.1"
+    }
 }

@@ -1,11 +1,20 @@
+/* globals module */
+
 module.exports = {
     parserOptions: {
         ecmaVersion: 2020,
-        sourceType: 'script',
+        sourceType: 'module',
         ecmaFeatures: {}
     },
     env: { es6: true },
     rules: {
-        semi: 'error'
+        semi: 'error',
+        'no-undef': 'error'
+    },
+    globals: {
+        TextDecoder: 'readable',
+        Blob: 'readable',
+        FileReader: 'readable',
+        console: 'readable'
     }
 };
