@@ -1,3 +1,4 @@
+import { getDecoder } from './decode-strings';
 import PassThroughDecoder from './pass-through-decoder';
 import Base64Decoder from './base64-decoder';
 import QPDecoder from './qp-decoder';
@@ -36,32 +37,11 @@ export default class MimeNode {
         this.contentDecoder = false;
     }
 
-    getDecoder(charset) {
-        charset = charset || 'utf8';
-        if (this.decoders.has(charset)) {
-            return this.decoders.get(charset);
-        }
-        let decoder;
-        try {
-            decoder = new TextDecoder(charset);
-        } catch (err) {
-            if (charset === 'utf8') {
-                // is this even possible?
-                throw err;
-            }
-            // use default
-            return this.getDecoder();
-        }
-
-        this.decoders.set(charset, decoder);
-        return decoder;
-    }
-
     setupContentDecoder(transferEncoding) {
         if (/base64/i.test(transferEncoding)) {
             this.contentDecoder = new Base64Decoder();
         } else if (/quoted-printable/i.test(transferEncoding)) {
-            this.contentDecoder = new QPDecoder({ decoder: this.getDecoder(this.contentType.parsed.params.charset) });
+            this.contentDecoder = new QPDecoder({ decoder: getDecoder(this.contentType.parsed.params.charset) });
         } else {
             this.contentDecoder = new PassThroughDecoder();
         }
@@ -200,7 +180,7 @@ export default class MimeNode {
             return '';
         }
 
-        let str = this.getDecoder(this.contentType.parsed.params.charset).decode(this.content);
+        let str = getDecoder(this.contentType.parsed.params.charset).decode(this.content);
 
         if (/^flowed$/i.test(this.contentType.parsed.params.format)) {
             str = this.decodeFlowedText(str, /^yes$/i.test(this.contentType.parsed.params.delsp));
@@ -267,7 +247,7 @@ export default class MimeNode {
                     this.state = 'body';
                     return this.processHeaders();
                 }
-                this.headerLines.push(this.getDecoder().decode(line));
+                this.headerLines.push(getDecoder().decode(line));
                 break;
             case 'body': {
                 // add line to body

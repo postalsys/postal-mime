@@ -93,9 +93,3 @@ export function htmlToText(str) {
 
     return str;
 }
-
-export default {
-    decodeHTMLEntities,
-    htmlToText,
-    textToHtml
-};

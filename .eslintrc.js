@@ -13,6 +13,7 @@ module.exports = {
     },
     globals: {
         TextDecoder: 'readable',
+        TextEncoder: 'readable',
         Blob: 'readable',
         FileReader: 'readable',
         console: 'readable'

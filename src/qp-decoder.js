@@ -1,3 +1,5 @@
+import { blobToArrayBuffer } from './decode-strings';
+
 export default class QPDecoder {
     constructor(opts) {
         opts = opts || {};
@@ -14,9 +16,9 @@ export default class QPDecoder {
     decodeQPBytes(encodedBytes) {
         let buf = new ArrayBuffer(encodedBytes.length);
         let dataView = new DataView(buf);
-        encodedBytes.forEach((b, i) => {
-            dataView.setUint8(i, parseInt(b, 16));
-        });
+        for (let i = 0, len = encodedBytes.length; i < len; i++) {
+            dataView.setUint8(i, parseInt(encodedBytes[i], 16));
+        }
         return buf;
     }
 
@@ -89,19 +91,6 @@ export default class QPDecoder {
         }
 
         // convert an array of arraybuffers into a blob and then back into a single arraybuffer
-        let blob = new Blob(this.chunks, { type: 'application/octet-stream' });
-        const fr = new FileReader();
-
-        return new Promise((resolve, reject) => {
-            fr.onload = function (e) {
-                resolve(e.target.result);
-            };
-
-            fr.onerror = function (e) {
-                reject(fr.error);
-            };
-
-            fr.readAsArrayBuffer(blob);
-        });
+        return blobToArrayBuffer(new Blob(this.chunks, { type: 'application/octet-stream' }));
     }
 }

@@ -1,3 +1,5 @@
+import { decodeBase64, blobToArrayBuffer } from './decode-strings';
+
 export default class Base64Decoder {
     constructor(opts) {
         opts = opts || {};
@@ -9,44 +11,6 @@ export default class Base64Decoder {
         this.chunks = [];
 
         this.remainder = '';
-
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-
-        // Use a lookup table to find the index.
-        this.lookup = new Uint8Array(256);
-        for (var i = 0; i < chars.length; i++) {
-            this.lookup[chars.charCodeAt(i)] = i;
-        }
-    }
-
-    decodeBase64(base64) {
-        const bufferLength = base64.length * 0.75;
-        const len = base64.length;
-
-        let p = 0;
-
-        if (base64[base64.length - 1] === '=') {
-            bufferLength--;
-            if (base64[base64.length - 2] === '=') {
-                bufferLength--;
-            }
-        }
-
-        const arrayBuffer = new ArrayBuffer(bufferLength);
-        const bytes = new Uint8Array(arrayBuffer);
-
-        for (let i = 0; i < len; i += 4) {
-            let encoded1 = this.lookup[base64.charCodeAt(i)];
-            let encoded2 = this.lookup[base64.charCodeAt(i + 1)];
-            let encoded3 = this.lookup[base64.charCodeAt(i + 2)];
-            let encoded4 = this.lookup[base64.charCodeAt(i + 3)];
-
-            bytes[p++] = (encoded1 << 2) | (encoded2 >> 4);
-            bytes[p++] = ((encoded2 & 15) << 4) | (encoded3 >> 2);
-            bytes[p++] = ((encoded3 & 3) << 6) | (encoded4 & 63);
-        }
-
-        return arrayBuffer;
     }
 
     update(buffer) {
@@ -71,30 +35,16 @@ export default class Base64Decoder {
             }
 
             if (base64Str.length) {
-                this.chunks.push(this.decodeBase64(base64Str));
+                this.chunks.push(decodeBase64(base64Str));
             }
         }
     }
 
     finalize() {
         if (this.remainder && !/^=+$/.test(this.remainder)) {
-            this.chunks.push(this.decodeBase64(this.remainder));
+            this.chunks.push(decodeBase64(this.remainder));
         }
 
-        // convert an array of arraybuffers into a blob and then back into a single arraybuffer
-        let blob = new Blob(this.chunks, { type: 'application/octet-stream' });
-        const fr = new FileReader();
-
-        return new Promise((resolve, reject) => {
-            fr.onload = function (e) {
-                resolve(e.target.result);
-            };
-
-            fr.onerror = function (e) {
-                reject(fr.error);
-            };
-
-            fr.readAsArrayBuffer(blob);
-        });
+        return blobToArrayBuffer(new Blob(this.chunks, { type: 'application/octet-stream' }));
     }
 }

@@ -1,4 +1,4 @@
-'use strict';
+import { decodeWords } from './decode-strings';
 
 /**
  * Converts tokens for a single address into an address object
@@ -60,7 +60,7 @@ function _handleAddress(tokens) {
         // http://tools.ietf.org/html/rfc2822#appendix-A.1.3
         data.text = data.text.join(' ');
         addresses.push({
-            name: data.text || (address && address.name),
+            name: decodeWords(data.text || (address && address.name)),
             group: data.group.length ? addressParser(data.group.join(',')) : []
         });
     } else {
@@ -114,7 +114,7 @@ function _handleAddress(tokens) {
         } else {
             address = {
                 address: data.address || data.text || '',
-                name: data.text || data.address || ''
+                name: decodeWords(data.text || data.address || '')
             };
 
             if (address.address === address.name) {

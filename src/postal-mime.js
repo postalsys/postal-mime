@@ -1,7 +1,7 @@
 import MimeNode from './mime-node';
-import textToHtml from './text-format';
-import htmlToText from './text-format';
+import { textToHtml, htmlToText } from './text-format';
 import addressParser from './address-parser';
+import { decodeWords } from './decode-strings';
 
 export default class PostalMime {
     constructor() {
@@ -217,7 +217,7 @@ export default class PostalMime {
         for (let key of ['subject', 'message-id', 'in-reply-to', 'references']) {
             let header = this.root.headers.find(line => line.key === key);
             if (header && header.value) {
-                message[key.replace(/\-(.)/g, (o, c) => c.toUpperCase())] = header.value;
+                message[key.replace(/\-(.)/g, (o, c) => c.toUpperCase())] = decodeWords(header.value);
             }
         }
 
