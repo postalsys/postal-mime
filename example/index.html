@@ -96,8 +96,16 @@
         <h1>Front-end Email Parser Demo</h1>
         <p>This demo takes a raw RFC822 formatted email message file (.eml format), parses and decodes it's contents and renders the email on this page.</p>
         
-        <p>Parser is lightweight and efficient, does not use any additional dependencies and can be run in a web worker. Data never leaves your computer as parsing is done in the browser, there is no server component.</p>
+        <p>Data never leaves your computer as parsing is done in the browser, there is no server component.</p>
         <p>Tested on latest Chrome, Firefox and Safari. Does not work on Internet Explorer.</p>
+
+        <ul>
+            <li>Fast and efficient, built for the browser environment.</li>
+            <li>Can be run in Web Workers</li>
+            <li>Uses ArrayBuffers for all binary data, no Buffer shims or pseudo-binary strings</li>
+            <li>Can decode Base64, Quoted-Printable, MIME Encoded Words, Parameter Value Continuations for those emojis in filenames</li>
+            <li>Can properly decode any supported charset for any supported transfer encoding</li>
+        </ul>
 
         <form id="mimeform">
             <input type="file" id="mime">
