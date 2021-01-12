@@ -126,12 +126,9 @@ export default class PostalMime {
                     }
                 } else if (node.content) {
                     // attachment!
-                    let filename =
-                        node.contentDisposition.parsed.params.filename ||
-                        (node.contentType.parsed.params.name && decodeWords(node.contentType.parsed.params.name)) ||
-                        null;
+                    let filename = node.contentDisposition.parsed.params.filename || node.contentType.parsed.params.name || null;
                     let attachment = {
-                        filename,
+                        filename: decodeWords(filename),
                         mimeType: node.contentType.parsed.value,
                         disposition: node.contentDisposition.parsed.value || null
                     };
