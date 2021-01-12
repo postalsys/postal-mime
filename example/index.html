@@ -93,8 +93,11 @@
 
 <div id="main">
     <div>
-        <p>Email parser demo. Select an EML file and display the parsed contents and attachments on this page.</p>
-        <p>Data never leaves your computer as parsing is done in the browser.</p>
+        <h1>Front-end Email Parser Demo</h1>
+        <p>This demo takes a raw RFC822 formatted email message file (.eml format), parses and decodes it's contents and renders the email on this page.</p>
+        
+        <p>Parser is lightweight and efficient, does not use any additional dependencies and can be run in a web worker. Data never leaves your computer as parsing is done in the browser, there is no server component.</p>
+        <p>Tested on latest Chrome, Firefox and Safari. Does not work on Internet Explorer.</p>
 
         <form id="mimeform">
             <input type="file" id="mime">
