@@ -179,3 +179,85 @@ export function decodeWords(str) {
             .replace(/=\?([\w_\-*]+)\?([QqBb])\?([^?]*)\?=/g, (m, charset, encoding, text) => decodeWord(charset, encoding, text))
     );
 }
+
+export function decodeURIComponentWithCharset(encodedStr, charset) {
+    charset = charset || 'utf-8';
+
+    let encodedBytes = [];
+    for (let i = 0; i < encodedStr.length; i++) {
+        let c = encodedStr.charAt(i);
+        if (c === '%' && /^[a-f0-9]{2}/i.test(encodedStr.substr(i + 1, 2))) {
+            // encoded sequence
+            let byte = encodedStr.substr(i + 1, 2);
+            i += 2;
+            encodedBytes.push(parseInt(byte, 16));
+        } else if (c.charCodeAt(0) > 126) {
+            c = textEncoder.encode(c);
+            for (let j = 0; j < c.length; j++) {
+                encodedBytes.push(c[j]);
+            }
+        } else {
+            // "normal" char
+            encodedBytes.push(c.charCodeAt(0));
+        }
+    }
+
+    const byteStr = new ArrayBuffer(encodedBytes.length);
+    const dataView = new DataView(byteStr);
+    for (let i = 0, len = encodedBytes.length; i < len; i++) {
+        dataView.setUint8(i, encodedBytes[i]);
+    }
+
+    return getDecoder(charset).decode(byteStr);
+}
+
+export function decodeParameterValueContinuations(header) {
+    // handle parameter value continuations
+    // https://tools.ietf.org/html/rfc2231#section-3
+
+    // preprocess values
+    let paramKeys = new Map();
+
+    Object.keys(header.params).forEach(key => {
+        let match = key.match(/\*((\d+)\*?)?$/);
+        if (!match) {
+            // nothing to do here, does not seem like a continuation param
+            return;
+        }
+
+        let actualKey = key.substr(0, match.index).toLowerCase();
+        let nr = Number(match[2]) || 0;
+
+        let paramVal;
+        if (!paramKeys.has(actualKey)) {
+            paramVal = {
+                charset: false,
+                values: []
+            };
+            paramKeys.set(actualKey, paramVal);
+        } else {
+            paramVal = paramKeys.get(actualKey);
+        }
+
+        let value = header.params[key];
+        if (nr === 0 && match[0].charAt(match[0].length - 1) === '*' && (match = value.match(/^([^']*)'[^']*'(.*)$/))) {
+            paramVal.charset = match[1] || 'utf-8';
+            value = match[2];
+        }
+
+        paramVal.values.push({ nr, value });
+
+        // remove the old reference
+        delete header.params[key];
+    });
+
+    paramKeys.forEach((paramVal, key) => {
+        header.params[key] = decodeURIComponentWithCharset(
+            paramVal.values
+                .sort((a, b) => a.nr - b.nr)
+                .map(a => a.value)
+                .join(''),
+            paramVal.charset
+        );
+    });
+}

@@ -9,12 +9,14 @@ export default class PostalMime {
             parser: this
         });
         this.boundaries = [];
+
+        this.textContent = {};
+        this.attachments = [];
     }
 
     async finalize() {
         // close all pending nodes
         await this.root.finalize();
-        console.log(this.root);
     }
 
     async processLine(line, isFinal) {
@@ -105,7 +107,10 @@ export default class PostalMime {
         let textTypes = new Set();
         let textMap = new Map();
 
-        let walk = async (node, alternative) => {
+        let walk = async (node, alternative, related) => {
+            alternative = alternative || false;
+            related = related || false;
+
             if (!node.contentType.multipart) {
                 // regular node
 
@@ -119,17 +124,42 @@ export default class PostalMime {
                     } else {
                         textMap.get(selectorNode)[textType] = node.getTextContent();
                     }
+                } else if (node.content) {
+                    // attachment!
+                    let filename =
+                        node.contentDisposition.parsed.params.filename ||
+                        (node.contentType.parsed.params.name && decodeWords(node.contentType.parsed.params.name)) ||
+                        null;
+                    let attachment = {
+                        filename,
+                        mimeType: node.contentType.parsed.value,
+                        disposition: node.contentDisposition.parsed.value || null
+                    };
+
+                    if (related && node.contentId) {
+                        attachment.related = true;
+                    }
+
+                    if (node.contentId) {
+                        attachment.contentId = node.contentId;
+                    }
+
+                    attachment.content = node.content;
+
+                    this.attachments.push(attachment);
                 }
             } else if (node.contentType.multipart === 'alternative') {
                 alternative = node;
+            } else if (node.contentType.multipart === 'related') {
+                related = node;
             }
 
             for (let childNode of node.childNodes) {
-                walk(childNode, alternative);
+                walk(childNode, alternative, related);
             }
         };
 
-        walk(this.root);
+        walk(this.root, false, []);
 
         textMap.forEach((mapEntry, key) => {
             textTypes.forEach(textType => {
@@ -178,7 +208,9 @@ export default class PostalMime {
 
         await this.processNodeTree();
 
-        let message = {};
+        let message = {
+            headers: this.root.headers.map(entry => ({ key: entry.key, value: entry.value })).reverse()
+        };
 
         for (let key of ['from', 'sender', 'reply-to']) {
             let addressHeader = this.root.headers.find(line => line.key === key);
@@ -221,6 +253,18 @@ export default class PostalMime {
             }
         }
 
+        let dateHeader = this.root.headers.find(line => line.key === 'date');
+        if (dateHeader) {
+            let date = new Date(dateHeader.value);
+            if (!date || date.toString() === 'Invalid Date') {
+                date = dateHeader.value;
+            } else {
+                // enforce ISO format if seems to be a valid date
+                date = date.toISOString();
+            }
+            message.date = date;
+        }
+
         if (this.textContent && this.textContent.html) {
             message.html = this.textContent.html;
         }
@@ -228,6 +272,8 @@ export default class PostalMime {
         if (this.textContent && this.textContent.plain) {
             message.text = this.textContent.plain;
         }
+
+        message.attachments = this.attachments;
 
         return message;
     }

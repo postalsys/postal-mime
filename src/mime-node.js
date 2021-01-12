@@ -1,4 +1,4 @@
-import { getDecoder } from './decode-strings';
+import { getDecoder, decodeParameterValueContinuations } from './decode-strings';
 import PassThroughDecoder from './pass-through-decoder';
 import Base64Decoder from './base64-decoder';
 import QPDecoder from './qp-decoder';
@@ -147,6 +147,9 @@ export default class MimeNode {
             response.value = response.value.toLowerCase();
         }
 
+        // convert Parameter Value Continuations into single strings
+        decodeParameterValueContinuations(response);
+
         return response;
     }
 
@@ -212,6 +215,9 @@ export default class MimeNode {
                         break;
                     case 'content-disposition':
                         this.contentDisposition = { value };
+                        break;
+                    case 'content-id':
+                        this.contentId = value;
                         break;
                 }
             }
