@@ -1,12 +1,12 @@
 {
     "name": "postal-mime",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "description": "Email parser for browser environments",
     "main": "dist/postal-mime.js",
     "scripts": {
         "test": "eslint",
         "build": "webpack",
-        "publish": "NODE_ENV=production npm run build && npm publish && postal-publish"
+        "prepublish": "NODE_ENV=production npm run build"
     },
     "keywords": [
         "mime",
