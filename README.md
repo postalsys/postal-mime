@@ -80,3 +80,4 @@ console.log(email.html);
 Licensed under GNU Affero General Public License v3.0 or later.
 
 MIT-licensed version of postal-mime is available for [Postal Systems subscribers](https://postalsys.com/).
+
