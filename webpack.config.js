@@ -13,7 +13,5 @@ module.exports = {
         filename: 'postal-mime.js',
         library: 'postalMime',
         libraryTarget: 'umd'
-    },
-
-    watch: mode !== 'production'
+    }
 };
