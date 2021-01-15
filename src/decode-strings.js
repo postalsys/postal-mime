@@ -1,4 +1,5 @@
-const textEncoder = new TextEncoder();
+export const textEncoder = new TextEncoder();
+
 const decoders = new Map();
 
 const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';

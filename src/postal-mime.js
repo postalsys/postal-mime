@@ -1,7 +1,7 @@
 import MimeNode from './mime-node';
 import { textToHtml, htmlToText } from './text-format';
 import addressParser from './address-parser';
-import { decodeWords } from './decode-strings';
+import { decodeWords, textEncoder, blobToArrayBuffer } from './decode-strings';
 
 export default class PostalMime {
     constructor() {
@@ -12,6 +12,8 @@ export default class PostalMime {
 
         this.textContent = {};
         this.attachments = [];
+
+        this.started = false;
     }
 
     async finalize() {
@@ -193,6 +195,21 @@ export default class PostalMime {
     }
 
     async parse(buf) {
+        if (this.started) {
+            throw new Error('Can not reuse parser, create a new PostalMime object');
+        }
+        this.started = true;
+
+        if (typeof buf === 'string') {
+            // cast string input to ArrayBuffer
+            buf = textEncoder.encode(buf);
+        }
+
+        if (buf instanceof Blob) {
+            // can't process blob directly, cast to ArrayBuffer
+            buf = await blobToArrayBuffer(buf);
+        }
+
         this.buf = buf;
         this.av = new Uint8Array(buf);
         this.readPos = 0;
