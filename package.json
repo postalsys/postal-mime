@@ -1,7 +1,7 @@
 {
     "name": "postal-mime",
-    "version": "1.0.0",
-    "description": "Email parser for browsers",
+    "version": "1.0.1",
+    "description": "Email parser for browser environments",
     "main": "dist/postal-mime.js",
     "scripts": {
         "test": "eslint",
