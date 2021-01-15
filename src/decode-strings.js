@@ -71,6 +71,10 @@ export function getDecoder(charset) {
  * @returns {ArrayBuffer} Converted value
  */
 export async function blobToArrayBuffer(blob) {
+    if ('arrayBuffer' in blob) {
+        return await blob.arrayBuffer();
+    }
+
     const fr = new FileReader();
 
     return new Promise((resolve, reject) => {

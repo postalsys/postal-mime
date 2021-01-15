@@ -52,6 +52,10 @@ export default class MimeNode {
             return;
         }
 
+        if (this.state === 'header') {
+            this.processHeaders();
+        }
+
         // remove self from boundary listing
         let boundaries = this.parser.boundaries;
         for (let i = boundaries.length - 1; i >= 0; i--) {
@@ -64,7 +68,7 @@ export default class MimeNode {
 
         await this.finalizeChildNodes();
 
-        this.content = await this.contentDecoder.finalize();
+        this.content = this.contentDecoder ? await this.contentDecoder.finalize() : null;
 
         this.state = 'finished';
     }
@@ -208,13 +212,13 @@ export default class MimeNode {
 
                 switch (key.toLowerCase()) {
                     case 'content-type':
-                        this.contentType = { value };
+                        this.contentType = { value, parsed: {} };
                         break;
                     case 'content-transfer-encoding':
-                        this.contentTransferEncoding = { value };
+                        this.contentTransferEncoding = { value, parsed: {} };
                         break;
                     case 'content-disposition':
-                        this.contentDisposition = { value };
+                        this.contentDisposition = { value, parsed: {} };
                         break;
                     case 'content-id':
                         this.contentId = value;

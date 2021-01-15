@@ -205,7 +205,7 @@ export default class PostalMime {
             buf = textEncoder.encode(buf);
         }
 
-        if (buf instanceof Blob) {
+        if (buf instanceof Blob || Object.prototype.toString.call(buf) === '[object Blob]') {
             // can't process blob directly, cast to ArrayBuffer
             buf = await blobToArrayBuffer(buf);
         }

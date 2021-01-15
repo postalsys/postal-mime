@@ -79,6 +79,21 @@ console.log(email.subject);
 console.log(email.html);
 ```
 
+### Node.js
+
+Even though PostalMime is built for the browser environment you can also use it in Node.js with a few tweaks. Notably you'd need to register a global _Blob_ class that is not available by default in Node.
+
+```js
+// Set up global Blob
+// $ npm install cross-blob
+globalThis.Blob = require('cross-blob');
+// Require Node.js version of the library
+const PostalMime = require('postal-mime/dist/node').postalMime.default;
+
+// Use PostalMime as you'd normally do
+new PostalMime().parse('Subject: test').then(res => console.log(res));
+```
+
 #### parser.parse()
 
 ```js
