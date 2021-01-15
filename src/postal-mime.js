@@ -200,6 +200,9 @@ export default class PostalMime {
         }
         this.started = true;
 
+        // should it thrown on empty value instead?
+        buf = buf || ArrayBuffer(0);
+
         if (typeof buf === 'string') {
             // cast string input to ArrayBuffer
             buf = textEncoder.encode(buf);
@@ -208,6 +211,11 @@ export default class PostalMime {
         if (buf instanceof Blob || Object.prototype.toString.call(buf) === '[object Blob]') {
             // can't process blob directly, cast to ArrayBuffer
             buf = await blobToArrayBuffer(buf);
+        }
+
+        if (buf.buffer instanceof ArrayBuffer) {
+            // Node.js Buffer object or Uint8Array
+            buf = new Uint8Array(buf).buffer;
         }
 
         this.buf = buf;

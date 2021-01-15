@@ -102,7 +102,7 @@ parser.parse(email) -> Promise
 
 Where
 
--   **email** is the rfc822 formatted email. Either a string, an ArrayBuffer or a Blob object
+-   **email** is the rfc822 formatted email. Either a string, an ArrayBuffer, a Blob object or a Node.js Buffer
 
 > **NB** you can call `parse()` only once. If you need to parse another message, create a new _PostalMime_ object.
 
