@@ -1,4 +1,4 @@
-import { getDecoder, decodeParameterValueContinuations } from './decode-strings';
+import { getDecoder, decodeParameterValueContinuations, textEncoder } from './decode-strings';
 import PassThroughDecoder from './pass-through-decoder';
 import Base64Decoder from './base64-decoder';
 import QPDecoder from './qp-decoder';
@@ -7,7 +7,7 @@ export default class MimeNode {
     constructor(opts) {
         opts = opts || {};
 
-        this.parser = opts.parser;
+        this.postalMime = opts.postalMime;
 
         this.root = !!opts.parentNode;
         this.childNodes = [];
@@ -57,7 +57,7 @@ export default class MimeNode {
         }
 
         // remove self from boundary listing
-        let boundaries = this.parser.boundaries;
+        let boundaries = this.postalMime.boundaries;
         for (let i = boundaries.length - 1; i >= 0; i--) {
             let boundary = boundaries[i];
             if (boundary.node === this) {
@@ -234,8 +234,8 @@ export default class MimeNode {
 
         if (this.contentType.multipart && this.contentType.parsed.params.boundary) {
             // add self to boundary terminator listing
-            this.parser.boundaries.push({
-                value: this.contentType.parsed.params.boundary,
+            this.postalMime.boundaries.push({
+                value: textEncoder.encode(this.contentType.parsed.params.boundary),
                 node: this
             });
         }

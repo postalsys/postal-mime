@@ -1,12 +1,12 @@
 import MimeNode from './mime-node';
-import { textToHtml, htmlToText } from './text-format';
+import { textToHtml, htmlToText, formatTextHeader, formatHtmlHeader } from './text-format';
 import addressParser from './address-parser';
 import { decodeWords, textEncoder, blobToArrayBuffer } from './decode-strings';
 
 export default class PostalMime {
     constructor() {
         this.root = this.currentNode = new MimeNode({
-            parser: this
+            postalMime: this
         });
         this.boundaries = [];
 
@@ -40,10 +40,15 @@ export default class PostalMime {
                     continue;
                 }
 
+                let boudaryMatches = true;
                 for (let i = 0; i < boundary.value.length; i++) {
-                    if (line[i + 2] !== boundary.value[0]) {
-                        continue;
+                    if (line[i + 2] !== boundary.value[i]) {
+                        boudaryMatches = false;
+                        break;
                     }
+                }
+                if (!boudaryMatches) {
+                    continue;
                 }
 
                 if (isTerminator) {
@@ -55,7 +60,7 @@ export default class PostalMime {
                     await boundary.node.finalizeChildNodes();
 
                     this.currentNode = new MimeNode({
-                        parser: this,
+                        postalMime: this,
                         parentNode: boundary.node
                     });
                 }
@@ -116,8 +121,34 @@ export default class PostalMime {
             if (!node.contentType.multipart) {
                 // regular node
 
+                // is it inline message/rfc822
+                if (node.contentType.parsed.value === 'message/rfc822' && node.contentDisposition.parsed.value === 'inline' && node.content) {
+                    const subParser = new PostalMime();
+                    node.subMessage = await subParser.parse(node.content);
+
+                    if (!textMap.has(node)) {
+                        textMap.set(node, {});
+                    }
+
+                    let textEntry = textMap.get(node);
+
+                    if (node.subMessage.text) {
+                        textEntry.plain = (textEntry.plain || '') + formatTextHeader(node.subMessage) + node.subMessage.text;
+                        textTypes.add('plain');
+                    }
+
+                    if (node.subMessage.html) {
+                        textEntry.html = (textEntry.html || '') + formatHtmlHeader(node.subMessage) + node.subMessage.html;
+                        textTypes.add('html');
+                    }
+
+                    for (let attachment of node.subMessage.attachments || []) {
+                        this.attachments.push(attachment);
+                    }
+                }
+
                 // is it text?
-                if (/^text\//i.test(node.contentType.parsed.value) && node.contentDisposition.parsed.value !== 'attachment') {
+                else if (/^text\//i.test(node.contentType.parsed.value) && node.contentDisposition.parsed.value !== 'attachment') {
                     let textType = node.contentType.parsed.value.substr(node.contentType.parsed.value.indexOf('/') + 1);
                     textTypes.add(textType);
                     let selectorNode = alternative || node;
@@ -126,8 +157,10 @@ export default class PostalMime {
                     } else {
                         textMap.get(selectorNode)[textType] = node.getTextContent();
                     }
-                } else if (node.content) {
-                    // attachment!
+                }
+
+                // is it an attachment
+                else if (node.content) {
                     let filename = node.contentDisposition.parsed.params.filename || node.contentType.parsed.params.name || null;
                     let attachment = {
                         filename: decodeWords(filename),
@@ -154,13 +187,13 @@ export default class PostalMime {
             }
 
             for (let childNode of node.childNodes) {
-                walk(childNode, alternative, related);
+                await walk(childNode, alternative, related);
             }
         };
 
-        walk(this.root, false, []);
+        await walk(this.root, false, []);
 
-        textMap.forEach((mapEntry, key) => {
+        textMap.forEach(mapEntry => {
             textTypes.forEach(textType => {
                 let textVal = textType in mapEntry ? mapEntry[textType] : this.generateTextNode(textType, mapEntry);
 

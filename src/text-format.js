@@ -39,17 +39,18 @@ export function decodeHTMLEntities(str) {
     });
 }
 
+export function escapeHtml(str) {
+    return str.trim().replace(/[<>"'?&]/g, c => {
+        let hex = c.charCodeAt(0).toString(16);
+        if (hex.length < 2) {
+            hex = '0' + hex;
+        }
+        return '&#x' + hex.toUpperCase() + ';';
+    });
+}
+
 export function textToHtml(str) {
-    let html = str
-        .trim()
-        .replace(/[<>"'?&]/g, c => {
-            let hex = c.charCodeAt(0).toString(16);
-            if (hex.length < 2) {
-                hex = '0' + hex;
-            }
-            return '&#' + hex + ';';
-        })
-        .replace(/\n/g, '<br />');
+    let html = escapeHtml(str).replace(/\n/g, '<br />');
     return '<div>' + html + '</div>';
 }
 
@@ -92,4 +93,154 @@ export function htmlToText(str) {
     str = decodeHTMLEntities(str);
 
     return str;
+}
+
+function formatTextAddress(address) {
+    return [address.name || []].concat(address.name ? `<${address.address}>` : address.address).join(' ');
+}
+
+function formatTextAddresses(addresses) {
+    let parts = [];
+
+    let processAddress = (address, partCounter) => {
+        if (partCounter) {
+            parts.push(', ');
+        }
+
+        if (address.group) {
+            let groupStart = `${address.name}:`;
+            let groupEnd = `;`;
+
+            parts.push(groupStart);
+            address.group.forEach(processAddress);
+            parts.push(groupEnd);
+        } else {
+            parts.push(formatTextAddress(address));
+        }
+    };
+
+    addresses.forEach(processAddress);
+
+    return parts.join(' ');
+}
+
+function formatHtmlAddress(address) {
+    return `<a href="mailto:${escapeHtml(address.address)}" class="postal-email-address">${escapeHtml(address.name || `<${address.address}>`)}</a>`;
+}
+
+function formatHtmlAddresses(addresses) {
+    let parts = [];
+
+    let processAddress = (address, partCounter) => {
+        if (partCounter) {
+            parts.push('<span class="postal-email-address-separator">, </span>');
+        }
+
+        if (address.group) {
+            let groupStart = `<span class="postal-email-address-group">${escapeHtml(address.name)}:</span>`;
+            let groupEnd = `<span class="postal-email-address-group">;</span>`;
+
+            parts.push(groupStart);
+            address.group.forEach(processAddress);
+            parts.push(groupEnd);
+        } else {
+            parts.push(formatHtmlAddress(address));
+        }
+    };
+
+    addresses.forEach(processAddress);
+
+    return parts.join(' ');
+}
+
+export function formatTextHeader(message) {
+    let rows = [];
+
+    if (message.from) {
+        rows.push(`From: ${formatTextAddress(message.from)}`);
+    }
+
+    if (message.subject) {
+        rows.push(`Subject: ${escapeHtml(message.subject)}`);
+    }
+
+    if (message.date) {
+        let dateOptions = {
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            second: 'numeric',
+            hour12: false
+        };
+
+        let dateStr = typeof Intl === 'undefined' ? message.date : new Intl.DateTimeFormat('default', dateOptions).format(new Date(message.date));
+
+        rows.push(`Date: ${dateStr}`);
+    }
+
+    if (message.to && message.to.length) {
+        rows.push(`To: ${formatTextAddresses(message.to)}`);
+    }
+
+    if (message.cc && message.cc.length) {
+        rows.push(`Cc: ${formatTextAddresses(message.cc)}`);
+    }
+
+    if (message.bcc && message.bcc.length) {
+        rows.push(`Bcc: ${formatTextAddresses(message.bcc)}`);
+    }
+
+    let template = `
+------------------------------
+${rows.join('\n')}
+------------------------------
+`;
+
+    return template;
+}
+
+export function formatHtmlHeader(message) {
+    let rows = [];
+
+    if (message.from) {
+        rows.push(`<th>From</th><td>${formatHtmlAddress(message.from)}</td>`);
+    }
+
+    if (message.subject) {
+        rows.push(`<th>Subject</th><td>${escapeHtml(message.subject)}</td>`);
+    }
+
+    if (message.date) {
+        let dateOptions = {
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            second: 'numeric',
+            hour12: false
+        };
+
+        let dateStr = typeof Intl === 'undefined' ? message.date : new Intl.DateTimeFormat('default', dateOptions).format(new Date(message.date));
+
+        rows.push(`<th>Date</th><td>${escapeHtml(dateStr)}</td>`);
+    }
+
+    if (message.to && message.to.length) {
+        rows.push(`<th>To</th><td>${formatHtmlAddresses(message.to)}</td>`);
+    }
+
+    if (message.cc && message.cc.length) {
+        rows.push(`<th>Cc</th><td>${formatHtmlAddresses(message.cc)}</td>`);
+    }
+
+    if (message.bcc && message.bcc.length) {
+        rows.push(`<th>Bcc</th><td>${formatHtmlAddresses(message.bcc)}</td>`);
+    }
+
+    let template = `<table>${rows.length ? '<tr>' : ''}${rows.join('</tr><tr>')}${rows.length ? '</tr>' : ''}</table>`;
+
+    return template;
 }

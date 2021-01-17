@@ -232,7 +232,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
                 hour12: false
             };
 
-
             document.querySelector("#date-container .content").textContent= new Intl.DateTimeFormat('default', dateOptions).format(new Date(email.date));
         }else{
             document.getElementById("date-container").style.display = 'none';

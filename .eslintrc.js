@@ -16,6 +16,7 @@ module.exports = {
         TextEncoder: 'readable',
         Blob: 'readable',
         FileReader: 'readable',
-        console: 'readable'
+        console: 'readable',
+        Intl: 'readable'
     }
 };
