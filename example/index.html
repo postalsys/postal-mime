@@ -21,11 +21,11 @@
         }
 
         #html-content iframe {
-            width: 100%;
-            height: 600px;
-            border: 1px solid #eee;
+            width: 1px;
+            min-width: 100%;
             padding: 0;
             margin: 0;
+            border: 0;
         }
 
         #text-content {
@@ -145,10 +145,13 @@
     </div>
 </div>
 
+<script src="../node_modules/iframe-resizer/js/iframeResizer.min.js"></script>
 <script src="../dist/postal-mime.js"></script>
 <script>
 
 document.addEventListener('DOMContentLoaded', ()=>{
+
+    let iframeResizer;
 
     function formatAddress(address){
         const a = document.createElement('a');
@@ -241,9 +244,15 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
         const htmlContainerElm = document.getElementById("html-container");
         const htmlContentElm = document.getElementById("html-content");
+
+        if(iframeResizer){
+            iframeResizer.close()
+        }
+
         htmlContentElm.innerHTML = '';
         if(email.html){
             const htmlIframe = document.createElement('iframe');
+            htmlIframe.setAttribute('id', 'myIframe');
 
             // div tag in which iframe will be added should have id attribute with value myDIV
             htmlContentElm.appendChild(htmlIframe);
@@ -259,6 +268,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
             cssLink.rel = "stylesheet";
             htmlIframe.contentWindow.document.getElementsByTagName("head")[0].appendChild(cssLink);
 
+            const iframeScript = document.createElement("script");
+            iframeScript.setAttribute('src', '../node_modules/iframe-resizer/js/iframeResizer.contentWindow.min.js');
+            htmlIframe.contentWindow.document.getElementsByTagName("head")[0].appendChild(iframeScript);
+
             htmlIframe.contentWindow.document.querySelectorAll('img').forEach(img=>{
                 if(/^cid:/.test(img.src)){
                     // replace with inline attachment
@@ -269,6 +282,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
                     }
                 }
             });
+
+            iframeResizer = iFrameResize({ checkOrigin: false }, '#myIframe');
         }else{
             htmlContainerElm.style.display = 'none';
         }

@@ -4,6 +4,8 @@ td,
 th {
     font-family: Sans-serif;
     font-size: 13px;
+    padding: 0;
+    margin: 0;
 }
 
 div.postal-email-header {
