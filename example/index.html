@@ -284,6 +284,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
                 }
             });
 
+            htmlIframe.contentWindow.document.querySelectorAll('a').forEach(a=>{
+                a.setAttribute('target', '_blank');
+            });
+
             iframeResizer = iFrameResize({ checkOrigin: false }, '#myIframe');
         }else{
             htmlContainerElm.style.display = 'none';
