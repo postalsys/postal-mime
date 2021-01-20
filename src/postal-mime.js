@@ -112,7 +112,7 @@ export default class PostalMime {
         let textContent = {};
 
         let textTypes = new Set();
-        let textMap = new Map();
+        let textMap = (this.textMap = new Map());
 
         let walk = async (node, alternative, related) => {
             alternative = alternative || false;
@@ -133,13 +133,21 @@ export default class PostalMime {
                     let textEntry = textMap.get(node);
 
                     if (node.subMessage.text) {
-                        textEntry.plain = (textEntry.plain || '') + formatTextHeader(node.subMessage) + node.subMessage.text;
+                        textEntry.plain = textEntry.plain || [];
+                        textEntry.plain.push({ type: 'subMessage', value: node.subMessage });
                         textTypes.add('plain');
                     }
 
                     if (node.subMessage.html) {
-                        textEntry.html = (textEntry.html || '') + formatHtmlHeader(node.subMessage) + node.subMessage.html;
+                        textEntry.html = textEntry.html || [];
+                        textEntry.html.push({ type: 'subMessage', value: node.subMessage });
                         textTypes.add('html');
+                    }
+
+                    if (subParser.textMap) {
+                        subParser.textMap.forEach((subTextEntry, subTextNode) => {
+                            textMap.set(subTextNode, subTextEntry);
+                        });
                     }
 
                     for (let attachment of node.subMessage.attachments || []) {
@@ -150,13 +158,16 @@ export default class PostalMime {
                 // is it text?
                 else if (/^text\//i.test(node.contentType.parsed.value) && node.contentDisposition.parsed.value !== 'attachment') {
                     let textType = node.contentType.parsed.value.substr(node.contentType.parsed.value.indexOf('/') + 1);
-                    textTypes.add(textType);
+
                     let selectorNode = alternative || node;
                     if (!textMap.has(selectorNode)) {
-                        textMap.set(selectorNode, { [textType]: node.getTextContent() });
-                    } else {
-                        textMap.get(selectorNode)[textType] = node.getTextContent();
+                        textMap.set(selectorNode, {});
                     }
+
+                    let textEntry = textMap.get(selectorNode);
+                    textEntry[textType] = textEntry[textType] || [];
+                    textEntry[textType].push({ type: 'text', value: node.getTextContent() });
+                    textTypes.add(textType);
                 }
 
                 // is it an attachment
@@ -195,12 +206,69 @@ export default class PostalMime {
 
         textMap.forEach(mapEntry => {
             textTypes.forEach(textType => {
-                let textVal = textType in mapEntry ? mapEntry[textType] : this.generateTextNode(textType, mapEntry);
-
                 if (!textContent[textType]) {
                     textContent[textType] = [];
                 }
-                textContent[textType].push(textVal);
+
+                if (mapEntry[textType]) {
+                    mapEntry[textType].forEach(textEntry => {
+                        switch (textEntry.type) {
+                            case 'text':
+                                textContent[textType].push(textEntry.value);
+                                break;
+                            case 'subMessage':
+                                {
+                                    switch (textType) {
+                                        case 'html':
+                                            textContent[textType].push(formatHtmlHeader(textEntry.value));
+                                            break;
+                                        case 'plain':
+                                            textContent[textType].push(formatTextHeader(textEntry.value));
+                                            break;
+                                    }
+                                }
+                                break;
+                        }
+                    });
+                } else {
+                    let alternativeType;
+                    switch (textType) {
+                        case 'html':
+                            alternativeType = 'plain';
+                            break;
+                        case 'plain':
+                            alternativeType = 'html';
+                            break;
+                    }
+
+                    (mapEntry[alternativeType] || []).forEach(textEntry => {
+                        switch (textEntry.type) {
+                            case 'text':
+                                switch (textType) {
+                                    case 'html':
+                                        textContent[textType].push(textToHtml(textEntry.value));
+                                        break;
+                                    case 'plain':
+                                        textContent[textType].push(htmlToText(textEntry.value));
+                                        break;
+                                }
+                                break;
+
+                            case 'subMessage':
+                                {
+                                    switch (textType) {
+                                        case 'html':
+                                            textContent[textType].push(formatHtmlHeader(textEntry.value));
+                                            break;
+                                        case 'plain':
+                                            textContent[textType].push(formatTextHeader(textEntry.value));
+                                            break;
+                                    }
+                                }
+                                break;
+                        }
+                    });
+                }
             });
         });
 
@@ -209,22 +277,6 @@ export default class PostalMime {
         });
 
         this.textContent = textContent;
-    }
-
-    generateTextNode(textType, mapEntry) {
-        switch (textType) {
-            case 'html':
-                if (mapEntry.plain) {
-                    return textToHtml(mapEntry.plain);
-                }
-                break;
-            case 'plain':
-                if (mapEntry.html) {
-                    return htmlToText(mapEntry.html);
-                }
-                break;
-        }
-        return '';
     }
 
     async parse(buf) {

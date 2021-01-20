@@ -161,7 +161,7 @@ export function formatTextHeader(message) {
     }
 
     if (message.subject) {
-        rows.push(`Subject: ${escapeHtml(message.subject)}`);
+        rows.push(`Subject: ${message.subject}`);
     }
 
     if (message.date) {
@@ -205,11 +205,15 @@ export function formatHtmlHeader(message) {
     let rows = [];
 
     if (message.from) {
-        rows.push(`<th>From</th><td>${formatHtmlAddress(message.from)}</td>`);
+        rows.push(`<div class="postal-email-header-key">From</div><div class="postal-email-header-value">${formatHtmlAddress(message.from)}</div>`);
     }
 
     if (message.subject) {
-        rows.push(`<th>Subject</th><td>${escapeHtml(message.subject)}</td>`);
+        rows.push(
+            `<div class="postal-email-header-key">Subject</div><div class="postal-email-header-value postal-email-header-subject">${escapeHtml(
+                message.subject
+            )}</div>`
+        );
     }
 
     if (message.date) {
@@ -225,22 +229,28 @@ export function formatHtmlHeader(message) {
 
         let dateStr = typeof Intl === 'undefined' ? message.date : new Intl.DateTimeFormat('default', dateOptions).format(new Date(message.date));
 
-        rows.push(`<th>Date</th><td>${escapeHtml(dateStr)}</td>`);
+        rows.push(
+            `<div class="postal-email-header-key">Date</div><div class="postal-email-header-value postal-email-header-date" data-date="${escapeHtml(
+                message.date
+            )}">${escapeHtml(dateStr)}</div>`
+        );
     }
 
     if (message.to && message.to.length) {
-        rows.push(`<th>To</th><td>${formatHtmlAddresses(message.to)}</td>`);
+        rows.push(`<div class="postal-email-header-key">To</div><div class="postal-email-header-value">${formatHtmlAddresses(message.to)}</div>`);
     }
 
     if (message.cc && message.cc.length) {
-        rows.push(`<th>Cc</th><td>${formatHtmlAddresses(message.cc)}</td>`);
+        rows.push(`<div class="postal-email-header-key">Cc</div><div class="postal-email-header-value">${formatHtmlAddresses(message.cc)}</div>`);
     }
 
     if (message.bcc && message.bcc.length) {
-        rows.push(`<th>Bcc</th><td>${formatHtmlAddresses(message.bcc)}</td>`);
+        rows.push(`<div class="postal-email-header-key">Bcc</div><div class="postal-email-header-value">${formatHtmlAddresses(message.bcc)}</div>`);
     }
 
-    let template = `<table>${rows.length ? '<tr>' : ''}${rows.join('</tr><tr>')}${rows.length ? '</tr>' : ''}</table>`;
+    let template = `<div class="postal-email-header">${rows.length ? '<div class="postal-email-header-row">' : ''}${rows.join(
+        '</div>\n<div class="postal-email-header-row">'
+    )}${rows.length ? '</div>' : ''}</div>`;
 
     return template;
 }
