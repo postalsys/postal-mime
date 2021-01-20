@@ -246,7 +246,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
         const htmlContentElm = document.getElementById("html-content");
 
         if(iframeResizer){
-            iframeResizer.close()
+            iframeResizer[0].iFrameResizer.close()
+            iframeResizer = false;
         }
 
         htmlContentElm.innerHTML = '';
