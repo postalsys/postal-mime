@@ -96,7 +96,10 @@ export function htmlToText(str) {
 }
 
 function formatTextAddress(address) {
-    return [address.name || []].concat(address.name ? `<${address.address}>` : address.address).join(' ');
+    return []
+        .concat(address.name || [])
+        .concat(address.name ? `<${address.address}>` : address.address)
+        .join(' ');
 }
 
 function formatTextAddresses(addresses) {
@@ -121,7 +124,7 @@ function formatTextAddresses(addresses) {
 
     addresses.forEach(processAddress);
 
-    return parts.join(' ');
+    return parts.join('');
 }
 
 function formatHtmlAddress(address) {
@@ -153,15 +156,52 @@ function formatHtmlAddresses(addresses) {
     return parts.join(' ');
 }
 
+function foldLines(str, lineLength, afterSpace) {
+    str = (str || '').toString();
+    lineLength = lineLength || 76;
+
+    let pos = 0,
+        len = str.length,
+        result = '',
+        line,
+        match;
+
+    while (pos < len) {
+        line = str.substr(pos, lineLength);
+        if (line.length < lineLength) {
+            result += line;
+            break;
+        }
+        if ((match = line.match(/^[^\n\r]*(\r?\n|\r)/))) {
+            line = match[0];
+            result += line;
+            pos += line.length;
+            continue;
+        } else if ((match = line.match(/(\s+)[^\s]*$/)) && match[0].length - (afterSpace ? (match[1] || '').length : 0) < line.length) {
+            line = line.substr(0, line.length - (match[0].length - (afterSpace ? (match[1] || '').length : 0)));
+        } else if ((match = str.substr(pos + line.length).match(/^[^\s]+(\s*)/))) {
+            line = line + match[0].substr(0, match[0].length - (!afterSpace ? (match[1] || '').length : 0));
+        }
+
+        result += line;
+        pos += line.length;
+        if (pos < len) {
+            result += '\r\n';
+        }
+    }
+
+    return result;
+}
+
 export function formatTextHeader(message) {
     let rows = [];
 
     if (message.from) {
-        rows.push(`From: ${formatTextAddress(message.from)}`);
+        rows.push({ key: 'From', val: formatTextAddress(message.from) });
     }
 
     if (message.subject) {
-        rows.push(`Subject: ${message.subject}`);
+        rows.push({ key: 'Subject', val: message.subject });
     }
 
     if (message.date) {
@@ -177,25 +217,67 @@ export function formatTextHeader(message) {
 
         let dateStr = typeof Intl === 'undefined' ? message.date : new Intl.DateTimeFormat('default', dateOptions).format(new Date(message.date));
 
-        rows.push(`Date: ${dateStr}`);
+        rows.push({ key: 'Date', val: dateStr });
     }
 
     if (message.to && message.to.length) {
-        rows.push(`To: ${formatTextAddresses(message.to)}`);
+        rows.push({ key: 'To', val: formatTextAddresses(message.to) });
     }
 
     if (message.cc && message.cc.length) {
-        rows.push(`Cc: ${formatTextAddresses(message.cc)}`);
+        rows.push({ key: 'Cc', val: formatTextAddresses(message.cc) });
     }
 
     if (message.bcc && message.bcc.length) {
-        rows.push(`Bcc: ${formatTextAddresses(message.bcc)}`);
+        rows.push({ key: 'Bcc', val: formatTextAddresses(message.bcc) });
     }
 
+    // Align keys and values by adding space between these two
+    // Also make sure that the separator line is as long as the longest line
+    // Should end up with something like this:
+    /*
+    -----------------------------
+    From:    xx xx <xxx@xxx.com>
+    Subject: Example Subject
+    Date:    16/02/2021, 02:57:06
+    To:      not@found.com
+    -----------------------------
+    */
+
+    let maxKeyLength = rows
+        .map(r => r.key.length)
+        .reduce((acc, cur) => {
+            return cur > acc ? cur : acc;
+        }, 0);
+
+    rows = rows.flatMap(row => {
+        let sepLen = maxKeyLength - row.key.length;
+        let prefix = `${row.key}: ${' '.repeat(sepLen)}`;
+        let emptyPrefix = `${' '.repeat(row.key.length + 1)} ${' '.repeat(sepLen)}`;
+
+        let foldedLines = foldLines(row.val, 80, true)
+            .split(/\r?\n/)
+            .map(line => line.trim());
+
+        return foldedLines.map((line, i) => `${i ? emptyPrefix : prefix}${line}`);
+    });
+
+    console.log(rows);
+    console.log(rows.map(r => r.length));
+
+    let maxLineLength = rows
+        .map(r => r.length)
+        .reduce((acc, cur) => {
+            return cur > acc ? cur : acc;
+        }, 0);
+    console.log(maxLineLength);
+
+    let lineMarker = '-'.repeat(maxLineLength);
+
     let template = `
-------------------------------
+${lineMarker}
 ${rows.join('\n')}
-------------------------------
+${lineMarker}
 `;
 
     return template;

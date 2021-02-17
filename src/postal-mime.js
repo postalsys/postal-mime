@@ -122,7 +122,7 @@ export default class PostalMime {
                 // regular node
 
                 // is it inline message/rfc822
-                if (node.contentType.parsed.value === 'message/rfc822' && node.contentDisposition.parsed.value === 'inline' && node.content) {
+                if (node.contentType.parsed.value === 'message/rfc822' && node.contentDisposition.parsed.value !== 'attachment') {
                     const subParser = new PostalMime();
                     node.subMessage = await subParser.parse(node.content);
 
@@ -132,7 +132,8 @@ export default class PostalMime {
 
                     let textEntry = textMap.get(node);
 
-                    if (node.subMessage.text) {
+                    // default to text if there is no content
+                    if (node.subMessage.text || !node.subMessage.html) {
                         textEntry.plain = textEntry.plain || [];
                         textEntry.plain.push({ type: 'subMessage', value: node.subMessage });
                         textTypes.add('plain');
@@ -156,8 +157,14 @@ export default class PostalMime {
                 }
 
                 // is it text?
-                else if (/^text\//i.test(node.contentType.parsed.value) && node.contentDisposition.parsed.value !== 'attachment') {
+                else if (
+                    (/^text\//i.test(node.contentType.parsed.value) || node.contentType.parsed.value === 'message/delivery-status') &&
+                    node.contentDisposition.parsed.value !== 'attachment'
+                ) {
                     let textType = node.contentType.parsed.value.substr(node.contentType.parsed.value.indexOf('/') + 1);
+                    if (node.contentType.parsed.value === 'message/delivery-status') {
+                        textType = 'plain';
+                    }
 
                     let selectorNode = alternative || node;
                     if (!textMap.has(selectorNode)) {
@@ -216,6 +223,7 @@ export default class PostalMime {
                             case 'text':
                                 textContent[textType].push(textEntry.value);
                                 break;
+
                             case 'subMessage':
                                 {
                                     switch (textType) {
