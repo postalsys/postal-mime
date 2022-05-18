@@ -197,7 +197,7 @@ export default class MimeNode {
     }
 
     processHeaders() {
-        for (let i = this.headerLines.length - 1; i >= 0; i--) {
+        for (let i = 0; i <= this.headerLines.length - 1; i++) {
             let line = this.headerLines[i];
             if (i && /^\s/.test(line)) {
                 this.headerLines[i - 1] += '\n' + line;
