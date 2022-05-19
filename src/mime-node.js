@@ -202,31 +202,30 @@ export default class MimeNode {
             if (i && /^\s/.test(line)) {
                 this.headerLines[i - 1] += '\n' + line;
                 this.headerLines.splice(i, 1);
-            }
-        }
+            } else {
+                // remove folding and extra WS
+                line = line.replace(/\s+/g, ' ');
+                let sep = line.indexOf(':');
+                let key = sep < 0 ? line.trim() : line.substr(0, sep).trim();
+                let value = sep < 0 ? '' : line.substr(sep + 1).trim();
+                this.headers.push({ key: key.toLowerCase(), originalKey: key, value });
 
-        for (let i = 0; i <= this.headerLines.length - 1; i++) {
-            let line = this.headerLines[i];
-            // remove folding and extra WS
-            line = line.replace(/\s+/g, ' ');
-            let sep = line.indexOf(':');
-            let key = sep < 0 ? line.trim() : line.substr(0, sep).trim();
-            let value = sep < 0 ? '' : line.substr(sep + 1).trim();
-            this.headers.push({ key: key.toLowerCase(), originalKey: key, value });
-
-            switch (key.toLowerCase()) {
-                case 'content-type':
-                    this.contentType = { value, parsed: {} };
-                    break;
-                case 'content-transfer-encoding':
-                    this.contentTransferEncoding = { value, parsed: {} };
-                    break;
-                case 'content-disposition':
-                    this.contentDisposition = { value, parsed: {} };
-                    break;
-                case 'content-id':
-                    this.contentId = value;
-                    break;
+                switch (key.toLowerCase()) {
+                    case 'content-type':
+                        if (!this.contentType) {
+                            this.contentType = { value, parsed: {} };
+                        }
+                        break;
+                    case 'content-transfer-encoding':
+                        this.contentTransferEncoding = { value, parsed: {} };
+                        break;
+                    case 'content-disposition':
+                        this.contentDisposition = { value, parsed: {} };
+                        break;
+                    case 'content-id':
+                        this.contentId = value;
+                        break;
+                }
             }
         }
 
