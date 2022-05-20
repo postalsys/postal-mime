@@ -21,7 +21,8 @@ export default class MimeNode {
         this.decoders = new Map();
 
         this.contentType = {
-            value: 'text/plain'
+            value: 'text/plain',
+            default: true
         };
 
         this.contentTransferEncoding = {
@@ -212,7 +213,7 @@ export default class MimeNode {
 
                 switch (key.toLowerCase()) {
                     case 'content-type':
-                        if (!this.contentType) {
+                        if (this.contentType.default) {
                             this.contentType = { value, parsed: {} };
                         }
                         break;
