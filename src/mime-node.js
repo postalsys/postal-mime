@@ -212,7 +212,9 @@ export default class MimeNode {
 
                 switch (key.toLowerCase()) {
                     case 'content-type':
-                        this.contentType = { value, parsed: {} };
+                        if (!this.contentType) {
+                            this.contentType = { value, parsed: {} };
+                        }
                         break;
                     case 'content-transfer-encoding':
                         this.contentTransferEncoding = { value, parsed: {} };
