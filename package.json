@@ -3,6 +3,7 @@
     "version": "1.0.13",
     "description": "Email parser for browser environments",
     "main": "dist/postal-mime.js",
+    "types": "postal-mime.d.ts",
     "scripts": {
         "test": "eslint",
         "build": "webpack",
