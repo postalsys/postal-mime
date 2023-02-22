@@ -1,6 +1,6 @@
 {
     "name": "postal-mime",
-    "version": "1.0.13",
+    "version": "1.0.14",
     "description": "Email parser for browser environments",
     "main": "dist/postal-mime.js",
     "types": "postal-mime.d.ts",
@@ -18,12 +18,12 @@
     "author": "Andris Reinman",
     "license": "AGPL-3.0-or-later",
     "devDependencies": {
-        "cross-blob": "3.0.2",
-        "eslint": "8.34.0",
+        "cross-blob": "2.0.0",
+        "eslint": "8.15.0",
         "eslint-cli": "1.1.1",
-        "iframe-resizer": "4.3.4",
-        "webpack": "5.75.0",
-        "webpack-cli": "5.0.1",
+        "iframe-resizer": "4.3.2",
+        "webpack": "5.72.1",
+        "webpack-cli": "4.9.2",
         "cross-env": "7.0.3"
     }
 }
