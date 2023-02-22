@@ -7,7 +7,7 @@
     "scripts": {
         "test": "eslint",
         "build": "webpack",
-        "prepare": "rm -rf dist/postal-mime.js && NODE_ENV=production npm run build && echo prepared",
+        "prepare": "rm -f dist/* && cross-env NODE_ENV=production npm run build && echo prepared",
         "prepublish": "npm run prepare"
     },
     "keywords": [
@@ -23,6 +23,7 @@
         "eslint-cli": "1.1.1",
         "iframe-resizer": "4.3.2",
         "webpack": "5.72.1",
-        "webpack-cli": "4.9.2"
+        "webpack-cli": "4.9.2",
+        "cross-env": "7.0.3"
     }
 }
