@@ -8,22 +8,30 @@
         "test": "eslint",
         "build": "webpack",
         "prepare": "rm -f dist/* && cross-env NODE_ENV=production npm run build && echo prepared",
-        "prepublish": "npm run prepare"
+        "prepublish": "npm run prepare",
+        "update": "rm -rf node_modules package-lock.json && ncu -u && npm install"
     },
     "keywords": [
         "mime",
         "webpack",
         "email"
     ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/postalsys/postal-mime.git"
+    },
+    "bugs": {
+        "url": "https://github.com/postalsys/postal-mime/issues"
+    },
     "author": "Andris Reinman",
     "license": "AGPL-3.0-or-later",
     "devDependencies": {
         "cross-blob": "3.0.2",
-        "eslint": "8.36.0",
+        "eslint": "8.52.0",
         "eslint-cli": "1.1.1",
-        "iframe-resizer": "4.3.6",
-        "webpack": "5.76.1",
-        "webpack-cli": "5.0.1",
+        "iframe-resizer": "4.3.7",
+        "webpack": "5.89.0",
+        "webpack-cli": "5.1.4",
         "cross-env": "7.0.3"
     }
 }
