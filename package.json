@@ -24,7 +24,7 @@
         "url": "https://github.com/postalsys/postal-mime/issues"
     },
     "author": "Andris Reinman",
-    "license": "AGPL-3.0-or-later",
+    "license": "MIT-0",
     "devDependencies": {
         "cross-blob": "3.0.2",
         "eslint": "8.52.0",
