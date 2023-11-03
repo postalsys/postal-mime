@@ -108,8 +108,6 @@ This method parses an email message into a structured object with the following 
 
 ## License
 
-&copy; 2021 Andris Reinman
+&copy; 2021-2023 Andris Reinman
 
-Licensed under GNU Affero General Public License v3.0 or later.
-
-MIT-licensed version of postal-mime is available for [Postal Systems subscribers](https://postalsys.com/).
+`postal-mime` is licensed under the **MIT No Attribution license**
