@@ -1,343 +1,179 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8">
-    <title>PostalMime</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <head>
+        <meta charset="utf-8" />
+        <title>PostalMime</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <style>
-        body {
-            font-family: sans-serif;
-            font-size: 13px;
-        }
+        <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+            integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN"
+            crossorigin="anonymous"
+        />
 
-        #main {
-            width: 900px;
-            margin: 20px auto;
-        }
+        <script
+            src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
+            crossorigin="anonymous"
+        ></script>
 
-        #mimeform {
-            padding: 20px 0;
-        }
-
-        #html-content iframe {
-            width: 1px;
-            min-width: 100%;
-            padding: 0;
-            margin: 0;
-            border: 0;
-        }
-
-        #text-content {
-            font-family: Sans-serif;
-            white-space: pre-wrap;
-            border: none;
-            font-family: Sans-serif;
-            font-size: 13px;
-        }
-
-        .email-info-row {
-            display: flex;
-        }
-
-        .email-info-label {
-            margin-right: 5px;
-        }
-
-        #attachments-container .content {
-            display: flex;
-        }
-
-        #html-container, #text-container, #attachments-container {
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid #aaa;
-        }
-
-        .container-label {
-            font-weight: 900;
-            padding-bottom: 5px;
-        }
-
-        .attachment-link {
-            display: block;
-            margin-right: 5px;
-            padding: 5px;
-            border: 1px solid #aaa;
-            border-radius: 2px;
-        }
-
-        a {
-            text-decoration: none;
-        }
-
-        a:hover {
-            text-decoration: underline;
-        }
-
-        #subject-content{
-            font-weight: 900;
-            font-size: 1.2rem;
-        }
-
-        .email-info-row {
-            padding-top: 5px;
-        }
-
-
-    </style>
-
-  </head>
-  <body>
-
-<div id="main">
-    <div>
-        <h1>Front-end Email Parser Demo</h1>
-        <p>This demo takes a raw RFC822 formatted email message file (.eml format), parses and decodes it's contents and renders the email on this page.</p>
-        
-        <p>Data never leaves your computer as parsing is done in the browser, there is no server component.</p>
-        <p>Tested on latest Chrome, Firefox and Safari. Does not work on Internet Explorer.</p>
-        
-        <p><a href="https://github.com/postalsys/postal-mime">Source</a></p>
-
-        <ul>
-            <li>Fast and efficient, built for the browser environment.</li>
-            <li>Can be run in Web Workers</li>
-            <li>Uses ArrayBuffers for all binary data, no Buffer shims or pseudo-binary strings</li>
-            <li>Can decode Base64, Quoted-Printable, MIME Encoded Words, Flowed Format, and even Parameter Value Continuations for those emojis in attachment filenames</li>
-            <li>Can properly handle charsets for any supported transfer encoding</li>
-            <li>Bundled parser size is 55kB uncompressed</li>
-        </ul>
-
-        <form id="mimeform">
-            <input type="file" id="mime">
-            <button type="submit">Display</button>
-        </form>
-    </div>
-
-    <div id="email-container" style="display: none;">
-
-        <div id="info-container">
-            <div id="subject-content"></div>
-            <div id="from-container" class="email-info-row"><div class="email-info-label">From</div><div class="content"></div></div>
-            <div id="to-container" class="email-info-row"><div class="email-info-label">To</div><div class="content"></div></div>
-            <div id="cc-container" class="email-info-row"><div class="email-info-label">Cc</div><div class="content"></div></div>
-            <div id="bcc-container" class="email-info-row"><div class="email-info-label">Bcc</div><div class="content"></div></div>
-            <div id="date-container" class="email-info-row"><div class="content"></div></div>
-        </div>
-
-        <div id="html-container">
-            <div class="container-label">HTML</div>
-            <div id="html-content"></div>
-            <div><small><em>Images not shown? Mixed content is not allowed, so check that image links are not HTTP if this page is HTTPS.</em></small></div>
-        </div>
-
-        <div id="text-container">
-            <div class="container-label">Text</div>
-            <div id="text-content"></div>
-        </div>
-
-        <div id="attachments-container">
-            <div class="container-label">Attachments</div>
-            <div class="content"></div>
-        </div>
-
-    </div>
-</div>
-
-<script src="../node_modules/iframe-resizer/js/iframeResizer.min.js"></script>
-<script src="../dist/postal-mime.js"></script>
-<script>
-
-document.addEventListener('DOMContentLoaded', ()=>{
-
-    let iframeResizer;
-
-    function formatAddress(address){
-        const a = document.createElement('a');
-        a.classList.add('email-address');
-        a.textContent = address.name || `<${address.address}>`;
-        a.href = `mailto:${address.address}`
-        return a;
-    }
-
-    function formatAddresses(addresses){
-        let parts = [];
-
-        let processAddress = (address, partCounter) => {
-            if(partCounter){
-                let sep = document.createElement('span');
-                sep.classList.add('email-address-separator');
-                sep.textContent = ', ';
-                parts.push(sep);
+        <style>
+            #html-content iframe {
+                width: 1px;
+                min-width: 100%;
+                padding: 0;
+                margin: 0;
+                border: 0;
             }
 
-            if(address.group){
-                let groupStart = document.createElement('span');
-                groupStart.classList.add('email-address-group');
-                let groupEnd = document.createElement('span');
-                groupEnd.classList.add('email-address-group');
-
-                groupStart.textContent = `${address.name}:`;
-                groupEnd.textContent = `;`;
-
-                parts.push(groupStart);
-                address.group.forEach(processAddress);
-                parts.push(groupEnd);
-            }else{
-                parts.push(formatAddress(address));
+            #html-content,
+            #text-content {
+                border: 1px solid #ccc;
             }
-        }
 
-        addresses.forEach(processAddress);
-
-        const result = document.createDocumentFragment();
-        parts.forEach(part=>{
-            result.appendChild(part);
-        });
-        return result;
-    }
-
-    function renderEmail(email){
-
-        document.getElementById("email-container").style.display = 'block';
-
-        if(email.subject){
-            document.getElementById("subject-content").style.display = 'block';
-            document.getElementById("subject-content").textContent = email.subject
-        }else{
-            document.getElementById("subject-content").style.display = 'none';
-        }
-
-        if(email.from){
-            document.getElementById("from-container").style.display = 'flex';
-            document.querySelector("#from-container .content").innerHTML = '';
-            document.querySelector("#from-container .content").appendChild(formatAddress(email.from))
-        }else{
-            document.getElementById("from-container").style.display = 'none';
-        }
-
-        for(let type of ['to', 'cc', 'bcc']){
-            if(email[type] && email[type].length){
-                document.getElementById(`${type}-container`).style.display = 'flex';
-                document.querySelector(`#${type}-container .content`).innerHTML = '';
-                document.querySelector(`#${type}-container .content`).appendChild(formatAddresses(email[type]))
-            }else{
-                document.getElementById(`${type}-container`).style.display = 'none';
+            #text-content {
+                font-family: Sans-serif;
+                white-space: pre-wrap;
+                font-family: Sans-serif;
+                font-size: 13px;
+                padding: 10px;
             }
-        }
 
-        if(email.date){
-            document.getElementById("date-container").style.display = 'flex';
-            document.querySelector("#date-container .content").innerHTML = '';
+            .email-info-row {
+                display: flex;
+            }
 
-            let dateOptions = {
-                year: 'numeric', month: 'numeric', day: 'numeric',
-                hour: 'numeric', minute: 'numeric', second: 'numeric',
-                hour12: false
-            };
+            .email-info-label {
+                margin-right: 5px;
+            }
 
-            document.querySelector("#date-container .content").textContent= new Intl.DateTimeFormat('default', dateOptions).format(new Date(email.date));
-        }else{
-            document.getElementById("date-container").style.display = 'none';
-        }
+            #attachments-container .content {
+                display: flex;
+            }
 
-        const htmlContainerElm = document.getElementById("html-container");
-        const htmlContentElm = document.getElementById("html-content");
+            #html-container,
+            #text-container,
+            #attachments-container {
+                margin-top: 20px;
+                padding-top: 20px;
+                border-top: 1px solid #aaa;
+            }
 
-        if(iframeResizer){
-            iframeResizer[0].iFrameResizer.close()
-            iframeResizer = false;
-        }
+            .container-label {
+                font-weight: 900;
+                padding-bottom: 5px;
+            }
 
-        htmlContentElm.innerHTML = '';
-        if(email.html){
-            const htmlIframe = document.createElement('iframe');
-            htmlIframe.setAttribute('id', 'myIframe');
+            .attachment-link {
+                display: block;
+                margin-right: 5px;
+                padding: 5px;
+                border: 1px solid #aaa;
+                border-radius: 2px;
+            }
 
-            // div tag in which iframe will be added should have id attribute with value myDIV
-            htmlContentElm.appendChild(htmlIframe);
-            htmlContainerElm.style.display = 'block';
+            #subject-content {
+                font-weight: 900;
+                font-size: 1.2rem;
+            }
 
-            htmlIframe.contentWindow.document.open();
-            htmlIframe.contentWindow.document.write(email.html);
-            htmlIframe.contentWindow.document.close();
+            .email-info-row {
+                padding-top: 5px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="col-lg-8 mx-auto p-4 py-md-5">
+            <header class="d-flex align-items-center pb-3 mb-5 border-bottom">
+                <span class="fs-4"> postal-mime – <a href="https://github.com/postalsys/postal-mime">source</a> </span>
+            </header>
 
-            const cssLink = document.createElement("link");
-            cssLink.href = "./email.css";
-            cssLink.type = "text/css";
-            cssLink.rel = "stylesheet";
-            htmlIframe.contentWindow.document.getElementsByTagName("head")[0].appendChild(cssLink);
+            <main>
+                <div>
+                    <h1 class="text-body-emphasis">Front-end Email Parser Demo</h1>
+                    <p class="fs-5">
+                        This demo takes a raw RFC822 formatted email message file (.eml format), parses and decodes its contents and renders the email on this
+                        page.
+                    </p>
 
-            const iframeScript = document.createElement("script");
-            iframeScript.setAttribute('src', '../node_modules/iframe-resizer/js/iframeResizer.contentWindow.min.js');
-            htmlIframe.contentWindow.document.getElementsByTagName("head")[0].appendChild(iframeScript);
+                    <p>Data never leaves your computer as parsing is done in the browser. There is no server component.</p>
 
-            htmlIframe.contentWindow.document.querySelectorAll('img').forEach(img=>{
-                if(/^cid:/.test(img.src)){
-                    // replace with inline attachment
-                    const cid = img.src.substr(4).trim();
-                    const attachment = email.attachments.find(attachment=>attachment.contentId && attachment.contentId === `<${cid}>`);
-                    if(attachment){
-                        img.src = URL.createObjectURL(new Blob([attachment.content], {type: attachment.mimeType}))
-                    }
-                }
-            });
+                    <ul>
+                        <li>Tested on the latest Chrome, Firefox and Safari.</li>
+                        <li>Fast and efficient, built for the browser environment.</li>
+                        <li>It can be run in Web Workers.</li>
+                        <li>Uses ArrayBuffers for binary data like attachments.</li>
+                        <li>
+                            Can decode Base64, Quoted-Printable, MIME Encoded Words, Flowed Format, and even Parameter Value Continuations for those emojis in
+                            attachment filenames.
+                        </li>
+                        <li>Can properly handle charsets for any supported transfer encoding.</li>
+                        <li>Email for parsing can be a String, an ArrayBuffer, or a File input element.</li>
+                    </ul>
 
-            htmlIframe.contentWindow.document.querySelectorAll('a').forEach(a=>{
-                a.setAttribute('target', '_blank');
-            });
+                    <div>
+                        <button class="btn btn-primary" id="open-file">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-envelope-at" viewBox="0 0 16 16">
+                                <path
+                                    d="M2 2a2 2 0 0 0-2 2v8.01A2 2 0 0 0 2 14h5.5a.5.5 0 0 0 0-1H2a1 1 0 0 1-.966-.741l5.64-3.471L8 9.583l7-4.2V8.5a.5.5 0 0 0 1 0V4a2 2 0 0 0-2-2H2Zm3.708 6.208L1 11.105V5.383l4.708 2.825ZM1 4.217V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v.217l-7 4.2-7-4.2Z"
+                                />
+                                <path
+                                    d="M14.247 14.269c1.01 0 1.587-.857 1.587-2.025v-.21C15.834 10.43 14.64 9 12.52 9h-.035C10.42 9 9 10.36 9 12.432v.214C9 14.82 10.438 16 12.358 16h.044c.594 0 1.018-.074 1.237-.175v-.73c-.245.11-.673.18-1.18.18h-.044c-1.334 0-2.571-.788-2.571-2.655v-.157c0-1.657 1.058-2.724 2.64-2.724h.04c1.535 0 2.484 1.05 2.484 2.326v.118c0 .975-.324 1.39-.639 1.39-.232 0-.41-.148-.41-.42v-2.19h-.906v.569h-.03c-.084-.298-.368-.63-.954-.63-.778 0-1.259.555-1.259 1.4v.528c0 .892.49 1.434 1.26 1.434.471 0 .896-.227 1.014-.643h.043c.118.42.617.648 1.12.648Zm-2.453-1.588v-.227c0-.546.227-.791.573-.791.297 0 .572.192.572.708v.367c0 .573-.253.744-.564.744-.354 0-.581-.215-.581-.8Z"
+                                />
+                            </svg>
+                            Select email from disk
+                        </button>
+                    </div>
+                </div>
 
-            iframeResizer = iFrameResize({ checkOrigin: false }, '#myIframe');
-        }else{
-            htmlContainerElm.style.display = 'none';
-        }
+                <div class="mt-3" id="email-container" style="display: none">
+                    <div id="info-container">
+                        <div id="subject-content"></div>
+                        <div id="from-container" class="email-info-row">
+                            <div class="email-info-label">From</div>
+                            <div class="content"></div>
+                        </div>
+                        <div id="to-container" class="email-info-row">
+                            <div class="email-info-label">To</div>
+                            <div class="content"></div>
+                        </div>
+                        <div id="cc-container" class="email-info-row">
+                            <div class="email-info-label">Cc</div>
+                            <div class="content"></div>
+                        </div>
+                        <div id="bcc-container" class="email-info-row">
+                            <div class="email-info-label">Bcc</div>
+                            <div class="content"></div>
+                        </div>
+                        <div id="date-container" class="email-info-row"><div class="content"></div></div>
+                    </div>
 
-        const textContainerElm = document.getElementById("text-container");
-        const textContentElm = document.getElementById("text-content");
-        textContentElm.innerHTML = '';
-        if(email.text){
-            textContentElm.textContent = email.text;
-            textContainerElm.style.display = 'block';
-        }else{
-            textContainerElm.style.display = 'none';
-        }
+                    <div id="html-container">
+                        <div class="container-label">HTML</div>
+                        <div id="html-content"></div>
+                        <div>
+                            <small
+                                ><em>Images not shown? Mixed content is not allowed, so check that image links are not HTTP if this page is HTTPS.</em></small
+                            >
+                        </div>
+                    </div>
 
+                    <div id="text-container">
+                        <div class="container-label">Text</div>
+                        <div id="text-content"></div>
+                    </div>
 
-        if(email.attachments && email.attachments.length){
-            document.getElementById("attachments-container").style.display = 'block';
-            document.querySelector("#attachments-container .content").innerHTML = ''
+                    <div id="attachments-container">
+                        <div class="container-label">Attachments</div>
+                        <div class="content"></div>
+                    </div>
+                </div>
+            </main>
+        </div>
 
-            email.attachments.forEach(attachment=>{
-                const attachmentLink = document.createElement('a');
-                attachmentLink.href = URL.createObjectURL(new Blob([attachment.content], {type: attachment.mimeType}));
-                attachmentLink.download = attachment.filename || 'attachment';
-                attachmentLink.textContent = attachment.filename || `attachment (${attachment.mimeType})`
-                attachmentLink.classList.add('attachment-link');
+        <script src="../node_modules/iframe-resizer/js/iframeResizer.min.js"></script>
 
-                document.querySelector("#attachments-container .content").appendChild(attachmentLink);
-            });
-
-        }else{
-            document.getElementById("attachments-container").style.display = 'none';
-        }
-    }
-
-
-    const PostalMime = postalMime.default;
-
-    document.getElementById('mimeform').addEventListener('submit', e=>{
-        e.preventDefault();
-        
-        const parser = new PostalMime();
-        
-        parser.parse(document.getElementById('mime').files[0])
-        .then(email=>{
-            console.log(JSON.stringify(email, false, 2));
-            renderEmail(email)
-        }).catch(err=>console.error(err))
-    });
-});
-
-</script>
-</body></html>
+        <script type="module" src="./example.js"></script>
+    </body>
+</html>

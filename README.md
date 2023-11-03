@@ -16,8 +16,6 @@ See this [example](https://kreata.ee/postal-mime/example/).
 
 ## Usage
 
-### Free, AGPL-licensed version
-
 First install the module from npm:
 
 ```
@@ -27,71 +25,48 @@ $ npm install postal-mime
 next import the PostalMime class into your script:
 
 ```js
-const { PostalMime } = require('postal-mime');
+import PostalMime from './node_modules/postal-mime/src/postal-mime.js';
 ```
 
-or when using as a global
-
-```html
-<script src="/path/to/postal-mime.js"></script>
-<script>
-    const PostalMime = postalMime.default;
-</script>
-```
-
-### MIT version
-
-MIT-licensed version is available for [Postal Systems subscribers](https://postalsys.com/).
-
-First install the module from Postal Systems private registry:
-
-```
-$ npm install @postalsys/postal-mime
-```
-
-next import the postal-mime class into your script:
+or when using from a Node.js app
 
 ```js
-const { PostalMime } = require('@postalsys/postal-mime');
-```
-
-If you have already built your application using the free version of postal-mime and do not want to modify require statements in your code, you can install the MIT-licensed version as an alias for "postal-mime".
-
-```
-$ npm install postal-mime@npm:@postalsys/postal-mime
-```
-
-This way you can keep using the old module name
-
-```js
-const { PostalMime } = require('postal-mime');
+import PostalMime from 'postal-mime';
 ```
 
 ### Promises
 
 All postal-mime methods use Promises, so you need to wait using `await` or wait for the `then()` method to fire until you get the response.
 
+#### Browser
+
 ```js
-const { PostalMime } = require('postal-mime');
+import PostalMime from './node_modules/postal-mime/src/postal-mime.js';
+
 const parser = new PostalMime();
-const email = await parser.parse(email);
+const email = await parser.parse(`Subject: My awesome email 🤓
+Content-Type: text/html; charset=utf-8
+
+<p>Hello world 😵‍💫</p>`);
+
 console.log(email.subject);
-console.log(email.html);
 ```
 
-### Node.js
+#### Node.js
 
-Even though PostalMime is built for the browser environment you can also use it in Node.js with a few tweaks. Notably you'd need to register a global _Blob_ class that is not available by default in Node.
+It is pretty much the same as in the browser.
 
 ```js
-// Set up global Blob
-// $ npm install cross-blob
-globalThis.Blob = require('cross-blob');
-// Require Node.js version of the library
-const PostalMime = require('postal-mime/dist/node').postalMime.default;
+import PostalMime from 'postal-mime';
+import util from 'node:util';
 
-// Use PostalMime as you'd normally do
-new PostalMime().parse('Subject: test').then(res => console.log(res));
+const parser = new PostalMime();
+const email = await parser.parse(`Subject: My awesome email 🤓
+Content-Type: text/html; charset=utf-8
+
+<p>Hello world 😵‍💫</p>`);
+
+console.log(util.inspect(email, false, 22, true));
 ```
 
 #### parser.parse()

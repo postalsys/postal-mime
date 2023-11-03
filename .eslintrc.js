@@ -2,11 +2,15 @@
 
 module.exports = {
     parserOptions: {
-        ecmaVersion: 2020,
+        ecmaVersion: 2024,
         sourceType: 'module',
         ecmaFeatures: {}
     },
-    env: { es6: true },
+    env: {
+        browser: true,
+        node: true,
+        es2024: true
+    },
     rules: {
         semi: 'error',
         'no-undef': 'error'

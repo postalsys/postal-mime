@@ -1,4 +1,4 @@
-import { decodeWords } from './decode-strings';
+import { decodeWords } from './decode-strings.js';
 
 /**
  * Converts tokens for a single address into an address object

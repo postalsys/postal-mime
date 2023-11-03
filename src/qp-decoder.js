@@ -1,4 +1,4 @@
-import { blobToArrayBuffer } from './decode-strings';
+import { blobToArrayBuffer } from './decode-strings.js';
 
 export default class QPDecoder {
     constructor(opts) {

@@ -1,7 +1,7 @@
-import MimeNode from './mime-node';
-import { textToHtml, htmlToText, formatTextHeader, formatHtmlHeader } from './text-format';
-import addressParser from './address-parser';
-import { decodeWords, textEncoder, blobToArrayBuffer } from './decode-strings';
+import MimeNode from './mime-node.js';
+import { textToHtml, htmlToText, formatTextHeader, formatHtmlHeader } from './text-format.js';
+import addressParser from './address-parser.js';
+import { decodeWords, textEncoder, blobToArrayBuffer } from './decode-strings.js';
 
 export default class PostalMime {
     constructor() {

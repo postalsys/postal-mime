@@ -1,7 +1,7 @@
-import { getDecoder, decodeParameterValueContinuations, textEncoder } from './decode-strings';
-import PassThroughDecoder from './pass-through-decoder';
-import Base64Decoder from './base64-decoder';
-import QPDecoder from './qp-decoder';
+import { getDecoder, decodeParameterValueContinuations, textEncoder } from './decode-strings.js';
+import PassThroughDecoder from './pass-through-decoder.js';
+import Base64Decoder from './base64-decoder.js';
+import QPDecoder from './qp-decoder.js';
 
 export default class MimeNode {
     constructor(opts) {

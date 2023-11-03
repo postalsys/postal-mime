@@ -1,4 +1,4 @@
-import { decodeBase64, blobToArrayBuffer } from './decode-strings';
+import { decodeBase64, blobToArrayBuffer } from './decode-strings.js';
 
 export default class Base64Decoder {
     constructor(opts) {
