@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/postalsys/postal-mime/compare/v1.1.0...v2.0.0) (2023-11-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* **module:** Use as an ES module, do not build with webpack
+
+### Features
+
+* **module:** Use as an ES module, do not build with webpack ([70df152](https://github.com/postalsys/postal-mime/commit/70df152ed66346d1f0ca821a9caeb819255bea89))
+
 ## [1.1.0](https://github.com/postalsys/postal-mime/compare/v1.0.16...v1.1.0) (2023-11-02)
 
 
