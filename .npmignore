@@ -1,5 +1,4 @@
-src
 example
 .prettierrc.js
 .eslintrc
-webpack.config.js
+.github

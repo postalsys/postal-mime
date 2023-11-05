@@ -4,8 +4,6 @@ Email parser for browser environments.
 
 PostalMime can be run in the main web thread or from Web Workers.
 
-PostalMime can be bundled using WebPack. In fact the distribution file is also built with WebPack.
-
 ## Source
 
 Source code is available from [Github](https://github.com/postalsys/postal-mime).
