@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.2](https://github.com/postalsys/postal-mime/compare/v2.0.1...v2.0.2) (2023-12-08)
+
+
+### Bug Fixes
+
+* **test:** Added a tests runner and some tests ([8c6f7fb](https://github.com/postalsys/postal-mime/commit/8c6f7fb495b0158756fc11482a717e8081cede86))
+* **test:** Added test action ([c43c086](https://github.com/postalsys/postal-mime/commit/c43c0865dae74a7f20e32885a5860d8654f0c932))
+
 ## [2.0.1](https://github.com/postalsys/postal-mime/compare/v2.0.0...v2.0.1) (2023-11-05)
 
 
