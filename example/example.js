@@ -163,7 +163,7 @@ function renderEmail(email) {
         htmlIframe.contentWindow.document.close();
 
         const iframeScript = document.createElement('script');
-        iframeScript.setAttribute('src', '../node_modules/iframe-resizer/js/iframeResizer.contentWindow.min.js');
+        iframeScript.setAttribute('src', '../node_modules/iframe-resizer/js/iframeResizer.contentWindow.js');
         htmlIframe.contentWindow.document.getElementsByTagName('head')[0].appendChild(iframeScript);
 
         const cssLink = document.createElement('link');

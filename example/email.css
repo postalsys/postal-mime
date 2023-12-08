@@ -8,6 +8,10 @@ th {
     margin: 0;
 }
 
+body {
+    padding: 10px;
+}
+
 div.postal-email-header {
     margin: 10px 0;
 }
