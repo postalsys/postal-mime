@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/postalsys/postal-mime/compare/v2.0.0...v2.0.1) (2023-11-05)
+
+
+### Bug Fixes
+
+* **npm:** DO not ignore src folder when publishing to npm ([ef8a2df](https://github.com/postalsys/postal-mime/commit/ef8a2df8d65be3dcfc52784c5c73c79f820c1c82))
+
 ## [2.0.0](https://github.com/postalsys/postal-mime/compare/v1.1.0...v2.0.0) (2023-11-03)
 
 
