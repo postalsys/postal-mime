@@ -88,6 +88,5 @@ test('Parse mimetorture email', async t => {
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    console.log(util.inspect(email, false, 22, true));
     assert.strictEqual(email.attachments.length, 9);
 });
