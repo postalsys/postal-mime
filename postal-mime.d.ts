@@ -23,7 +23,7 @@ export type Email = {
 	replyTo?: Address[];
 	deliveredTo?: string;
 	returnPath?: string;
-	to: Address[];
+	to?: Address[];
 	cc?: Address[];
 	bcc?: Address[];
 	subject?: string;
