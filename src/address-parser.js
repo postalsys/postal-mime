@@ -109,6 +109,14 @@ function _handleAddress(tokens) {
         data.text = data.text.join(' ');
         data.address = data.address.join(' ');
 
+        if (!data.address && /^=\?[^=]+?=$/.test(data.text.trim())) {
+            // try to extract words from text content
+            const parsedSubAddresses = addressParser(decodeWords(data.text));
+            if (parsedSubAddresses && parsedSubAddresses.length) {
+                return parsedSubAddresses;
+            }
+        }
+
         if (!data.address && isGroup) {
             return [];
         } else {

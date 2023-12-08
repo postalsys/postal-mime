@@ -9,7 +9,7 @@
     "type": "module",
     "types": "postal-mime.d.ts",
     "scripts": {
-        "test": "eslint",
+        "test": "eslint && node --test",
         "update": "rm -rf node_modules package-lock.json && ncu -u && npm install"
     },
     "keywords": [
@@ -27,9 +27,9 @@
     "license": "MIT-0",
     "devDependencies": {
         "cross-blob": "3.0.2",
-        "eslint": "8.52.0",
+        "eslint": "8.55.0",
         "eslint-cli": "1.1.1",
-        "iframe-resizer": "4.3.7",
+        "iframe-resizer": "4.3.9",
         "cross-env": "7.0.3"
     }
 }
