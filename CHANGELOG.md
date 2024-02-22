@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.1.0](https://github.com/postalsys/postal-mime/compare/v2.0.2...v2.1.0) (2024-02-22)
+
+
+### Features
+
+* **workers:** Support Cloudflare Email Workers out of the box ([4904708](https://github.com/postalsys/postal-mime/commit/49047089bf779931dacb4a7b31816b48d1b00840))
+
+
+### Bug Fixes
+
+* **module:** add types to module exports ([#23](https://github.com/postalsys/postal-mime/issues/23)) ([1ee4a42](https://github.com/postalsys/postal-mime/commit/1ee4a427643d71f6a4bda0db0ebe0b5b280e52ae))
+
 ## [2.0.2](https://github.com/postalsys/postal-mime/compare/v2.0.1...v2.0.2) (2023-12-08)
 
 
