@@ -287,11 +287,40 @@ export default class PostalMime {
         this.textContent = textContent;
     }
 
+    async resolveStream(stream) {
+        let chunkLen = 0;
+        let chunks = [];
+        const reader = stream.getReader();
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+                break;
+            }
+            chunks.push(value);
+            chunkLen += value.length;
+        }
+
+        const result = new Uint8Array(chunkLen);
+        let chunkPointer = 0;
+        for (let chunk of chunks) {
+            result.set(chunk, chunkPointer);
+            chunkPointer += chunk.length;
+        }
+
+        return result;
+    }
+
     async parse(buf) {
         if (this.started) {
             throw new Error('Can not reuse parser, create a new PostalMime object');
         }
         this.started = true;
+
+        // check if the input is a readable stream and resolve it into an ArrayBuffer
+        if (buf && typeof buf.getReader === 'function') {
+            buf = await this.resolveStream(buf);
+        }
 
         // should it thrown on empty value instead?
         buf = buf || ArrayBuffer(0);

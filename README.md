@@ -67,6 +67,25 @@ Content-Type: text/html; charset=utf-8
 console.log(util.inspect(email, false, 22, true));
 ```
 
+#### Cloudflare [Email Workers](https://developers.cloudflare.com/email-routing/email-workers/)
+
+Pretty much the same as in Node.js. Use `message.raw` as the raw message for parsing.
+
+```js
+import PostalMime from 'postal-mime';
+
+export default {
+    async email(message, env, ctx) {
+        const parser = new PostalMime();
+        const email = await parser.parse(message.raw);
+
+        console.log('Subject: ', email.subject);
+        console.log('HTML: ', email.html);
+        console.log('Text: ', email.text);
+    }
+};
+```
+
 #### parser.parse()
 
 ```js
