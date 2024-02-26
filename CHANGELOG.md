@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.1](https://github.com/postalsys/postal-mime/compare/v2.1.0...v2.1.1) (2024-02-26)
+
+
+### Bug Fixes
+
+* **types:** Updated types for PostalMime ([bc90f6d](https://github.com/postalsys/postal-mime/commit/bc90f6d5b7d3e2475cece77bb094caf421dead97))
+
 ## [2.1.0](https://github.com/postalsys/postal-mime/compare/v2.0.2...v2.1.0) (2024-02-22)
 
 
