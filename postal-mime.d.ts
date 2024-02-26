@@ -1,4 +1,4 @@
-export type RawEmail = string | ArrayBuffer | Blob | Buffer;
+export type RawEmail = string | ArrayBuffer | Uint8Array | Blob | Buffer | ReadableStream;
 
 export type Header = Record<string, string>;
 
@@ -13,7 +13,7 @@ export type Attachment = {
 	disposition: "attachment" | "inline" | null;
 	related?: boolean;
 	contentId?: string;
-	content: ArrayBuffer;
+	content: Uint8Array;
 };
 
 export type Email = {

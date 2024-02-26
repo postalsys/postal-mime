@@ -317,30 +317,31 @@ export default class PostalMime {
         }
         this.started = true;
 
-        // check if the input is a readable stream and resolve it into an ArrayBuffer
+        // Check if the input is a readable stream and resolve it into an ArrayBuffer
         if (buf && typeof buf.getReader === 'function') {
             buf = await this.resolveStream(buf);
         }
 
-        // should it thrown on empty value instead?
+        // Should it throw for an empty value instead of defaulting to an empty ArrayBuffer?
         buf = buf || ArrayBuffer(0);
 
+        // Cast string input to Uint8Array
         if (typeof buf === 'string') {
-            // cast string input to ArrayBuffer
             buf = textEncoder.encode(buf);
         }
 
+        // Cast Blob to ArrayBuffer
         if (buf instanceof Blob || Object.prototype.toString.call(buf) === '[object Blob]') {
-            // can't process blob directly, cast to ArrayBuffer
             buf = await blobToArrayBuffer(buf);
         }
 
+        // Cast Node.js Buffer object or Uint8Array into ArrayBuffer
         if (buf.buffer instanceof ArrayBuffer) {
-            // Node.js Buffer object or Uint8Array
             buf = new Uint8Array(buf).buffer;
         }
 
         this.buf = buf;
+
         this.av = new Uint8Array(buf);
         this.readPos = 0;
 
