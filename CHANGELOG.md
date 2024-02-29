@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.2](https://github.com/postalsys/postal-mime/compare/v2.1.1...v2.1.2) (2024-02-29)
+
+
+### Bug Fixes
+
+* **git:** re-renamed git repo ([29d235e](https://github.com/postalsys/postal-mime/commit/29d235ece222844dc59858d9e991cc85f65733e2))
+* **git:** Renamed git repository ([829e537](https://github.com/postalsys/postal-mime/commit/829e5371602f87fe114d87130c6e9953d50872b4))
+
 ## [2.1.1](https://github.com/postalsys/postal-mime/compare/v2.1.0...v2.1.1) (2024-02-26)
 
 
