@@ -19,10 +19,10 @@
     ],
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/postalsys/postal-mime.git"
+        "url": "git+https://github.com/postalsys/mime.git"
     },
     "bugs": {
-        "url": "https://github.com/postalsys/postal-mime/issues"
+        "url": "https://github.com/postalsys/mime/issues"
     },
     "author": "Andris Reinman",
     "license": "MIT-0",

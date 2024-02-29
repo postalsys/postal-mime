@@ -6,7 +6,7 @@ PostalMime can be run in the main web thread or from Web Workers.
 
 ## Source
 
-Source code is available from [Github](https://github.com/postalsys/postal-mime).
+Source code is available from [Github](https://github.com/postalsys/mime).
 
 ## Demo
 
