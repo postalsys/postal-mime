@@ -4,6 +4,9 @@ Email parser for browser and serverless environments.
 
 PostalMime can be run in the main web thread or from Web Workers. It can also used in serverless functions.
 
+> [!TIP]
+> PostalMime is developed by the makers of **[EmailEngine](https://emailengine.app/?utm_source=github&utm_campaign=imapflow&utm_medium=readme-link)** – a self-hosted email gateway that allows making **REST requests against IMAP and SMTP servers**. EmailEngine also sends webhooks whenever something changes on the registered accounts.
+
 ## Source
 
 The source code is available from [Github](https://github.com/postalsys/postal-mime).
