@@ -1,12 +1,12 @@
 # postal-mime
 
-Email parser for browser environments.
+Email parser for browser and serverless environments.
 
-PostalMime can be run in the main web thread or from Web Workers.
+PostalMime can be run in the main web thread or from Web Workers. It can also used in serverless functions.
 
 ## Source
 
-Source code is available from [Github](https://github.com/postalsys/postal-mime).
+The source code is available from [Github](https://github.com/postalsys/postal-mime).
 
 ## Demo
 
@@ -14,7 +14,7 @@ See this [example](https://kreata.ee/postal-mime/example/).
 
 ## Usage
 
-First install the module from npm:
+First, install the module from npm:
 
 ```
 $ npm install postal-mime
@@ -26,7 +26,7 @@ next import the PostalMime class into your script:
 import PostalMime from './node_modules/postal-mime/src/postal-mime.js';
 ```
 
-or when using from a Node.js app
+or when using from a Node.js app or in a serverless function:
 
 ```js
 import PostalMime from 'postal-mime';
@@ -94,7 +94,7 @@ parser.parse(email) -> Promise
 
 Where
 
--   **email** is the rfc822 formatted email. Either a string, an ArrayBuffer, a Blob object or a Node.js Buffer
+-   **email** is the rfc822 formatted email. Either a string, an ArrayBuffer, a Blob object, a Node.js Buffer, or a [ReadableStream](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream)
 
 > **NB** you can call `parse()` only once. If you need to parse another message, create a new _PostalMime_ object.
 
