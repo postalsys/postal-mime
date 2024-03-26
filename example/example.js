@@ -222,9 +222,8 @@ function renderEmail(email) {
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('open-file').addEventListener('click', () => {
-        const parser = new PostalMime();
         browseFileContents()
-            .then(file => parser.parse(file))
+            .then(file => PostalMime.parse(file))
             .then(email => {
                 console.log(JSON.stringify(email, false, 2));
                 renderEmail(email);

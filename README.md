@@ -34,15 +34,14 @@ import PostalMime from 'postal-mime';
 
 ### Promises
 
-All postal-mime methods use Promises, so you need to wait using `await` or wait for the `then()` method to fire until you get the response.
+PostalMime methods use Promises, so you need to wait using `await` or wait for the `then()` method to fire until you get the response.
 
 #### Browser
 
 ```js
 import PostalMime from './node_modules/postal-mime/src/postal-mime.js';
 
-const parser = new PostalMime();
-const email = await parser.parse(`Subject: My awesome email 🤓
+const email = await PostalMime.parse(`Subject: My awesome email 🤓
 Content-Type: text/html; charset=utf-8
 
 <p>Hello world 😵‍💫</p>`);
@@ -58,8 +57,7 @@ It is pretty much the same as in the browser.
 import PostalMime from 'postal-mime';
 import util from 'node:util';
 
-const parser = new PostalMime();
-const email = await parser.parse(`Subject: My awesome email 🤓
+const email = await PostalMime.parse(`Subject: My awesome email 🤓
 Content-Type: text/html; charset=utf-8
 
 <p>Hello world 😵‍💫</p>`);
@@ -76,8 +74,7 @@ import PostalMime from 'postal-mime';
 
 export default {
     async email(message, env, ctx) {
-        const parser = new PostalMime();
-        const email = await parser.parse(message.raw);
+        const email = await PostalMime.parse(message.raw);
 
         console.log('Subject: ', email.subject);
         console.log('HTML: ', email.html);
@@ -86,17 +83,17 @@ export default {
 };
 ```
 
-#### parser.parse()
+#### PostalMime.parse()
+
+`parse(email)` is a static class method to parse emails
 
 ```js
-parser.parse(email) -> Promise
+PostalMime.parse(email) -> Promise
 ```
 
 Where
 
--   **email** is the rfc822 formatted email. Either a string, an ArrayBuffer, a Blob object, a Node.js Buffer, or a [ReadableStream](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream)
-
-> **NB** you can call `parse()` only once. If you need to parse another message, create a new _PostalMime_ object.
+-   **email** is the rfc822 formatted email. Either a string, an ArrayBuffer/Uint8Array value, a Blob object, a Node.js Buffer, or a [ReadableStream](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream)
 
 This method parses an email message into a structured object with the following properties:
 
@@ -121,10 +118,10 @@ This method parses an email message into a structured object with the following 
     -   **attachment[].disposition** is either "attachment", "inline" or `null` if disposition was not provided
     -   **attachment[].related** is a boolean value that indicats if this attachment should be treated as embedded image
     -   **attachment[].contentId** is the ID from Content-ID header
-    -   **attachment[].content** is an ArrayBuffer that contains the attachment file
+    -   **attachment[].content** is an Uint8Array value that contains the attachment file
 
 ## License
 
-&copy; 2021-2023 Andris Reinman
+&copy; 2021-2024 Andris Reinman
 
 `postal-mime` is licensed under the **MIT No Attribution license**

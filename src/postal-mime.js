@@ -4,6 +4,11 @@ import addressParser from './address-parser.js';
 import { decodeWords, textEncoder, blobToArrayBuffer } from './decode-strings.js';
 
 export default class PostalMime {
+    static parse(buf) {
+        const parser = new PostalMime();
+        return parser.parse(buf);
+    }
+
     constructor() {
         this.root = this.currentNode = new MimeNode({
             postalMime: this

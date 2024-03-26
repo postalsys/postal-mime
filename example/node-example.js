@@ -4,7 +4,8 @@ import { readFile } from 'node:fs/promises';
 
 const filePath = process.argv[2];
 
-const parser = new PostalMime();
-const email = await parser.parse(await readFile(filePath));
+const email = await PostalMime.parse(await readFile(filePath));
 
 console.log(util.inspect(email, false, 22, true));
+
+console.log(email.html);
