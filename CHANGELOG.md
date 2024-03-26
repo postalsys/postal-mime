@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/postalsys/postal-mime/compare/v2.1.2...v2.2.0) (2024-03-26)
+
+
+### Features
+
+* **interface:** Added statis parse() method to simplify usage (`await PostalMime.parse(email)`) ([c2faa27](https://github.com/postalsys/postal-mime/commit/c2faa276520d6551df640abe008986eebc6d99d3))
+
 ## [2.1.2](https://github.com/postalsys/postal-mime/compare/v2.1.1...v2.1.2) (2024-02-29)
 
 
