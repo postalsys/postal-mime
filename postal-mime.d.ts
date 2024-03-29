@@ -37,6 +37,7 @@ export type Email = {
 };
 
 declare class PostalMime {
+	static parse(email: RawEmail): Promise<Email>;
 	parse(email: RawEmail): Promise<Email>;
 }
 
