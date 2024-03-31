@@ -358,32 +358,33 @@ export default class PostalMime {
 
         await this.processNodeTree();
 
-        let message = {
+        const message = {
             headers: this.root.headers.map(entry => ({ key: entry.key, value: entry.value })).reverse()
         };
 
-        for (let key of ['from', 'sender', 'reply-to']) {
-            let addressHeader = this.root.headers.find(line => line.key === key);
+        for (const key of ['from', 'sender']) {
+            const addressHeader = this.root.headers.find(line => line.key === key);
             if (addressHeader && addressHeader.value) {
-                let addresses = addressParser(addressHeader.value);
+                const addresses = addressParser(addressHeader.value);
                 if (addresses && addresses.length) {
-                    message[key.replace(/\-(.)/g, (o, c) => c.toUpperCase())] = addresses[0];
+                    message[key] = addresses[0];
                 }
             }
         }
 
-        for (let key of ['delivered-to', 'return-path']) {
-            let addressHeader = this.root.headers.find(line => line.key === key);
+        for (const key of ['delivered-to', 'return-path']) {
+            const addressHeader = this.root.headers.find(line => line.key === key);
             if (addressHeader && addressHeader.value) {
-                let addresses = addressParser(addressHeader.value);
+                const addresses = addressParser(addressHeader.value);
                 if (addresses && addresses.length && addresses[0].address) {
-                    message[key.replace(/\-(.)/g, (o, c) => c.toUpperCase())] = addresses[0].address;
+                    const camelKey = key.replace(/\-(.)/g, (o, c) => c.toUpperCase());
+                    message[camelKey] = addresses[0].address;
                 }
             }
         }
 
-        for (let key of ['to', 'cc', 'bcc']) {
-            let addressHeaders = this.root.headers.filter(line => line.key === key);
+        for (const key of ['to', 'cc', 'bcc', 'reply-to']) {
+            const addressHeaders = this.root.headers.filter(line => line.key === key);
             let addresses = [];
 
             addressHeaders
@@ -392,14 +393,16 @@ export default class PostalMime {
                 .forEach(parsed => (addresses = addresses.concat(parsed || [])));
 
             if (addresses && addresses.length) {
-                message[key] = addresses;
+                const camelKey = key.replace(/\-(.)/g, (o, c) => c.toUpperCase());
+                message[camelKey] = addresses;
             }
         }
 
-        for (let key of ['subject', 'message-id', 'in-reply-to', 'references']) {
-            let header = this.root.headers.find(line => line.key === key);
+        for (const key of ['subject', 'message-id', 'in-reply-to', 'references']) {
+            const header = this.root.headers.find(line => line.key === key);
             if (header && header.value) {
-                message[key.replace(/\-(.)/g, (o, c) => c.toUpperCase())] = decodeWords(header.value);
+                const camelKey = key.replace(/\-(.)/g, (o, c) => c.toUpperCase());
+                message[camelKey] = decodeWords(header.value);
             }
         }
 

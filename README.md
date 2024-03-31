@@ -103,11 +103,11 @@ This method parses an email message into a structured object with the following 
 -   **headers** is an array of headers in the same order as found from the message (topmost headers first).
     -   **headers[].key** is lowercase key of the header line, eg. `"dkim-signature"`
     -   **headers[].value** is the unprocessed value of the header line
--   **from**, **sender**, **replyTo** includes a processed object for the corresponding headers
+-   **from**, **sender** includes a processed object for the corresponding headers
     -   **from.name** is decoded name (empty string if not set)
     -   **from.address** is the email address
 -   **deliveredTo**, **returnPath** is the email address from the corresponding header
--   **to**, **cc**, **bcc** includes an array of processed objects for the corresponding headers
+-   **to**, **cc**, **bcc**, **replyTo** includes an array of processed objects for the corresponding headers
     -   **to[].name** is decoded name (empty string if not set)
     -   **to[].address** is the email address
 -   **subject** is the email subject line
