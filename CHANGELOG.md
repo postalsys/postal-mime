@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.1](https://github.com/postalsys/postal-mime/compare/v2.2.0...v2.2.1) (2024-03-31)
+
+
+### Bug Fixes
+
+* **parser:** Reply-To value must be an array, not a single address object ([280bd8d](https://github.com/postalsys/postal-mime/commit/280bd8dc1626315e1a43f35641415453c434716e))
+
 ## [2.2.0](https://github.com/postalsys/postal-mime/compare/v2.1.2...v2.2.0) (2024-03-26)
 
 
