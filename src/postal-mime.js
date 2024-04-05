@@ -328,7 +328,7 @@ export default class PostalMime {
         }
 
         // Should it throw for an empty value instead of defaulting to an empty ArrayBuffer?
-        buf = buf || ArrayBuffer(0);
+        buf = buf || new ArrayBuffer(0);
 
         // Cast string input to Uint8Array
         if (typeof buf === 'string') {
