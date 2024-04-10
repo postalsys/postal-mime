@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.2](https://github.com/postalsys/postal-mime/compare/v2.2.1...v2.2.2) (2024-04-10)
+
+
+### Bug Fixes
+
+* **parse:** Do not throw on empty input when initializing an array buffer object ([ddae5b4](https://github.com/postalsys/postal-mime/commit/ddae5b40d44eaebbfc9117609259a204f27ed4cf))
+
 ## [2.2.1](https://github.com/postalsys/postal-mime/compare/v2.2.0...v2.2.1) (2024-03-31)
 
 
