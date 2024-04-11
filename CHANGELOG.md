@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.2.3](https://github.com/postalsys/postal-mime/compare/v2.2.2...v2.2.3) (2024-04-11)
+
+
+### Bug Fixes
+
+* **attachments:** Added description key from Content-Description attachment header ([6e29de9](https://github.com/postalsys/postal-mime/commit/6e29de97a4dc0043587a59870d52250602801e3c))
+* **calendar-attachments:** treat text/calendar as an attachment ([2196b49](https://github.com/postalsys/postal-mime/commit/2196b497f289697e9dc72011708e4355ee7362cc))
+
 ## [2.2.2](https://github.com/postalsys/postal-mime/compare/v2.2.1...v2.2.2) (2024-04-10)
 
 
