@@ -123,6 +123,57 @@ This method parses an email message into a structured object with the following 
     -   **attachment[].contentId** is the ID from Content-ID header
     -   **attachment[].content** is an Uint8Array value that contains the attachment file
 
+### Utility functions
+
+#### addressParser
+
+Parse email address strings
+
+```js
+addressParser(addressStr, opts) -> Array
+```
+
+where
+
+-   **addressStr** is the header value for an address header
+-   **opts** is an optional options object
+    -   **flattem** is a boolean value. If set to `true`, then ignores address groups and returns a flat array of addresses. By default (`flatten` is `false`) the result might include nested groups
+
+The result is an array of objects
+
+-   **name** is the name string. An empty string is used if name value was not set.
+-   **address** is the email address value
+
+```js
+import { addressParser } from 'postal-mime';
+
+const addressStr = '=?utf-8?B?44Ko44Od44K544Kr44O844OJ?= <support@example.com>';
+console.log(addressParser(addressStr));
+// [ { name: 'エポスカード', address: 'support@example.com' } ]
+```
+
+#### decodeWords
+
+Decode MIME encoded-words
+
+```js
+decodeWords(encodedStr) -> String
+```
+
+where
+
+-   **encodedStr** is a string value that _may_ include MIME encoded-words
+
+The result is a unicode string
+
+```js
+import { decodeWords } from 'postal-mime';
+
+const encodedStr = 'Hello, =?utf-8?B?44Ko44Od44K544Kr44O844OJ?=';
+console.log(decodeWords(encodedStr));
+// Hello, エポスカード
+```
+
 ## License
 
 &copy; 2021-2024 Andris Reinman

@@ -3,6 +3,8 @@ import { textToHtml, htmlToText, formatTextHeader, formatHtmlHeader } from './te
 import addressParser from './address-parser.js';
 import { decodeWords, textEncoder, blobToArrayBuffer } from './decode-strings.js';
 
+export { addressParser, decodeWords };
+
 export default class PostalMime {
     static parse(buf) {
         const parser = new PostalMime();

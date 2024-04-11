@@ -38,9 +38,23 @@ export type Email = {
 	attachments: Attachment[];
 };
 
+declare type AddressParserOptions = {
+    flatten?: boolean
+}
+
+declare function addressParser (
+    str: string,
+    opts?: AddressParserOptions
+): Address[];
+
+declare function decodeWords (
+    str: string
+): string;
+
 declare class PostalMime {
 	static parse(email: RawEmail): Promise<Email>;
 	parse(email: RawEmail): Promise<Email>;
 }
 
+export { addressParser, decodeWords };
 export default PostalMime;
