@@ -137,7 +137,7 @@ where
 
 -   **addressStr** is the header value for an address header
 -   **opts** is an optional options object
-    -   **flattem** is a boolean value. If set to `true`, then ignores address groups and returns a flat array of addresses. By default (`flatten` is `false`) the result might include nested groups
+    -   **flatten** is a boolean value. If set to `true`, then ignores address groups and returns a flat array of addresses. By default (`flatten` is `false`) the result might include nested groups
 
 The result is an array of objects
 
