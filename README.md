@@ -143,6 +143,7 @@ The result is an array of objects
 
 -   **name** is the name string. An empty string is used if name value was not set.
 -   **address** is the email address value
+-   **group** is an array of nested address objects. This is used when `flatten` is `false` (the default) and the address string contains address group syntax
 
 ```js
 import { addressParser } from 'postal-mime';
