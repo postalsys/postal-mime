@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.4](https://github.com/postalsys/postal-mime/compare/v2.2.3...v2.2.4) (2024-04-11)
+
+
+### Bug Fixes
+
+* **exports:** Export addressParser and decodeWords functions ([43d3187](https://github.com/postalsys/postal-mime/commit/43d31873308d8eff61876f32614e5cc5143c90dd))
+
 ## [2.2.3](https://github.com/postalsys/postal-mime/compare/v2.2.2...v2.2.3) (2024-04-11)
 
 
