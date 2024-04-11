@@ -426,6 +426,10 @@ export default class PostalMime {
             message.text = this.textContent.plain;
         }
 
+        if (this.textContent && this.textContent.calendar) {
+            message.calendar = this.textContent.calendar;
+        }
+
         message.attachments = this.attachments;
 
         return message;

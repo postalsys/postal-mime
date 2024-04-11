@@ -17,6 +17,7 @@ test('Parse mixed non-alternative content', async t => {
         email.html,
         '<HTML><HEAD>\n</HEAD><BODY> \n\n<HR>\nThis e-mail message has been scanned for Viruses and Content and cleared\n<HR>\n</BODY></HTML>\n\n\n<div>Good Morning;</div>'
     );
+    assert.strictEqual(email.calendar, 'BEGIN:VCALENDAR\nMETHOD:REQUEST\nVERSION:2.0\nEND:VCALENDAR');
 });
 
 test('Parse Flowed content. Quoted printable, DelSp', async t => {

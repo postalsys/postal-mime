@@ -33,6 +33,7 @@ export type Email = {
 	date?: string;
 	html?: string;
 	text?: string;
+	calendar?: string;
 	attachments: Attachment[];
 };
 
