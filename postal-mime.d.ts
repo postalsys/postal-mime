@@ -3,8 +3,9 @@ export type RawEmail = string | ArrayBuffer | Uint8Array | Blob | Buffer | Reada
 export type Header = Record<string, string>;
 
 export type Address = {
-	address: string;
 	name: string;
+    address?: string;
+    group?: Address[]
 };
 
 export type Attachment = {
