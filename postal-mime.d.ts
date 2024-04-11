@@ -12,6 +12,7 @@ export type Attachment = {
 	mimeType: string;
 	disposition: "attachment" | "inline" | null;
 	related?: boolean;
+    description?: string;
 	contentId?: string;
     method?: string;
 	content: Uint8Array;

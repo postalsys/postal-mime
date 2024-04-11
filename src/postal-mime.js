@@ -192,6 +192,10 @@ export default class PostalMime {
                         attachment.related = true;
                     }
 
+                    if (node.contentDescription) {
+                        attachment.description = node.contentDescription;
+                    }
+
                     if (node.contentId) {
                         attachment.contentId = node.contentId;
                     }
@@ -204,6 +208,13 @@ export default class PostalMime {
                                 attachment.method = node.contentType.parsed.params.method.toString().toUpperCase().trim();
                             }
 
+                            // Enforce into unicode
+                            const decodedText = node.getTextContent().replace(/\r?\n/g, '\n').replace(/\n*$/, '\n');
+                            attachment.content = textEncoder.encode(decodedText);
+                            break;
+                        }
+
+                        case 'message/delivery-status': {
                             // Enforce into unicode
                             const decodedText = node.getTextContent().replace(/\r?\n/g, '\n').replace(/\n*$/, '\n');
                             attachment.content = textEncoder.encode(decodedText);
@@ -307,23 +318,23 @@ export default class PostalMime {
     }
 
     isInlineTextNode(node) {
-        if (node.contentType.parsed.value === 'text/calendar') {
-            return false;
-        }
-
         if (node.contentDisposition.parsed.value === 'attachment') {
+            // no matter the type, this is an attachment
             return false;
         }
 
-        if (/^text\//i.test(node.contentType.parsed.value)) {
-            return true;
-        }
+        switch (node.contentType.parsed.value) {
+            case 'text/html':
+            case 'text/plain':
+            // message/delivery-status is cast into regular plaintext content
+            case 'message/delivery-status':
+                return true;
 
-        if (node.contentType.parsed.value === 'message/delivery-status') {
-            return true;
+            case 'text/calendar':
+            case 'text/csv':
+            default:
+                return false;
         }
-
-        return false;
     }
 
     async resolveStream(stream) {

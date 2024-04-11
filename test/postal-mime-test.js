@@ -102,3 +102,12 @@ test('Parse calendar email', async t => {
     assert.strictEqual(email.attachments[0].method, 'REQUEST');
     assert.ok(!email.attachments[1].method);
 });
+
+test('Parse bounce email', async t => {
+    const mail = await readFile(Path.join(process.cwd(), 'test', 'fixtures', 'bounce.eml'));
+
+    const parser = new PostalMime();
+    const email = await parser.parse(mail);
+
+    assert.strictEqual(email.attachments.length, 0);
+});

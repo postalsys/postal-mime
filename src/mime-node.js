@@ -226,6 +226,9 @@ export default class MimeNode {
                     case 'content-id':
                         this.contentId = value;
                         break;
+                    case 'content-description':
+                        this.contentDescription = value;
+                        break;
                 }
             }
         }
