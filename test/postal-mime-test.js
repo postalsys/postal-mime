@@ -1,10 +1,9 @@
 import { Buffer } from 'node:buffer';
 import test from 'node:test';
 import assert from 'node:assert';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import PostalMime from '../src/postal-mime.js';
 import Path from 'node:path';
-import util from 'node:util';
 
 test('Parse mixed non-alternative content', async t => {
     const mail = await readFile(Path.join(process.cwd(), 'test', 'fixtures', 'mixed.eml'));
@@ -90,4 +89,16 @@ test('Parse mimetorture email', async t => {
     const email = await parser.parse(mail);
 
     assert.strictEqual(email.attachments.length, 9);
+});
+
+test('Parse calendar email', async t => {
+    const mail = await readFile(Path.join(process.cwd(), 'test', 'fixtures', 'calendar-event.eml'));
+
+    const parser = new PostalMime();
+    const email = await parser.parse(mail);
+
+    assert.strictEqual(email.attachments.length, 2);
+    assert.deepStrictEqual(email.attachments[0].content, email.attachments[1].content);
+    assert.strictEqual(email.attachments[0].method, 'REQUEST');
+    assert.ok(!email.attachments[1].method);
 });

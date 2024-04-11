@@ -162,10 +162,7 @@ export default class PostalMime {
                 }
 
                 // is it text?
-                else if (
-                    (/^text\//i.test(node.contentType.parsed.value) || node.contentType.parsed.value === 'message/delivery-status') &&
-                    node.contentDisposition.parsed.value !== 'attachment'
-                ) {
+                else if (this.isInlineTextNode(node)) {
                     let textType = node.contentType.parsed.value.substr(node.contentType.parsed.value.indexOf('/') + 1);
                     if (node.contentType.parsed.value === 'message/delivery-status') {
                         textType = 'plain';
@@ -184,9 +181,9 @@ export default class PostalMime {
 
                 // is it an attachment
                 else if (node.content) {
-                    let filename = node.contentDisposition.parsed.params.filename || node.contentType.parsed.params.name || null;
-                    let attachment = {
-                        filename: decodeWords(filename),
+                    const filename = node.contentDisposition.parsed.params.filename || node.contentType.parsed.params.name || null;
+                    const attachment = {
+                        filename: filename ? decodeWords(filename) : null,
                         mimeType: node.contentType.parsed.value,
                         disposition: node.contentDisposition.parsed.value || null
                     };
@@ -199,7 +196,24 @@ export default class PostalMime {
                         attachment.contentId = node.contentId;
                     }
 
-                    attachment.content = node.content;
+                    switch (node.contentType.parsed.value) {
+                        // Special handling for calendar events
+                        case 'text/calendar':
+                        case 'application/ics': {
+                            if (node.contentType.parsed.params.method) {
+                                attachment.method = node.contentType.parsed.params.method.toString().toUpperCase().trim();
+                            }
+
+                            // Enforce into unicode
+                            const decodedText = node.getTextContent().replace(/\r?\n/g, '\n').replace(/\n*$/, '\n');
+                            attachment.content = textEncoder.encode(decodedText);
+                            break;
+                        }
+
+                        // Regular attachments
+                        default:
+                            attachment.content = node.content;
+                    }
 
                     this.attachments.push(attachment);
                 }
@@ -290,6 +304,26 @@ export default class PostalMime {
         });
 
         this.textContent = textContent;
+    }
+
+    isInlineTextNode(node) {
+        if (node.contentType.parsed.value === 'text/calendar') {
+            return false;
+        }
+
+        if (node.contentDisposition.parsed.value === 'attachment') {
+            return false;
+        }
+
+        if (/^text\//i.test(node.contentType.parsed.value)) {
+            return true;
+        }
+
+        if (node.contentType.parsed.value === 'message/delivery-status') {
+            return true;
+        }
+
+        return false;
     }
 
     async resolveStream(stream) {
@@ -418,11 +452,11 @@ export default class PostalMime {
             message.date = date;
         }
 
-        if (this.textContent && this.textContent.html) {
+        if (this.textContent?.html) {
             message.html = this.textContent.html;
         }
 
-        if (this.textContent && this.textContent.plain) {
+        if (this.textContent?.plain) {
             message.text = this.textContent.plain;
         }
 

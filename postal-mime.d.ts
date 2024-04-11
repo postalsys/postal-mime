@@ -8,11 +8,12 @@ export type Address = {
 };
 
 export type Attachment = {
-	filename: string;
+	filename: string | null;
 	mimeType: string;
 	disposition: "attachment" | "inline" | null;
 	related?: boolean;
 	contentId?: string;
+    method?: string;
 	content: Uint8Array;
 };
 
