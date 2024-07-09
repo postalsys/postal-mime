@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.5](https://github.com/postalsys/postal-mime/compare/v2.2.4...v2.2.5) (2024-04-11)
+
+
+### Bug Fixes
+
+* **types:** Fixed Address type ([57908e4](https://github.com/postalsys/postal-mime/commit/57908e428929904ee312d9e95343a9fbf52542b4))
+
 ## [2.2.4](https://github.com/postalsys/postal-mime/compare/v2.2.3...v2.2.4) (2024-04-11)
 
 
