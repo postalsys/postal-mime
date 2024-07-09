@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.6](https://github.com/postalsys/postal-mime/compare/v2.2.5...v2.2.6) (2024-07-09)
+
+
+### Bug Fixes
+
+* **types:** Updated type for attachment.content to ArrayBuffer ([191524f](https://github.com/postalsys/postal-mime/commit/191524fa32ac550934fb17c074153cf9170622a0))
+
 ## [2.2.5](https://github.com/postalsys/postal-mime/compare/v2.2.4...v2.2.5) (2024-04-11)
 
 
