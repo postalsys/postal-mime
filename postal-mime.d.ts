@@ -16,7 +16,7 @@ export type Attachment = {
     description?: string;
 	contentId?: string;
     method?: string;
-	content: Uint8Array;
+	content: ArrayBuffer;
 };
 
 export type Email = {
