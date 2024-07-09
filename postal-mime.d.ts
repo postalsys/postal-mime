@@ -3,40 +3,40 @@ export type RawEmail = string | ArrayBuffer | Uint8Array | Blob | Buffer | Reada
 export type Header = Record<string, string>;
 
 export type Address = {
-	name: string;
+    name: string;
     address?: string;
     group?: Address[]
 };
 
 export type Attachment = {
-	filename: string | null;
-	mimeType: string;
-	disposition: "attachment" | "inline" | null;
-	related?: boolean;
+    filename: string | null;
+    mimeType: string;
+    disposition: "attachment" | "inline" | null;
+    related?: boolean;
     description?: string;
-	contentId?: string;
+    contentId?: string;
     method?: string;
-	content: ArrayBuffer;
+    content: ArrayBuffer;
 };
 
 export type Email = {
-	headers: Header[];
-	from: Address;
-	sender?: Address;
-	replyTo?: Address[];
-	deliveredTo?: string;
-	returnPath?: string;
-	to?: Address[];
-	cc?: Address[];
-	bcc?: Address[];
-	subject?: string;
-	messageId: string;
-	inReplyTo?: string;
-	references?: string;
-	date?: string;
-	html?: string;
-	text?: string;
-	attachments: Attachment[];
+    headers: Header[];
+    from: Address;
+    sender?: Address;
+    replyTo?: Address[];
+    deliveredTo?: string;
+    returnPath?: string;
+    to?: Address[];
+    cc?: Address[];
+    bcc?: Address[];
+    subject?: string;
+    messageId: string;
+    inReplyTo?: string;
+    references?: string;
+    date?: string;
+    html?: string;
+    text?: string;
+    attachments: Attachment[];
 };
 
 declare type AddressParserOptions = {
@@ -53,8 +53,8 @@ declare function decodeWords (
 ): string;
 
 declare class PostalMime {
-	static parse(email: RawEmail): Promise<Email>;
-	parse(email: RawEmail): Promise<Email>;
+    static parse(email: RawEmail): Promise<Email>;
+    parse(email: RawEmail): Promise<Email>;
 }
 
 export { addressParser, decodeWords };
