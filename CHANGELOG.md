@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.7](https://github.com/postalsys/postal-mime/compare/v2.2.6...v2.2.7) (2024-07-31)
+
+
+### Bug Fixes
+
+* **rfc822:** Only inline message/rfc822 messages if Content-Disposition is ([53024de](https://github.com/postalsys/postal-mime/commit/53024dec22ea121817913a9cf152bdf60acbdbe7))
+
 ## [2.2.6](https://github.com/postalsys/postal-mime/compare/v2.2.5...v2.2.6) (2024-07-09)
 
 
