@@ -45,15 +45,23 @@ declare type AddressParserOptions = {
 
 declare function addressParser (
     str: string,
-    opts?: AddressParserOptions
+    options?: AddressParserOptions
 ): Address[];
 
 declare function decodeWords (
     str: string
 ): string;
 
+declare type PostalMimeOptions = {
+    rfc822Attachments?: boolean
+}
+
 declare class PostalMime {
-    static parse(email: RawEmail): Promise<Email>;
+    constructor(options?: PostalMimeOptions);
+    static parse(
+        email: RawEmail,
+        options?: PostalMimeOptions
+    ): Promise<Email>;
     parse(email: RawEmail): Promise<Email>;
 }
 

@@ -6,12 +6,14 @@ import { decodeWords, textEncoder, blobToArrayBuffer } from './decode-strings.js
 export { addressParser, decodeWords };
 
 export default class PostalMime {
-    static parse(buf) {
-        const parser = new PostalMime();
+    static parse(buf, options) {
+        const parser = new PostalMime(options);
         return parser.parse(buf);
     }
 
-    constructor() {
+    constructor(options) {
+        this.options = options || {};
+
         this.root = this.currentNode = new MimeNode({
             postalMime: this
         });
@@ -129,7 +131,7 @@ export default class PostalMime {
                 // regular node
 
                 // is it inline message/rfc822
-                if (node.contentType.parsed.value === 'message/rfc822' && node.contentDisposition.parsed.value === 'inline') {
+                if (this.isInlineMessageRfc822(node)) {
                     const subParser = new PostalMime();
                     node.subMessage = await subParser.parse(node.content);
 
@@ -337,6 +339,14 @@ export default class PostalMime {
             default:
                 return false;
         }
+    }
+
+    isInlineMessageRfc822(node) {
+        if (node.contentType.parsed.value !== 'message/rfc822') {
+            return false;
+        }
+        let disposition = node.contentDisposition.parsed.value || (this.options.rfc822Attachments ? 'attachment' : 'inline');
+        return disposition === 'inline';
     }
 
     async resolveStream(stream) {

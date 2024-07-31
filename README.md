@@ -2,14 +2,14 @@
 
 Email parser for browser and serverless environments.
 
-PostalMime can be run in the main web thread or from Web Workers. It can also used in serverless functions.
+PostalMime can be run in the main web thread or from Web Workers. It can also be used in serverless functions.
 
 > [!TIP]
 > PostalMime is developed by the makers of **[EmailEngine](https://emailengine.app/?utm_source=github&utm_campaign=imapflow&utm_medium=readme-link)** – a self-hosted email gateway that allows making **REST requests against IMAP and SMTP servers**. EmailEngine also sends webhooks whenever something changes on the registered accounts.
 
 ## Source
 
-The source code is available from [Github](https://github.com/postalsys/postal-mime).
+The source code is available on [GitHub](https://github.com/postalsys/postal-mime).
 
 ## Demo
 
@@ -23,13 +23,13 @@ First, install the module from npm:
 $ npm install postal-mime
 ```
 
-next import the PostalMime class into your script:
+Next, import the PostalMime class into your script:
 
 ```js
 import PostalMime from './node_modules/postal-mime/src/postal-mime.js';
 ```
 
-or when using from a Node.js app or in a serverless function:
+Or when using it from a Node.js app or in a serverless function:
 
 ```js
 import PostalMime from 'postal-mime';
@@ -37,7 +37,7 @@ import PostalMime from 'postal-mime';
 
 ### Promises
 
-PostalMime methods use Promises, so you need to wait using `await` or wait for the `then()` method to fire until you get the response.
+PostalMime methods use Promises, so you need to wait using `await` or the `then()` method to get the response.
 
 #### Browser
 
@@ -88,62 +88,64 @@ export default {
 
 #### PostalMime.parse()
 
-`parse(email)` is a static class method to parse emails
+`parse(email, options)` is a static class method used to parse emails.
 
 ```js
-PostalMime.parse(email) -> Promise
+PostalMime.parse(email, options) -> Promise
 ```
 
-Where
+Where:
 
--   **email** is the rfc822 formatted email. Either a string, an ArrayBuffer/Uint8Array value, a Blob object, a Node.js Buffer, or a [ReadableStream](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream)
+-   **email**: The RFC822 formatted email. This can be a string, an ArrayBuffer/Uint8Array, a Blob object, a Node.js Buffer, or a [ReadableStream](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream).
+-   **options**: An optional object containing configuration options.
+    -   **rfc822Attachments**: A boolean (defaults to `false`). If set to `true`, it treats `Message/RFC822` attachments without a Content-Disposition declaration as attachments. By default, these messages are treated as inline values.
 
 This method parses an email message into a structured object with the following properties:
 
--   **headers** is an array of headers in the same order as found from the message (topmost headers first).
-    -   **headers[].key** is lowercase key of the header line, eg. `"dkim-signature"`
-    -   **headers[].value** is the unprocessed value of the header line
--   **from**, **sender** includes a processed object for the corresponding headers
-    -   **from.name** is decoded name (empty string if not set)
-    -   **from.address** is the email address
--   **deliveredTo**, **returnPath** is the email address from the corresponding header
--   **to**, **cc**, **bcc**, **replyTo** includes an array of processed objects for the corresponding headers
-    -   **to[].name** is decoded name (empty string if not set)
-    -   **to[].address** is the email address
--   **subject** is the email subject line
--   **messageId**, **inReplyTo**, **references** includes the value as found from the corresponding header without any processing
--   **date** is the email sending time formatted as an ISO date string (unless parsing failed and in this case the original value is used)
--   **html** is the HTML content of the message as a string
--   **text** is the plaintext content of the message as a string
--   **attachments** is an array that includes message attachments
-    -   **attachment[].filename** is the file name if provided
-    -   **attachment[].mimeType** is the MIME type of the attachment
-    -   **attachment[].disposition** is either "attachment", "inline" or `null` if disposition was not provided
-    -   **attachment[].related** is a boolean value that indicats if this attachment should be treated as embedded image
-    -   **attachment[].contentId** is the ID from Content-ID header
-    -   **attachment[].content** is an Uint8Array value that contains the attachment file
+-   **headers**: An array of headers in the order they appear in the message (topmost headers first).
+    -   **headers[].key**: The lowercase key of the header line, e.g., `"dkim-signature"`.
+    -   **headers[].value**: The unprocessed value of the header line.
+-   **from**, **sender**: Includes a processed object for the corresponding headers.
+    -   **from.name**: The decoded name (empty string if not set).
+    -   **from.address**: The email address.
+-   **deliveredTo**, **returnPath**: The email address from the corresponding header.
+-   **to**, **cc**, **bcc**, **replyTo**: An array of processed objects for the corresponding headers.
+    -   **to[].name**: The decoded name (empty string if not set).
+    -   **to[].address**: The email address.
+-   **subject**: The email subject line.
+-   **messageId**, **inReplyTo**, **references**: The value as found in the corresponding header without any processing.
+-   **date**: The email sending time formatted as an ISO date string (unless parsing failed, in which case the original value is used).
+-   **html**: The HTML content of the message as a string.
+-   **text**: The plaintext content of the message as a string.
+-   **attachments**: An array that includes the message attachments.
+    -   **attachments[].filename**: The file name if provided.
+    -   **attachments[].mimeType**: The MIME type of the attachment.
+    -   **attachments[].disposition**: Either "attachment", "inline", or `null` if disposition was not provided.
+    -   **attachments[].related**: A boolean value indicating if this attachment should be treated as an embedded image.
+    -   **attachments[].contentId**: The ID from the Content-ID header.
+    -   **attachments[].content**: A Uint8Array value that contains the attachment file.
 
-### Utility functions
+### Utility Functions
 
 #### addressParser
 
-Parse email address strings
+Parse email address strings.
 
 ```js
 addressParser(addressStr, opts) -> Array
 ```
 
-where
+Where:
 
--   **addressStr** is the header value for an address header
--   **opts** is an optional options object
-    -   **flatten** is a boolean value. If set to `true`, then ignores address groups and returns a flat array of addresses. By default (`flatten` is `false`) the result might include nested groups
+-   **addressStr**: The header value for an address header.
+-   **opts**: An optional object containing configuration options.
+    -   **flatten**: A boolean value. If set to `true`, it ignores address groups and returns a flat array of addresses. By default (`flatten` is `false`), the result might include nested groups.
 
-The result is an array of objects
+The result is an array of objects:
 
--   **name** is the name string. An empty string is used if name value was not set.
--   **address** is the email address value
--   **group** is an array of nested address objects. This is used when `flatten` is `false` (the default) and the address string contains address group syntax
+-   **name**: The name string. An empty string is used if the name value is not set.
+-   **address**: The email address value.
+-   **group**: An array of nested address objects. This is used when `flatten` is `false` (the default) and the address string contains address group syntax.
 
 ```js
 import { addressParser } from 'postal-mime';
@@ -155,17 +157,17 @@ console.log(addressParser(addressStr));
 
 #### decodeWords
 
-Decode MIME encoded-words
+Decode MIME encoded-words.
 
 ```js
 decodeWords(encodedStr) -> String
 ```
 
-where
+Where:
 
--   **encodedStr** is a string value that _may_ include MIME encoded-words
+-   **encodedStr**: A string value that _may_ include MIME encoded-words.
 
-The result is a unicode string
+The result is a Unicode string.
 
 ```js
 import { decodeWords } from 'postal-mime';
