@@ -129,7 +129,7 @@ export default class PostalMime {
                 // regular node
 
                 // is it inline message/rfc822
-                if (node.contentType.parsed.value === 'message/rfc822' && node.contentDisposition.parsed.value !== 'attachment') {
+                if (node.contentType.parsed.value === 'message/rfc822' && node.contentDisposition.parsed.value === 'inline') {
                     const subParser = new PostalMime();
                     node.subMessage = await subParser.parse(node.content);
 
