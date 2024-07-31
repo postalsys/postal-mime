@@ -27,11 +27,11 @@
     "author": "Andris Reinman",
     "license": "MIT-0",
     "devDependencies": {
-        "@types/node": "20.14.10",
+        "@types/node": "22.0.0",
         "cross-blob": "3.0.2",
         "cross-env": "7.0.3",
         "eslint": "8.57.0",
         "eslint-cli": "1.1.1",
-        "iframe-resizer": "4.4.4"
+        "iframe-resizer": "4.4.5"
     }
 }
