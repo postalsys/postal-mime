@@ -2,6 +2,9 @@ module.exports = {
     upgrade: true,
     reject: [
         // api changes, check and fix
-        'eslint'
+        'eslint',
+
+        // license changes
+        'iframe-resizer'
     ]
 };
