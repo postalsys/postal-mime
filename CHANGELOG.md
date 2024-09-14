@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.8](https://github.com/postalsys/postal-mime/compare/v2.2.7...v2.2.8) (2024-09-14)
+
+
+### Bug Fixes
+
+* **module:** add default to module exports ([#56](https://github.com/postalsys/postal-mime/issues/56)) ([4f99ebe](https://github.com/postalsys/postal-mime/commit/4f99ebeb48f81848431fcfadafaa4162942c7be8))
+
 ## [2.2.7](https://github.com/postalsys/postal-mime/compare/v2.2.6...v2.2.7) (2024-07-31)
 
 
