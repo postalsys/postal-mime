@@ -4,9 +4,9 @@
     "description": "Email parser for browser environments",
     "main": "./src/postal-mime.js",
     "exports": {
-        "default": "./src/postal-mime.js",
         "import": "./src/postal-mime.js",
-        "types": "./postal-mime.d.ts"
+        "types": "./postal-mime.d.ts",
+        "default": "./src/postal-mime.js"
     },
     "type": "module",
     "types": "postal-mime.d.ts",
