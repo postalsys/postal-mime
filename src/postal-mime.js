@@ -123,15 +123,15 @@ export default class PostalMime {
         let textTypes = new Set();
         let textMap = (this.textMap = new Map());
 
+        let forceRfc822Attachments = this.forceRfc822Attachments();
+
         let walk = async (node, alternative, related) => {
             alternative = alternative || false;
             related = related || false;
 
             if (!node.contentType.multipart) {
-                // regular node
-
                 // is it inline message/rfc822
-                if (this.isInlineMessageRfc822(node)) {
+                if (this.isInlineMessageRfc822(node) && !forceRfc822Attachments) {
                     const subParser = new PostalMime();
                     node.subMessage = await subParser.parse(node.content);
 
@@ -168,9 +168,6 @@ export default class PostalMime {
                 // is it text?
                 else if (this.isInlineTextNode(node)) {
                     let textType = node.contentType.parsed.value.substr(node.contentType.parsed.value.indexOf('/') + 1);
-                    if (node.contentType.parsed.value === 'message/delivery-status') {
-                        textType = 'plain';
-                    }
 
                     let selectorNode = alternative || node;
                     if (!textMap.has(selectorNode)) {
@@ -212,13 +209,6 @@ export default class PostalMime {
                                 attachment.method = node.contentType.parsed.params.method.toString().toUpperCase().trim();
                             }
 
-                            // Enforce into unicode
-                            const decodedText = node.getTextContent().replace(/\r?\n/g, '\n').replace(/\n*$/, '\n');
-                            attachment.content = textEncoder.encode(decodedText);
-                            break;
-                        }
-
-                        case 'message/delivery-status': {
                             // Enforce into unicode
                             const decodedText = node.getTextContent().replace(/\r?\n/g, '\n').replace(/\n*$/, '\n');
                             attachment.content = textEncoder.encode(decodedText);
@@ -330,8 +320,6 @@ export default class PostalMime {
         switch (node.contentType.parsed.value) {
             case 'text/html':
             case 'text/plain':
-            // message/delivery-status is cast into regular plaintext content
-            case 'message/delivery-status':
                 return true;
 
             case 'text/calendar':
@@ -347,6 +335,24 @@ export default class PostalMime {
         }
         let disposition = node.contentDisposition.parsed.value || (this.options.rfc822Attachments ? 'attachment' : 'inline');
         return disposition === 'inline';
+    }
+
+    // Check if this is a specially crafted report email where message/rfc822 content should not be inlined
+    forceRfc822Attachments() {
+        let forceRfc822Attachments = false;
+        let walk = node => {
+            if (!node.contentType.multipart) {
+                if (['message/delivery-status', 'message/feedback-report'].includes(node.contentType.parsed.value)) {
+                    forceRfc822Attachments = true;
+                }
+            }
+
+            for (let childNode of node.childNodes) {
+                walk(childNode);
+            }
+        };
+        walk(this.root);
+        return forceRfc822Attachments;
     }
 
     async resolveStream(stream) {
