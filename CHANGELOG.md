@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.1](https://github.com/postalsys/postal-mime/compare/v2.3.0...v2.3.1) (2024-09-23)
+
+
+### Bug Fixes
+
+* **message/rfc822:** Added option 'forceRfc822Attachments' to handle all message/rfc822 nodes as attachments instead of inline content ([bf47621](https://github.com/postalsys/postal-mime/commit/bf47621da7c55a31acb39fb505f415b1ed4ce5e2))
+
 ## [2.3.0](https://github.com/postalsys/postal-mime/compare/v2.2.9...v2.3.0) (2024-09-23)
 
 
