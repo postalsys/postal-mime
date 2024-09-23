@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.2](https://github.com/postalsys/postal-mime/compare/v2.3.1...v2.3.2) (2024-09-23)
+
+
+### Bug Fixes
+
+* Modified README to trigger a new release (previous npm publish failed) ([f975ef4](https://github.com/postalsys/postal-mime/commit/f975ef4bc8403af72d8cd25ee2d4b3a12cdf82e4))
+
 ## [2.3.1](https://github.com/postalsys/postal-mime/compare/v2.3.0...v2.3.1) (2024-09-23)
 
 
