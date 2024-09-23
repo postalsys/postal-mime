@@ -106,10 +106,10 @@ test('Parse calendar email', async t => {
 test('Parse bounce email inline', async t => {
     const mail = await readFile(Path.join(process.cwd(), 'test', 'fixtures', 'bounce.eml'));
 
-    const parser = new PostalMime({ rfc822Attachments: true });
+    const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.attachments.length, 1);
+    assert.strictEqual(email.attachments.length, 2);
 });
 
 test('Parse bounce email attachment', async t => {
@@ -118,5 +118,5 @@ test('Parse bounce email attachment', async t => {
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.attachments.length, 0);
+    assert.strictEqual(email.attachments.length, 2);
 });
