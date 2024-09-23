@@ -124,7 +124,7 @@ This method parses an email message into a structured object with the following 
     -   **attachments[].disposition**: Either "attachment", "inline", or `null` if disposition was not provided.
     -   **attachments[].related**: A boolean value indicating if this attachment should be treated as an embedded image.
     -   **attachments[].contentId**: The ID from the Content-ID header.
-    -   **attachments[].content**: A Uint8Array value that contains the attachment file.
+    -   **attachments[].content**: An ArrayBuffer value that contains the attachment file.
 
 ### Utility Functions
 
