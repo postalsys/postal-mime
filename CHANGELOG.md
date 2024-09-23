@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.0](https://github.com/postalsys/postal-mime/compare/v2.2.9...v2.3.0) (2024-09-23)
+
+
+### Features
+
+* Treat message/rfc822 as an attachment for delivery-status and feedback-report ([21e6224](https://github.com/postalsys/postal-mime/commit/21e62245aeb416b921ba683dd8628f5948831c56))
+
 ## [2.2.9](https://github.com/postalsys/postal-mime/compare/v2.2.8...v2.2.9) (2024-09-16)
 
 
