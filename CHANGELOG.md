@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.9](https://github.com/postalsys/postal-mime/compare/v2.2.8...v2.2.9) (2024-09-16)
+
+
+### Bug Fixes
+
+* **exports:** Define 'default' exports as last for legacy compatibility ([a9518c8](https://github.com/postalsys/postal-mime/commit/a9518c8d4cdad2985bf44073534d936612cfc1ae))
+
 ## [2.2.8](https://github.com/postalsys/postal-mime/compare/v2.2.7...v2.2.8) (2024-09-14)
 
 
