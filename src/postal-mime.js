@@ -339,6 +339,10 @@ export default class PostalMime {
 
     // Check if this is a specially crafted report email where message/rfc822 content should not be inlined
     forceRfc822Attachments() {
+        if (this.options.forceRfc822Attachments) {
+            return true;
+        }
+
         let forceRfc822Attachments = false;
         let walk = node => {
             if (!node.contentType.multipart) {

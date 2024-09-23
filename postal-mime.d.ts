@@ -53,7 +53,8 @@ declare function decodeWords (
 ): string;
 
 declare type PostalMimeOptions = {
-    rfc822Attachments?: boolean
+    rfc822Attachments?: boolean,
+    forceRfc822Attachments?: boolean
 }
 
 declare class PostalMime {

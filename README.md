@@ -98,7 +98,8 @@ Where:
 
 -   **email**: The RFC822 formatted email. This can be a string, an ArrayBuffer/Uint8Array, a Blob object, a Node.js Buffer, or a [ReadableStream](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream).
 -   **options**: An optional object containing configuration options.
-    -   **rfc822Attachments**: A boolean (defaults to `false`). If set to `true`, it treats `Message/RFC822` attachments without a Content-Disposition declaration as attachments. By default, these messages are treated as inline values.
+    -   **rfc822Attachments**: A boolean (defaults to `false`). If set to `true`, then treats `message/rfc822` attachments without a Content-Disposition declaration as attachments. By default, these messages are treated as inline values.
+    -   **forceRfc822Attachments**: A boolean (defaults to `false`). If set to `true`, then treats all `message/rfc822` nodes as attachments.
 
 This method parses an email message into a structured object with the following properties:
 

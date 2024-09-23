@@ -91,6 +91,15 @@ test('Parse mimetorture email', async t => {
     assert.strictEqual(email.attachments.length, 9);
 });
 
+test('Parse mimetorture email as attachments', async t => {
+    const mail = await readFile(Path.join(process.cwd(), 'test', 'fixtures', 'mimetorture.eml'));
+
+    const parser = new PostalMime({ forceRfc822Attachments: true });
+    const email = await parser.parse(mail);
+
+    assert.strictEqual(email.attachments.length, 10);
+});
+
 test('Parse calendar email', async t => {
     const mail = await readFile(Path.join(process.cwd(), 'test', 'fixtures', 'calendar-event.eml'));
 
