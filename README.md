@@ -107,7 +107,7 @@ PostalMime.parse(email, options) -> Promise<ParsedEmail>
 -   **options**: Optional configuration object:
     -   **rfc822Attachments** (boolean, default: `false`): Treat `message/rfc822` attachments without a Content-Disposition as attachments.
     -   **forceRfc822Attachments** (boolean, default: `false`): Treat _all_ `message/rfc822` parts as attachments.
-    -   **attachmentEncoding** (string): Determines how attachment content is decoded in the parsed email:
+    -   **attachmentEncoding** (string, default: `"arraybuffer"`): Determines how attachment content is decoded in the parsed email:
         -   `"base64"`
         -   `"utf8"`
         -   `"arraybuffer"` (no decoding, returns `ArrayBuffer`)
