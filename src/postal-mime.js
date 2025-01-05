@@ -2,6 +2,7 @@ import MimeNode from './mime-node.js';
 import { textToHtml, htmlToText, formatTextHeader, formatHtmlHeader } from './text-format.js';
 import addressParser from './address-parser.js';
 import { decodeWords, textEncoder, blobToArrayBuffer } from './decode-strings.js';
+import { base64ArrayBuffer } from './base64-encoder.js';
 
 export { addressParser, decodeWords };
 
@@ -21,6 +22,13 @@ export default class PostalMime {
 
         this.textContent = {};
         this.attachments = [];
+
+        this.attachmentEncoding =
+            (this.options.attachmentEncoding || '')
+                .toString()
+                .replace(/[-_\s]/g, '')
+                .trim()
+                .toLowerCase() || 'arraybuffer';
 
         this.started = false;
     }
@@ -494,6 +502,33 @@ export default class PostalMime {
         }
 
         message.attachments = this.attachments;
+
+        switch (this.attachmentEncoding) {
+            case 'arraybuffer':
+                break;
+
+            case 'base64':
+                for (let attachment of message.attachments || []) {
+                    if (attachment?.content) {
+                        attachment.content = base64ArrayBuffer(attachment.content);
+                        attachment.encoding = 'base64';
+                    }
+                }
+                break;
+
+            case 'utf8':
+                let attachmentDecoder = new TextDecoder('utf8');
+                for (let attachment of message.attachments || []) {
+                    if (attachment?.content) {
+                        attachment.content = attachmentDecoder.decode(attachment.content);
+                        attachment.encoding = 'utf8';
+                    }
+                }
+                break;
+
+            default:
+                throw new Error('Unknwon attachment encoding');
+        }
 
         return message;
     }

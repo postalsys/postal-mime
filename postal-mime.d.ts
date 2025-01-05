@@ -16,7 +16,8 @@ export type Attachment = {
     description?: string;
     contentId?: string;
     method?: string;
-    content: ArrayBuffer;
+    content: ArrayBuffer | string;
+    encoding?: "base64" | "utf8";
 };
 
 export type Email = {
@@ -54,7 +55,8 @@ declare function decodeWords (
 
 declare type PostalMimeOptions = {
     rfc822Attachments?: boolean,
-    forceRfc822Attachments?: boolean
+    forceRfc822Attachments?: boolean,
+    attachmentEncoding?: "base64" | "utf8"
 }
 
 declare class PostalMime {

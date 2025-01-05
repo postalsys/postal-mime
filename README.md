@@ -1,11 +1,27 @@
 # postal-mime
 
-Email parser for browser and serverless environments.
+**postal-mime** is an email parsing library that runs in browser environments (including Web Workers) and serverless functions (like Cloudflare Email Workers). It takes in a raw email message (RFC822 format) and outputs a structured object containing headers, recipients, attachments, and more.
 
-PostalMime can be run in the main web thread or from Web Workers. It can also be used in serverless functions like Cloudflare Email Workers.
+> **Tip**  
+> PostalMime is developed by the makers of [EmailEngine](https://emailengine.app/?utm_source=github&utm_campaign=imapflow&utm_medium=readme-link)—a self-hosted email gateway that provides a REST API for IMAP and SMTP servers and sends webhooks whenever something changes in registered accounts.
 
-> [!TIP]
-> PostalMime is developed by the makers of **[EmailEngine](https://emailengine.app/?utm_source=github&utm_campaign=imapflow&utm_medium=readme-link)** – a self-hosted email gateway that allows making **REST requests against IMAP and SMTP servers**. EmailEngine also sends webhooks whenever something changes on the registered accounts.
+## Table of Contents
+
+-   [Source](#source)
+-   [Demo](#demo)
+-   [Installation](#installation)
+-   [Usage](#usage)
+    -   [Browser](#browser)
+    -   [Node.js](#nodejs)
+    -   [Cloudflare Email Workers](#cloudflare-email-workers)
+-   [API](#api)
+    -   [PostalMime.parse()](#postalmimeparse)
+    -   [Utility Functions](#utility-functions)
+        -   [addressParser()](#addressparser)
+        -   [decodeWords()](#decodewords)
+-   [License](#license)
+
+---
 
 ## Source
 
@@ -13,33 +29,23 @@ The source code is available on [GitHub](https://github.com/postalsys/postal-mim
 
 ## Demo
 
-See this [example](https://kreata.ee/postal-mime/example/).
+Try out a live demo using the [example page](https://kreata.ee/postal-mime/example/).
+
+## Installation
+
+Install the module from npm:
+
+```bash
+npm install postal-mime
+```
 
 ## Usage
 
-First, install the module from npm:
+You can import the `PostalMime` class differently depending on your environment:
 
-```
-$ npm install postal-mime
-```
+### Browser
 
-Next, import the PostalMime class into your script:
-
-```js
-import PostalMime from './node_modules/postal-mime/src/postal-mime.js';
-```
-
-Or when using it from a Node.js app or in a serverless function:
-
-```js
-import PostalMime from 'postal-mime';
-```
-
-### Promises
-
-PostalMime methods use Promises, so you need to wait using `await` or the `then()` method to get the response.
-
-#### Browser
+To use PostalMime in the browser (including Web Workers), import it from the `src` folder:
 
 ```js
 import PostalMime from './node_modules/postal-mime/src/postal-mime.js';
@@ -49,12 +55,12 @@ Content-Type: text/html; charset=utf-8
 
 <p>Hello world 😵‍💫</p>`);
 
-console.log(email.subject);
+console.log(email.subject); // "My awesome email 🤓"
 ```
 
-#### Node.js
+### Node.js
 
-It is pretty much the same as in the browser.
+In Node.js (including serverless functions), import it directly from `postal-mime`:
 
 ```js
 import PostalMime from 'postal-mime';
@@ -65,12 +71,13 @@ Content-Type: text/html; charset=utf-8
 
 <p>Hello world 😵‍💫</p>`);
 
+// Use 'util.inspect' for pretty-printing
 console.log(util.inspect(email, false, 22, true));
 ```
 
-#### Cloudflare [Email Workers](https://developers.cloudflare.com/email-routing/email-workers/)
+### Cloudflare Email Workers
 
-Pretty much the same as in Node.js. Use `message.raw` as the raw message for parsing.
+Use the `message.raw` as the raw email data for parsing:
 
 ```js
 import PostalMime from 'postal-mime';
@@ -79,107 +86,106 @@ export default {
     async email(message, env, ctx) {
         const email = await PostalMime.parse(message.raw);
 
-        console.log('Subject: ', email.subject);
-        console.log('HTML: ', email.html);
-        console.log('Text: ', email.text);
+        console.log('Subject:', email.subject);
+        console.log('HTML:', email.html);
+        console.log('Text:', email.text);
     }
 };
 ```
 
-#### PostalMime.parse()
+---
 
-`parse(email, options)` is a static class method used to parse emails.
+## API
+
+### PostalMime.parse()
 
 ```js
-PostalMime.parse(email, options) -> Promise
+PostalMime.parse(email, options) -> Promise<ParsedEmail>
 ```
 
-Where:
+-   **email**: An RFC822 formatted email. This can be a `string`, `ArrayBuffer/Uint8Array`, `Blob` (browser only), `Buffer` (Node.js), or a [ReadableStream](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream).
+-   **options**: Optional configuration object:
+    -   **rfc822Attachments** (boolean, default: `false`): Treat `message/rfc822` attachments without a Content-Disposition as attachments.
+    -   **forceRfc822Attachments** (boolean, default: `false`): Treat _all_ `message/rfc822` parts as attachments.
+    -   **attachmentEncoding** (string): Determines how attachment content is decoded in the parsed email:
+        -   `"base64"`
+        -   `"utf8"`
+        -   `"arraybuffer"` (no decoding, returns `ArrayBuffer`)
 
--   **email**: The RFC822 formatted email. This can be a string, an ArrayBuffer/Uint8Array, a Blob object, a Node.js Buffer, or a [ReadableStream](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream).
--   **options**: An optional object containing configuration options.
-    -   **rfc822Attachments**: A boolean (defaults to `false`). If set to `true`, then treats `message/rfc822` attachments without a Content-Disposition declaration as attachments. By default, these messages are treated as inline values.
-    -   **forceRfc822Attachments**: A boolean (defaults to `false`). If set to `true`, then treats all `message/rfc822` nodes as attachments.
+**Returns**: A Promise that resolves to a structured object with the following properties:
 
-This method parses an email message into a structured object with the following properties:
+-   **headers**: An array of header objects, each containing:
+    -   `key`: Lowercase header name (e.g., `"dkim-signature"`).
+    -   `value`: Unprocessed header value as a string.
+-   **from**, **sender**: Processed address objects:
+    -   `name`: Decoded display name, or an empty string if not set.
+    -   `address`: Email address.
+-   **deliveredTo**, **returnPath**: Single email addresses as strings.
+-   **to**, **cc**, **bcc**, **replyTo**: Arrays of processed address objects (same structure as `from`).
+-   **subject**: Subject line of the email.
+-   **messageId**, **inReplyTo**, **references**: Values from their corresponding headers.
+-   **date**: The email’s sending time in ISO 8601 format (or the original string if parsing fails).
+-   **html**: String containing the HTML content of the email.
+-   **text**: String containing the plain text content of the email.
+-   **attachments**: Array of attachment objects:
+    -   `filename`
+    -   `mimeType`
+    -   `disposition` (e.g., `"attachment"`, `"inline"`, or `null`)
+    -   `related` (boolean, `true` if it’s an inline image)
+    -   `contentId`
+    -   `content` (array buffer or string, depending on `attachmentEncoding`)
+    -   `encoding` (e.g., `"base64"`)
 
--   **headers**: An array of headers in the order they appear in the message (topmost headers first).
-    -   **headers[].key**: The lowercase key of the header line, e.g., `"dkim-signature"`.
-    -   **headers[].value**: The unprocessed value of the header line.
--   **from**, **sender**: Includes a processed object for the corresponding headers.
-    -   **from.name**: The decoded name (empty string if not set).
-    -   **from.address**: The email address.
--   **deliveredTo**, **returnPath**: The email address from the corresponding header.
--   **to**, **cc**, **bcc**, **replyTo**: An array of processed objects for the corresponding headers.
-    -   **to[].name**: The decoded name (empty string if not set).
-    -   **to[].address**: The email address.
--   **subject**: The email subject line.
--   **messageId**, **inReplyTo**, **references**: The value as found in the corresponding header without any processing.
--   **date**: The email sending time formatted as an ISO date string (unless parsing failed, in which case the original value is used).
--   **html**: The HTML content of the message as a string.
--   **text**: The plaintext content of the message as a string.
--   **attachments**: An array that includes the message attachments.
-    -   **attachments[].filename**: The file name if provided.
-    -   **attachments[].mimeType**: The MIME type of the attachment.
-    -   **attachments[].disposition**: Either "attachment", "inline", or `null` if disposition was not provided.
-    -   **attachments[].related**: A boolean value indicating if this attachment should be treated as an embedded image.
-    -   **attachments[].contentId**: The ID from the Content-ID header.
-    -   **attachments[].content**: An ArrayBuffer value that contains the attachment file.
+---
 
 ### Utility Functions
 
-#### addressParser
-
-Parse email address strings.
-
-```js
-addressParser(addressStr, opts) -> Array
-```
-
-Where:
-
--   **addressStr**: The header value for an address header.
--   **opts**: An optional object containing configuration options.
-    -   **flatten**: A boolean value. If set to `true`, it ignores address groups and returns a flat array of addresses. By default (`flatten` is `false`), the result might include nested groups.
-
-The result is an array of objects:
-
--   **name**: The name string. An empty string is used if the name value is not set.
--   **address**: The email address value.
--   **group**: An array of nested address objects. This is used when `flatten` is `false` (the default) and the address string contains address group syntax.
+#### addressParser()
 
 ```js
 import { addressParser } from 'postal-mime';
 
+addressParser(addressStr, opts) -> Array
+```
+
+-   **addressStr**: A raw address header string.
+-   **opts**: Optional configuration:
+    -   **flatten** (boolean, default: `false`): If `true`, ignores address groups and returns a flat array of addresses.
+
+**Returns**: An array of address objects, which can be nested if address groups are present.
+
+**Example**:
+
+```js
 const addressStr = '=?utf-8?B?44Ko44Od44K544Kr44O844OJ?= <support@example.com>';
 console.log(addressParser(addressStr));
 // [ { name: 'エポスカード', address: 'support@example.com' } ]
 ```
 
-#### decodeWords
-
-Decode MIME encoded-words.
-
-```js
-decodeWords(encodedStr) -> String
-```
-
-Where:
-
--   **encodedStr**: A string value that _may_ include MIME encoded-words.
-
-The result is a Unicode string.
+#### decodeWords()
 
 ```js
 import { decodeWords } from 'postal-mime';
 
+decodeWords(encodedStr) -> string
+```
+
+-   **encodedStr**: A string that may contain MIME encoded-words.
+
+**Returns**: A Unicode string with all encoded-words decoded.
+
+**Example**:
+
+```js
 const encodedStr = 'Hello, =?utf-8?B?44Ko44Od44K544Kr44O844OJ?=';
 console.log(decodeWords(encodedStr));
 // Hello, エポスカード
 ```
 
+---
+
 ## License
 
-&copy; 2021-2024 Andris Reinman
+&copy; 2021–2025 Andris Reinman
 
-`postal-mime` is licensed under the **MIT No Attribution license**
+`postal-mime` is licensed under the **MIT No Attribution license**.

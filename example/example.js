@@ -223,9 +223,9 @@ function renderEmail(email) {
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('open-file').addEventListener('click', () => {
         browseFileContents()
-            .then(file => PostalMime.parse(file))
+            .then(file => PostalMime.parse(file, { attachmentEncoding: 'utf8' }))
             .then(email => {
-                console.log(JSON.stringify(email, false, 2));
+                console.log(email);
                 renderEmail(email);
             })
             .catch(err => console.error(err));
