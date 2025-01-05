@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.0](https://github.com/postalsys/postal-mime/compare/v2.3.2...v2.4.0) (2025-01-05)
+
+
+### Features
+
+* **attachments:** Added new option 'attachmentEncoding' to return attachment content as a string, not arraybuffer ([0f7e9df](https://github.com/postalsys/postal-mime/commit/0f7e9df855c9c8f99ed0b7c517d6653169c53405))
+
 ## [2.3.2](https://github.com/postalsys/postal-mime/compare/v2.3.1...v2.3.2) (2024-09-23)
 
 
