@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.1](https://github.com/postalsys/postal-mime/compare/v2.4.0...v2.4.1) (2025-01-05)
+
+
+### Bug Fixes
+
+* **ts:** Tiny schema fix ([f8761e6](https://github.com/postalsys/postal-mime/commit/f8761e6b57af619264fe1ffe121407859e380fe6))
+
 ## [2.4.0](https://github.com/postalsys/postal-mime/compare/v2.3.2...v2.4.0) (2025-01-05)
 
 
