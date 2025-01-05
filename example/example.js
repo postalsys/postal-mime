@@ -223,7 +223,7 @@ function renderEmail(email) {
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('open-file').addEventListener('click', () => {
         browseFileContents()
-            .then(file => PostalMime.parse(file, { attachmentEncoding: 'utf8' }))
+            .then(file => PostalMime.parse(file, { attachmentEncoding: 'arraybuffer' }))
             .then(email => {
                 console.log(email);
                 renderEmail(email);
