@@ -28,7 +28,7 @@
     "author": "Andris Reinman",
     "license": "MIT-0",
     "devDependencies": {
-        "@types/node": "22.6.0",
+        "@types/node": "22.10.10",
         "cross-blob": "3.0.2",
         "cross-env": "7.0.3",
         "eslint": "8.57.0",

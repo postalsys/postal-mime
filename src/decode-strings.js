@@ -155,20 +155,29 @@ export function decodeWord(charset, encoding, str) {
 }
 
 export function decodeWords(str) {
-    return (
-        (str || '')
+    let joinString = true;
+    let done = false;
+    while (!done) {
+        let result = (str || '')
             .toString()
             // find base64 words that can be joined
-            .replace(/(=\?([^?]+)\?[Bb]\?[^?]*\?=)\s*(?==\?([^?]+)\?[Bb]\?[^?]*\?=)/g, (match, left, chLeft, chRight) => {
-                // only mark b64 chunks to be joined if charsets match
-                if (chLeft === chRight) {
+            .replace(/(=\?([^?]+)\?[Bb]\?([^?]*)\?=)\s*(?==\?([^?]+)\?[Bb]\?[^?]*\?=)/g, (match, left, chLeft, encodedLeftStr, chRight) => {
+                if (!joinString) {
+                    return match;
+                }
+                // only mark b64 chunks to be joined if charsets match and left side does not end with =
+                if (chLeft === chRight && encodedLeftStr.length % 4 === 0 && !/=$/.test(encodedLeftStr)) {
                     // set a joiner marker
                     return left + '__\x00JOIN\x00__';
                 }
+
                 return match;
             })
             // find QP words that can be joined
             .replace(/(=\?([^?]+)\?[Qq]\?[^?]*\?=)\s*(?==\?([^?]+)\?[Qq]\?[^?]*\?=)/g, (match, left, chLeft, chRight) => {
+                if (!joinString) {
+                    return match;
+                }
                 // only mark QP chunks to be joined if charsets match
                 if (chLeft === chRight) {
                     // set a joiner marker
@@ -181,8 +190,15 @@ export function decodeWords(str) {
             // remove spaces between mime encoded words
             .replace(/(=\?[^?]+\?[QqBb]\?[^?]*\?=)\s+(?==\?[^?]+\?[QqBb]\?[^?]*\?=)/g, '$1')
             // decode words
-            .replace(/=\?([\w_\-*]+)\?([QqBb])\?([^?]*)\?=/g, (m, charset, encoding, text) => decodeWord(charset, encoding, text))
-    );
+            .replace(/=\?([\w_\-*]+)\?([QqBb])\?([^?]*)\?=/g, (m, charset, encoding, text) => decodeWord(charset, encoding, text));
+
+        if (joinString && result.indexOf('\ufffd') >= 0) {
+            // text contains \ufffd (EF BF BD), so unicode conversion failed, retry without joining strings
+            joinString = false;
+        } else {
+            return result;
+        }
+    }
 }
 
 export function decodeURIComponentWithCharset(encodedStr, charset) {

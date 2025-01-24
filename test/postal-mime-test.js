@@ -65,6 +65,38 @@ Subject: =?ISO-2022-JP?B?GyRCM1g5OzU7PVEwdzgmPSQ4IUYkMnFKczlwGyhC?=
     assert.strictEqual(email.text.trim(), expected);
 });
 
+test('Parse ISO-2022-JP subject', async t => {
+    const mail = Buffer.from(`Subject: =?ISO-2022-JP?B?UGFzc3dvcmQ6GyRCIVYbKEJSRTogGyRCRUUbKEI=?=
+  =?ISO-2022-JP?B?GyRCO1IlYSE8JWs+cEpzTzMxTEJQOnYlNyU5JUYlYCVGGyhC?=
+  =?ISO-2022-JP?B?GyRCJTklSCVhITwlayRHJDkhIyFXGyhC?=
+
+hello world
+`);
+
+    const expected = 'Password:「RE: 電子メール情報漏洩対策システムテストメールです。」';
+
+    const parser = new PostalMime();
+    const email = await parser.parse(mail);
+
+    assert.strictEqual(email.subject.trim(), expected);
+});
+
+test('Parse ISO-2022-JP split subject', async t => {
+    const mail = Buffer.from(`Subject: =?ISO-2022-JP?B?UGFzc3dvcmQ6GyRCIVYbKEJSRTogGyRC?=
+  =?ISO-2022-JP?B?RUU7UiVhITwlaz5wSnNPMzFMQlA6diU3?=
+  =?ISO-2022-JP?B?JTklRiVgJUYlOSVIJWEhPCVrJEckOSEjIVcbKEI=?=
+
+hello world
+`);
+
+    const expected = 'Password:「RE: 電子メール情報漏洩対策システムテストメールです。」';
+
+    const parser = new PostalMime();
+    const email = await parser.parse(mail);
+
+    assert.strictEqual(email.subject.trim(), expected);
+});
+
 test('Parse double encoded address string', async t => {
     const mail = Buffer.from(
         `From: test@example.com
