@@ -18,7 +18,6 @@ export default class MimeNode {
         this.state = 'header';
 
         this.headerLines = [];
-        this.decoders = new Map();
 
         this.contentType = {
             value: 'text/plain',

@@ -1,7 +1,5 @@
 export const textEncoder = new TextEncoder();
 
-const decoders = new Map();
-
 const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 // Use a lookup table to find the index.
@@ -46,23 +44,7 @@ export function decodeBase64(base64) {
 
 export function getDecoder(charset) {
     charset = charset || 'utf8';
-    if (decoders.has(charset)) {
-        return decoders.get(charset);
-    }
-    let decoder;
-    try {
-        decoder = new TextDecoder(charset);
-    } catch (err) {
-        if (charset === 'utf8') {
-            // is this even possible?
-            throw err;
-        }
-        // use default
-        return getDecoder();
-    }
-
-    decoders.set(charset, decoder);
-    return decoder;
+    return new TextDecoder(charset);
 }
 
 /**
@@ -157,6 +139,7 @@ export function decodeWord(charset, encoding, str) {
 export function decodeWords(str) {
     let joinString = true;
     let done = false;
+
     while (!done) {
         let result = (str || '')
             .toString()
