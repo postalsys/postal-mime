@@ -1,6 +1,6 @@
 {
     "name": "postal-mime",
-    "version": "2.4.1",
+    "version": "2.4.2",
     "description": "Email parser for browser environments",
     "main": "./src/postal-mime.js",
     "exports": {

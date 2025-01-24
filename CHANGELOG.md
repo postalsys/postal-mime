@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.2](https://github.com/postalsys/postal-mime/compare/v2.4.1...v2.4.2) (2025-01-24)
+
+
+### Bug Fixes
+
+* **decodeWords:** Better handling of decoded words ([e0f0047](https://github.com/postalsys/postal-mime/commit/e0f0047b6f97e1251f86f7852eb7935882ead0c1))
+
 ## [2.4.1](https://github.com/postalsys/postal-mime/compare/v2.4.0...v2.4.1) (2025-01-05)
 
 
