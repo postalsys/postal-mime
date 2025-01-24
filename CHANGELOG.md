@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.3](https://github.com/postalsys/postal-mime/compare/v2.4.2...v2.4.3) (2025-01-24)
+
+
+### Bug Fixes
+
+* **TextDecoder:** Do not reuse text decoders to avoid spilling data from one instance to another ([8b1013e](https://github.com/postalsys/postal-mime/commit/8b1013e52c878020b3705a2e702a560114f4c081))
+
 ## [2.4.2](https://github.com/postalsys/postal-mime/compare/v2.4.1...v2.4.2) (2025-01-24)
 
 
