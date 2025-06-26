@@ -44,7 +44,15 @@ export function decodeBase64(base64) {
 
 export function getDecoder(charset) {
     charset = charset || 'utf8';
-    return new TextDecoder(charset);
+    let decoder;
+
+    try {
+        decoder = new TextDecoder(charset);
+    } catch (err) {
+        decoder = new TextDecoder('windows-1252');
+    }
+
+    return decoder;
 }
 
 /**
