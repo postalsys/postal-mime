@@ -12,7 +12,9 @@
     "types": "postal-mime.d.ts",
     "scripts": {
         "test": "eslint && node --test",
-        "update": "rm -rf node_modules package-lock.json && ncu -u && npm install"
+        "update": "rm -rf node_modules package-lock.json && ncu -u && npm install",
+        "format": "prettier --write \"**/*.{js,mjs,json}\" --ignore-path .prettierignore",
+        "format:check": "prettier --check \"**/*.{js,mjs,json}\" --ignore-path .prettierignore"
     },
     "keywords": [
         "mime",
@@ -33,6 +35,7 @@
         "cross-env": "7.0.3",
         "eslint": "8.57.0",
         "eslint-cli": "1.1.1",
-        "iframe-resizer": "4.3.6"
+        "iframe-resizer": "4.3.6",
+        "prettier": "^3.6.2"
     }
 }

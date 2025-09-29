@@ -1,5 +1,11 @@
 import { blobToArrayBuffer } from './decode-strings.js';
 
+// Regex patterns compiled once for performance
+const VALID_QP_REGEX = /^=[a-f0-9]{2}$/i;
+const QP_SPLIT_REGEX = /(?==[a-f0-9]{2})/i;
+const SOFT_LINE_BREAK_REGEX = /=\r?\n/g;
+const PARTIAL_QP_ENDING_REGEX = /=[a-fA-F0-9]?$/;
+
 export default class QPDecoder {
     constructor(opts) {
         opts = opts || {};
@@ -24,9 +30,9 @@ export default class QPDecoder {
 
     decodeChunks(str) {
         // unwrap newlines
-        str = str.replace(/=\r?\n/g, '');
+        str = str.replace(SOFT_LINE_BREAK_REGEX, '');
 
-        let list = str.split(/(?==)/);
+        let list = str.split(QP_SPLIT_REGEX);
         let encodedBytes = [];
         for (let part of list) {
             if (part.charAt(0) !== '=') {
@@ -39,17 +45,38 @@ export default class QPDecoder {
             }
 
             if (part.length === 3) {
-                encodedBytes.push(part.substr(1));
+                // Validate that this is actually a valid QP sequence
+                if (VALID_QP_REGEX.test(part)) {
+                    encodedBytes.push(part.substr(1));
+                } else {
+                    // Not a valid QP sequence, treat as literal text
+                    if (encodedBytes.length) {
+                        this.chunks.push(this.decodeQPBytes(encodedBytes));
+                        encodedBytes = [];
+                    }
+                    this.chunks.push(part);
+                }
                 continue;
             }
 
             if (part.length > 3) {
-                encodedBytes.push(part.substr(1, 2));
-                this.chunks.push(this.decodeQPBytes(encodedBytes));
-                encodedBytes = [];
+                // First 3 chars should be a valid QP sequence
+                const firstThree = part.substr(0, 3);
+                if (VALID_QP_REGEX.test(firstThree)) {
+                    encodedBytes.push(part.substr(1, 2));
+                    this.chunks.push(this.decodeQPBytes(encodedBytes));
+                    encodedBytes = [];
 
-                part = part.substr(3);
-                this.chunks.push(part);
+                    part = part.substr(3);
+                    this.chunks.push(part);
+                } else {
+                    // Not a valid QP sequence, treat entire part as literal
+                    if (encodedBytes.length) {
+                        this.chunks.push(this.decodeQPBytes(encodedBytes));
+                        encodedBytes = [];
+                    }
+                    this.chunks.push(part);
+                }
             }
         }
         if (encodedBytes.length) {
@@ -71,7 +98,7 @@ export default class QPDecoder {
 
         this.remainder = '';
 
-        let partialEnding = str.match(/=[a-fA-F0-9]?$/);
+        let partialEnding = str.match(PARTIAL_QP_ENDING_REGEX);
         if (partialEnding) {
             if (partialEnding.index === 0) {
                 this.remainder = str;

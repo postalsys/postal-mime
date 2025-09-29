@@ -190,7 +190,8 @@ export default class PostalMime {
 
                 // is it an attachment
                 else if (node.content) {
-                    const filename = node.contentDisposition.parsed.params.filename || node.contentType.parsed.params.name || null;
+                    const filename =
+                        node.contentDisposition.parsed.params.filename || node.contentType.parsed.params.name || null;
                     const attachment = {
                         filename: filename ? decodeWords(filename) : null,
                         mimeType: node.contentType.parsed.value,
@@ -214,7 +215,10 @@ export default class PostalMime {
                         case 'text/calendar':
                         case 'application/ics': {
                             if (node.contentType.parsed.params.method) {
-                                attachment.method = node.contentType.parsed.params.method.toString().toUpperCase().trim();
+                                attachment.method = node.contentType.parsed.params.method
+                                    .toString()
+                                    .toUpperCase()
+                                    .trim();
                             }
 
                             // Enforce into unicode
@@ -341,7 +345,8 @@ export default class PostalMime {
         if (node.contentType.parsed.value !== 'message/rfc822') {
             return false;
         }
-        let disposition = node.contentDisposition.parsed.value || (this.options.rfc822Attachments ? 'attachment' : 'inline');
+        let disposition =
+            node.contentDisposition.parsed.value || (this.options.rfc822Attachments ? 'attachment' : 'inline');
         return disposition === 'inline';
     }
 

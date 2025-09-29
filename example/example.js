@@ -134,7 +134,10 @@ function renderEmail(email) {
             hour12: false
         };
 
-        document.querySelector('#date-container .content').textContent = new Intl.DateTimeFormat('default', dateOptions).format(new Date(email.date));
+        document.querySelector('#date-container .content').textContent = new Intl.DateTimeFormat(
+            'default',
+            dateOptions
+        ).format(new Date(email.date));
     } else {
         document.getElementById('date-container').style.display = 'none';
     }
@@ -176,7 +179,9 @@ function renderEmail(email) {
             if (/^cid:/.test(img.src)) {
                 // replace with inline attachment
                 const cid = img.src.substr(4).trim();
-                const attachment = email.attachments.find(attachment => attachment.contentId && attachment.contentId === `<${cid}>`);
+                const attachment = email.attachments.find(
+                    attachment => attachment.contentId && attachment.contentId === `<${cid}>`
+                );
                 if (attachment) {
                     img.src = URL.createObjectURL(new Blob([attachment.content], { type: attachment.mimeType }));
                 }
@@ -223,11 +228,16 @@ function renderEmail(email) {
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('open-file').addEventListener('click', () => {
         browseFileContents()
-            .then(file => PostalMime.parse(file, { attachmentEncoding: 'arraybuffer' }))
+            .then(file =>
+                PostalMime.parse(file, {
+                    attachmentEncoding: 'arraybuffer'
+                })
+            )
             .then(email => {
-                console.log(email);
                 renderEmail(email);
             })
-            .catch(err => console.error(err));
+            .catch(err => {
+                alert('Error parsing email: ' + err.message);
+            });
     });
 });
