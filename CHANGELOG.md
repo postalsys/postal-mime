@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.4](https://github.com/postalsys/postal-mime/compare/v2.4.3...v2.4.4) (2025-06-26)
+
+
+### Bug Fixes
+
+* **TextDecoder:** Fall back to windows-1252 for an unknown charset instead of throwing ([d5b917d](https://github.com/postalsys/postal-mime/commit/d5b917d5b09fab9183733cd76ebdc896467ae31e))
+
 ## [2.4.3](https://github.com/postalsys/postal-mime/compare/v2.4.2...v2.4.3) (2025-01-24)
 
 
