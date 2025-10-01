@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.5](https://github.com/postalsys/postal-mime/compare/v2.4.4...v2.4.5) (2025-09-29)
+
+
+### Bug Fixes
+
+* handle broken quoted-printable sequences and add prettier formatter ([ec3bc64](https://github.com/postalsys/postal-mime/commit/ec3bc647f6e262a7ac3a51e30bbe3b07b6e7db7a))
+
 ## [2.4.4](https://github.com/postalsys/postal-mime/compare/v2.4.3...v2.4.4) (2025-06-26)
 
 
