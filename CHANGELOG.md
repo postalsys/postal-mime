@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.6](https://github.com/postalsys/postal-mime/compare/v2.4.5...v2.4.6) (2025-10-01)
+
+
+### Bug Fixes
+
+* add security limits for MIME parsing ([defbf11](https://github.com/postalsys/postal-mime/commit/defbf11e85c8233e6ff01a3d6fc10534b784c499))
+
 ## [2.4.5](https://github.com/postalsys/postal-mime/compare/v2.4.4...v2.4.5) (2025-09-29)
 
 
