@@ -111,6 +111,8 @@ PostalMime.parse(email, options) -> Promise<ParsedEmail>
         -   `"base64"`
         -   `"utf8"`
         -   `"arraybuffer"` (no decoding, returns `ArrayBuffer`)
+    -   **maxNestingDepth** (number, default: `256`): Maximum allowed MIME part nesting depth. Throws an error if exceeded.
+    -   **maxHeadersSize** (number, default: `2097152`): Maximum allowed total header size in bytes (default 2MB). Throws an error if exceeded.
 
 **Returns**: A Promise that resolves to a structured object with the following properties:
 

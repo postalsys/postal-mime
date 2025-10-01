@@ -1,6 +1,9 @@
 export type RawEmail = string | ArrayBuffer | Uint8Array | Blob | Buffer | ReadableStream;
 
-export type Header = Record<string, string>;
+export type Header = {
+    key: string;
+    value: string;
+};
 
 export type Address = {
     name: string;
@@ -22,7 +25,7 @@ export type Attachment = {
 
 export type Email = {
     headers: Header[];
-    from: Address;
+    from?: Address;
     sender?: Address;
     replyTo?: Address[];
     deliveredTo?: string;
@@ -31,7 +34,7 @@ export type Email = {
     cc?: Address[];
     bcc?: Address[];
     subject?: string;
-    messageId: string;
+    messageId?: string;
     inReplyTo?: string;
     references?: string;
     date?: string;
@@ -56,7 +59,9 @@ declare function decodeWords (
 declare type PostalMimeOptions = {
     rfc822Attachments?: boolean,
     forceRfc822Attachments?: boolean,
-    attachmentEncoding?: "base64" | "utf8" | "arraybuffer"
+    attachmentEncoding?: "base64" | "utf8" | "arraybuffer",
+    maxNestingDepth?: number,
+    maxHeadersSize?: number
 }
 
 declare class PostalMime {

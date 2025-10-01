@@ -4,20 +4,31 @@ import Base64Decoder from './base64-decoder.js';
 import QPDecoder from './qp-decoder.js';
 
 export default class MimeNode {
-    constructor(opts) {
-        opts = opts || {};
+    constructor(options) {
+        this.options = options || {};
 
-        this.postalMime = opts.postalMime;
+        this.postalMime = this.options.postalMime;
 
-        this.root = !!opts.parentNode;
+        this.root = !!this.options.parentNode;
         this.childNodes = [];
-        if (opts.parentNode) {
-            opts.parentNode.childNodes.push(this);
+
+        if (this.options.parentNode) {
+            this.parentNode = this.options.parentNode;
+
+            this.depth = this.parentNode.depth + 1;
+            if (this.depth > this.options.maxNestingDepth) {
+                throw new Error(`Maximum MIME nesting depth of ${this.options.maxNestingDepth} levels exceeded`);
+            }
+
+            this.options.parentNode.childNodes.push(this);
+        } else {
+            this.depth = 0;
         }
 
         this.state = 'header';
 
         this.headerLines = [];
+        this.headerSize = 0;
 
         this.contentType = {
             value: 'text/plain',
@@ -262,6 +273,14 @@ export default class MimeNode {
                     this.state = 'body';
                     return this.processHeaders();
                 }
+
+                this.headerSize += line.length;
+
+                if (this.headerSize > this.options.maxHeadersSize) {
+                    let error = new Error(`Maximum header size of ${this.options.maxHeadersSize} bytes exceeded`);
+                    throw error;
+                }
+
                 this.headerLines.push(getDecoder().decode(line));
                 break;
             case 'body': {

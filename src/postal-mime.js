@@ -6,6 +6,9 @@ import { base64ArrayBuffer } from './base64-encoder.js';
 
 export { addressParser, decodeWords };
 
+const MAX_NESTING_DEPTH = 256;
+const MAX_HEADERS_SIZE = 2 * 1024 * 1024;
+
 export default class PostalMime {
     static parse(buf, options) {
         const parser = new PostalMime(options);
@@ -14,9 +17,14 @@ export default class PostalMime {
 
     constructor(options) {
         this.options = options || {};
+        this.mimeOptions = {
+            maxNestingDepth: this.options.maxNestingDepth || MAX_NESTING_DEPTH,
+            maxHeadersSize: this.options.maxHeadersSize || MAX_HEADERS_SIZE
+        };
 
         this.root = this.currentNode = new MimeNode({
-            postalMime: this
+            postalMime: this,
+            ...this.mimeOptions
         });
         this.boundaries = [];
 
@@ -78,7 +86,8 @@ export default class PostalMime {
 
                     this.currentNode = new MimeNode({
                         postalMime: this,
-                        parentNode: boundary.node
+                        parentNode: boundary.node,
+                        ...this.mimeOptions
                     });
                 }
 
