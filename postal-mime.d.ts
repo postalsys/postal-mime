@@ -8,12 +8,14 @@ export type Header = {
 export type Mailbox = {
     name: string;
     address: string;
+    group: undefined;
 };
 
 export type Address =
     | Mailbox
     | {
           name: string;
+          address: undefined;
           group: Mailbox[];
       };
 
