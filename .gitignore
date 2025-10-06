@@ -5,3 +5,4 @@ yarn.lock
 .idea
 .claude
 CLAUDE.md
+*.patch
