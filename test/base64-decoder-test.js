@@ -197,10 +197,7 @@ NTY3ODk=`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(
-        email.text.trim(),
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-    );
+    assert.strictEqual(email.text.trim(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789');
 });
 
 test('Base64 decoder - numbers', async () => {

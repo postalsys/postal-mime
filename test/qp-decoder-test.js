@@ -63,7 +63,10 @@ for readability.`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'This is a very long line that has been broken up using soft line breaks for readability.');
+    assert.strictEqual(
+        email.text.trim(),
+        'This is a very long line that has been broken up using soft line breaks for readability.'
+    );
 });
 
 test('QP decoder - soft line breaks with CRLF', async () => {
@@ -176,7 +179,7 @@ Content-Transfer-Encoding: quoted-printable
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), '!@#$%^&*()_+-=[]{}|;:\',.<>?/');
+    assert.strictEqual(email.text.trim(), "!@#$%^&*()_+-=[]{}|;:',.<>?/");
 });
 
 test('QP decoder - consecutive encoded characters', async () => {

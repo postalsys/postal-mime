@@ -253,7 +253,7 @@ Line 3`);
 });
 
 test('Edge case - CRLF and LF mixed', async () => {
-    const mail = Buffer.from("Content-Type: text/plain\r\n\nLine 1\nLine 2\r\nLine 3");
+    const mail = Buffer.from('Content-Type: text/plain\r\n\nLine 1\nLine 2\r\nLine 3');
 
     const parser = new PostalMime();
     const email = await parser.parse(mail);
@@ -264,7 +264,7 @@ test('Edge case - CRLF and LF mixed', async () => {
 });
 
 test('Edge case - only CR line endings', async () => {
-    const mail = Buffer.from("Content-Type: text/plain\n\nLine 1\nLine 2");
+    const mail = Buffer.from('Content-Type: text/plain\n\nLine 1\nLine 2');
 
     const parser = new PostalMime();
     const email = await parser.parse(mail);

@@ -279,7 +279,8 @@ test('formatTextHeader - with groups', () => {
 test('formatTextHeader - long subject line folding', () => {
     const message = {
         from: { name: 'Sender', address: 'sender@example.com' },
-        subject: 'This is a very long subject line that should be folded to fit within reasonable line length limits for email display'
+        subject:
+            'This is a very long subject line that should be folded to fit within reasonable line length limits for email display'
     };
 
     const result = formatTextHeader(message);
@@ -315,9 +316,7 @@ test('formatHtmlHeader - basic message', () => {
 test('formatHtmlHeader - with recipients', () => {
     const message = {
         from: { name: 'Sender', address: 'sender@example.com' },
-        to: [
-            { name: 'Recipient', address: 'r1@example.com' }
-        ],
+        to: [{ name: 'Recipient', address: 'r1@example.com' }],
         cc: [{ name: '', address: 'cc@example.com' }]
     };
 
@@ -345,9 +344,7 @@ test('formatHtmlHeader - with groups', () => {
         to: [
             {
                 name: 'Team',
-                group: [
-                    { name: 'Member', address: 'm@example.com' }
-                ]
+                group: [{ name: 'Member', address: 'm@example.com' }]
             }
         ]
     };
