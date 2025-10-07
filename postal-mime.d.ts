@@ -51,20 +51,20 @@ export type Email = {
     attachments: Attachment[];
 };
 
-declare type AddressParserOptions = {
+export type AddressParserOptions = {
     flatten?: boolean
 }
 
-declare function addressParser (
+export function addressParser (
     str: string,
     options?: AddressParserOptions
 ): Address[];
 
-declare function decodeWords (
+export function decodeWords (
     str: string
 ): string;
 
-declare type PostalMimeOptions = {
+export type PostalMimeOptions = {
     rfc822Attachments?: boolean,
     forceRfc822Attachments?: boolean,
     attachmentEncoding?: "base64" | "utf8" | "arraybuffer",
@@ -72,7 +72,7 @@ declare type PostalMimeOptions = {
     maxHeadersSize?: number
 }
 
-declare class PostalMime {
+export default class PostalMime {
     constructor(options?: PostalMimeOptions);
     static parse(
         email: RawEmail,
@@ -80,6 +80,3 @@ declare class PostalMime {
     ): Promise<Email>;
     parse(email: RawEmail): Promise<Email>;
 }
-
-export { addressParser, decodeWords };
-export default PostalMime;
