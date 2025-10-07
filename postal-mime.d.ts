@@ -5,11 +5,19 @@ export type Header = {
     value: string;
 };
 
-export type Address = {
+export type Mailbox = {
     name: string;
-    address?: string;
-    group?: Address[]
+    address: string;
+    group?: undefined;
 };
+
+export type Address =
+    | Mailbox
+    | {
+          name: string;
+          address?: undefined;
+          group: Mailbox[];
+      };
 
 export type Attachment = {
     filename: string | null;
