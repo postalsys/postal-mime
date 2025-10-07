@@ -2,7 +2,7 @@
 
 **postal-mime** is an email parsing library that runs in browser environments (including Web Workers) and serverless functions (like Cloudflare Email Workers). It takes in a raw email message (RFC822 format) and outputs a structured object containing headers, recipients, attachments, and more.
 
-> **Tip**  
+> [!TIP]
 > PostalMime is developed by the makers of [EmailEngine](https://emailengine.app/?utm_source=github&utm_campaign=imapflow&utm_medium=readme-link)—a self-hosted email gateway that provides a REST API for IMAP and SMTP servers and sends webhooks whenever something changes in registered accounts.
 
 ## Features
@@ -183,6 +183,9 @@ import type {
 } from 'postal-mime';
 ```
 
+> [!NOTE]
+> PostalMime is written in JavaScript but provides comprehensive TypeScript type definitions. All types are validated through both compile-time type checking and runtime type validation tests to ensure accuracy.
+
 ### Available Types
 
 -   **`Email`** - The main parsed email object returned by `PostalMime.parse()`
@@ -231,6 +234,9 @@ PostalMime.parse(email, options) -> Promise<Email>
         -   `"arraybuffer"` (no decoding, returns `ArrayBuffer`)
     -   **maxNestingDepth** (number, default: `256`): Maximum allowed MIME part nesting depth. Throws an error if exceeded.
     -   **maxHeadersSize** (number, default: `2097152`): Maximum allowed total header size in bytes (default 2MB). Throws an error if exceeded.
+
+> [!IMPORTANT]
+> The `maxNestingDepth` and `maxHeadersSize` options provide built-in security against malicious emails with deeply nested MIME structures or oversized headers that could cause performance issues or memory exhaustion.
 
 **Returns**: A Promise that resolves to a structured `Email` object with the following properties:
 
