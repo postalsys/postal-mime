@@ -11,7 +11,8 @@
     "type": "module",
     "types": "postal-mime.d.ts",
     "scripts": {
-        "test": "eslint && node --test",
+        "test": "npm run lint && node --test",
+        "lint": "eslint",
         "update": "rm -rf node_modules package-lock.json && ncu -u && npm install",
         "format": "prettier --write \"**/*.{js,mjs,json}\" --ignore-path .prettierignore",
         "format:check": "prettier --check \"**/*.{js,mjs,json}\" --ignore-path .prettierignore"
