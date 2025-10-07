@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.0](https://github.com/postalsys/postal-mime/compare/v2.4.7...v2.5.0) (2025-10-07)
+
+
+### Features
+
+* add comprehensive type validation and TypeScript support ([81a6467](https://github.com/postalsys/postal-mime/commit/81a6467b6c5379c502bac9ee7023e2c2dee976cb))
+
 ## [2.4.7](https://github.com/postalsys/postal-mime/compare/v2.4.6...v2.4.7) (2025-10-07)
 
 
