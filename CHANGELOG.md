@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.0](https://github.com/postalsys/postal-mime/compare/v2.5.0...v2.6.0) (2025-10-24)
+
+
+### Features
+
+* add CommonJS build support for dual package compatibility ([0ea3de3](https://github.com/postalsys/postal-mime/commit/0ea3de39c713aac2bc79218dfb496c0e2ff4b0b8))
+
 ## [2.5.0](https://github.com/postalsys/postal-mime/compare/v2.4.7...v2.5.0) (2025-10-07)
 
 
