@@ -125,6 +125,25 @@ console.log(util.inspect(email, false, 22, true));
 
 </details>
 
+### CommonJS
+
+For projects using CommonJS (with `require()`), postal-mime automatically provides the CommonJS build:
+
+```js
+const PostalMime = require('postal-mime');
+const { addressParser, decodeWords } = require('postal-mime');
+
+const email = await PostalMime.parse(`Subject: My awesome email 🤓
+Content-Type: text/html; charset=utf-8
+
+<p>Hello world 😵‍💫</p>`);
+
+console.log(email.subject); // "My awesome email 🤓"
+```
+
+> [!NOTE]
+> The CommonJS build is automatically generated from the ESM source code during the build process. The package supports dual module format, so both `import` and `require()` work seamlessly.
+
 ### Cloudflare Email Workers
 
 Use the `message.raw` as the raw email data for parsing:

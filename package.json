@@ -2,21 +2,26 @@
     "name": "postal-mime",
     "version": "2.5.0",
     "description": "Email parser for browser environments",
-    "main": "./src/postal-mime.js",
+    "main": "./dist/postal-mime.cjs",
+    "module": "./src/postal-mime.js",
     "exports": {
-        "import": "./src/postal-mime.js",
-        "types": "./postal-mime.d.ts",
-        "default": "./src/postal-mime.js"
+        ".": {
+            "types": "./postal-mime.d.ts",
+            "import": "./src/postal-mime.js",
+            "require": "./dist/postal-mime.cjs"
+        }
     },
     "type": "module",
     "types": "postal-mime.d.ts",
     "scripts": {
+        "build": "node scripts/build-cjs.js",
         "test": "npm run lint && npm run type-check && node --test",
         "lint": "eslint",
         "type-check": "tsc --noEmit",
         "update": "rm -rf node_modules package-lock.json && ncu -u && npm install",
         "format": "prettier --write \"**/*.{js,mjs,json}\" --ignore-path .prettierignore",
-        "format:check": "prettier --check \"**/*.{js,mjs,json}\" --ignore-path .prettierignore"
+        "format:check": "prettier --check \"**/*.{js,mjs,json}\" --ignore-path .prettierignore",
+        "prepublishOnly": "npm run build"
     },
     "keywords": [
         "mime",
@@ -35,6 +40,7 @@
         "@types/node": "24.0.4",
         "cross-blob": "3.0.2",
         "cross-env": "7.0.3",
+        "esbuild": "^0.25.11",
         "eslint": "8.57.0",
         "eslint-cli": "1.1.1",
         "iframe-resizer": "4.3.6",
