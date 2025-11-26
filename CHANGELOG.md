@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.6.1](https://github.com/postalsys/postal-mime/compare/v2.6.0...v2.6.1) (2025-11-26)
+
+
+### Bug Fixes
+
+* prevent DoS from deeply nested address groups ([f509eaf](https://github.com/postalsys/postal-mime/commit/f509eafec31bf448482133041c086f7aefa2b3fa))
+* update TypeScript typings to match source code ([df5640a](https://github.com/postalsys/postal-mime/commit/df5640a3166b0a1fe3ca563e1364301bb4e6a025))
+
 ## [2.6.0](https://github.com/postalsys/postal-mime/compare/v2.5.0...v2.6.0) (2025-10-24)
 
 
