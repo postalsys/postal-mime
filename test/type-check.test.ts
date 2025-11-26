@@ -28,7 +28,7 @@ function testTypeExports() {
     const raw3: RawEmail = new Uint8Array();
     const raw4: RawEmail = new ArrayBuffer(0);
 
-    const header: Header = { key: 'subject', value: 'Test' };
+    const header: Header = { key: 'subject', originalKey: 'Subject', value: 'Test' };
     const mailbox: Mailbox = { name: 'John', address: 'john@example.com' };
     const group: Address = { name: 'Team', group: [mailbox] };
 

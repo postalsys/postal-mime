@@ -2,6 +2,7 @@ export type RawEmail = string | ArrayBuffer | Uint8Array | Blob | Buffer | Reada
 
 export type Header = {
     key: string;
+    originalKey: string;
     value: string;
 };
 
@@ -27,7 +28,7 @@ export type Attachment = {
     description?: string;
     contentId?: string;
     method?: string;
-    content: ArrayBuffer | string;
+    content: ArrayBuffer | Uint8Array | string;
     encoding?: "base64" | "utf8";
 };
 
