@@ -338,3 +338,58 @@ test('addressParser - address with leading comma', () => {
     assert.strictEqual(result.length, 1);
     assert.strictEqual(result[0].address, 'user@example.com');
 });
+
+// DoS protection tests for deeply nested groups
+test('addressParser - deeply nested groups should not cause stack overflow', () => {
+    // Build a deeply nested group structure that would cause stack overflow without protection
+    // e.g., "g0: g1: g2: g3: ... gN: user@example.com;"
+    const depth = 3000;
+    let parts = [];
+    for (let i = 0; i < depth; i++) {
+        parts.push(`g${i}:`);
+    }
+    const maliciousInput = parts.join(' ') + ' user@example.com;';
+
+    // This should NOT throw "Maximum call stack size exceeded"
+    // Instead it should return a result (possibly truncated due to depth limit)
+    let result;
+    assert.doesNotThrow(() => {
+        result = addressParser(maliciousInput);
+    });
+
+    // Should return some result without crashing
+    assert.ok(Array.isArray(result));
+});
+
+test('addressParser - nested groups up to safe depth should work correctly', () => {
+    // Test a few levels of nesting that should work fine
+    const result = addressParser('outer: inner: user@example.com;;');
+    assert.strictEqual(result.length, 1);
+    assert.ok(result[0].group);
+});
+
+test('addressParser - many colons in malicious input should not crash', () => {
+    // Another variant of the attack - colons without spaces
+    const depth = 5000;
+    const maliciousInput = ':'.repeat(depth) + 'user@example.com;';
+
+    assert.doesNotThrow(() => {
+        addressParser(maliciousInput);
+    });
+});
+
+test('addressParser - mixed nested groups and addresses should not crash', () => {
+    // Mix of nested groups with valid addresses
+    const depth = 1000;
+    let parts = [];
+    for (let i = 0; i < depth; i++) {
+        parts.push(`group${i}:`);
+    }
+    const maliciousInput = parts.join(' ') + ' victim@example.com; normal@example.com';
+
+    let result;
+    assert.doesNotThrow(() => {
+        result = addressParser(maliciousInput);
+    });
+    assert.ok(Array.isArray(result));
+});
