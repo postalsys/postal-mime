@@ -39,7 +39,7 @@ The source code is available on [GitHub](https://github.com/postalsys/postal-mim
 
 ## Demo
 
-Try out a live demo using the [example page](https://kreata.ee/postal-mime/example/).
+Try out a live demo using the [example page](https://postal-mime.postalsys.com/demo).
 
 ## Installation
 

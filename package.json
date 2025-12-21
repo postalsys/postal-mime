@@ -34,6 +34,7 @@
     "bugs": {
         "url": "https://github.com/postalsys/postal-mime/issues"
     },
+    "homepage": "https://postal-mime.postalsys.com",
     "author": "Andris Reinman",
     "license": "MIT-0",
     "devDependencies": {
