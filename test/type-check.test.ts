@@ -11,6 +11,7 @@ import type {
     Address,
     Mailbox,
     Header,
+    HeaderLine,
     Attachment,
     PostalMimeOptions,
     AddressParserOptions
@@ -29,6 +30,7 @@ function testTypeExports() {
     const raw4: RawEmail = new ArrayBuffer(0);
 
     const header: Header = { key: 'subject', originalKey: 'Subject', value: 'Test' };
+    const headerLine: HeaderLine = { key: 'subject', line: 'Subject: Test' };
     const mailbox: Mailbox = { name: 'John', address: 'john@example.com' };
     const group: Address = { name: 'Team', group: [mailbox] };
 
@@ -41,6 +43,7 @@ function testTypeExports() {
 
     const email: Email = {
         headers: [header],
+        headerLines: [headerLine],
         attachments: [attachment],
         from: mailbox,
         to: [mailbox, group]
@@ -95,6 +98,7 @@ function testTypeNarrowing(email: Email) {
 function testRequiredFields(email: Email) {
     // Required fields - no error
     const headers: Header[] = email.headers;
+    const headerLines: HeaderLine[] = email.headerLines;
     const attachments: Attachment[] = email.attachments;
 
     // Optional fields - can be undefined

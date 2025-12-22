@@ -351,3 +351,238 @@ test('Parse bounce email attachment', async t => {
 
     assert.strictEqual(email.attachments.length, 2);
 });
+
+// headerLines tests
+
+test('headerLines contains raw header lines', async t => {
+    const mail = `From: sender@example.com
+To: recipient@example.com
+Subject: =?UTF-8?B?SGVsbG8gV29ybGQ=?=
+Content-Type: text/plain; charset=utf-8
+
+Hello`;
+
+    const email = await PostalMime.parse(mail);
+
+    assert.ok(Array.isArray(email.headerLines));
+    assert.strictEqual(email.headerLines.length, 4);
+
+    const fromHeader = email.headerLines.find(h => h.key === 'from');
+    assert.ok(fromHeader);
+    assert.strictEqual(fromHeader.line, 'From: sender@example.com');
+
+    const subjectHeader = email.headerLines.find(h => h.key === 'subject');
+    assert.ok(subjectHeader);
+    // Raw line should preserve encoded words (not decoded)
+    assert.strictEqual(subjectHeader.line, 'Subject: =?UTF-8?B?SGVsbG8gV29ybGQ=?=');
+});
+
+test('headerLines handles folded headers', async t => {
+    const mail = `From: sender@example.com
+Subject: This is a very long subject line that
+ has been folded across multiple lines
+Content-Type: text/plain
+
+Body`;
+
+    const email = await PostalMime.parse(mail);
+
+    const subjectHeader = email.headerLines.find(h => h.key === 'subject');
+    assert.ok(subjectHeader);
+    // Folded lines should be merged with newline preserved
+    assert.ok(subjectHeader.line.includes('\n'));
+    assert.ok(subjectHeader.line.startsWith('Subject: This is a very long'));
+});
+
+test('headerLines order matches headers array', async t => {
+    const mail = `From: a@example.com
+To: b@example.com
+Subject: Test
+
+Body`;
+
+    const email = await PostalMime.parse(mail);
+
+    assert.strictEqual(email.headerLines.length, email.headers.length);
+    for (let i = 0; i < email.headers.length; i++) {
+        assert.strictEqual(email.headerLines[i].key, email.headers[i].key);
+    }
+});
+
+test('headerLines handles malformed header without colon', async t => {
+    const mail = `From: test@example.com
+MalformedHeaderNoColon
+Subject: Test
+
+Body`;
+
+    const email = await PostalMime.parse(mail);
+
+    const malformed = email.headerLines.find(h => h.key === 'malformedheadernocolon');
+    assert.ok(malformed);
+    assert.strictEqual(malformed.line, 'MalformedHeaderNoColon');
+});
+
+test('headerLines handles header with empty value', async t => {
+    const mail = `From: test@example.com
+X-Empty-Header:
+Subject: Test
+
+Body`;
+
+    const email = await PostalMime.parse(mail);
+
+    const emptyHeader = email.headerLines.find(h => h.key === 'x-empty-header');
+    assert.ok(emptyHeader);
+    assert.strictEqual(emptyHeader.line, 'X-Empty-Header:');
+});
+
+test('headerLines preserves duplicate headers', async t => {
+    const mail = `From: test@example.com
+Received: from server1
+Received: from server2
+Subject: Test
+
+Body`;
+
+    const email = await PostalMime.parse(mail);
+
+    const receivedHeaders = email.headerLines.filter(h => h.key === 'received');
+    assert.strictEqual(receivedHeaders.length, 2);
+    assert.strictEqual(receivedHeaders[0].line, 'Received: from server1');
+    assert.strictEqual(receivedHeaders[1].line, 'Received: from server2');
+});
+
+test('headerLines preserves original whitespace', async t => {
+    const mail = `From: test@example.com
+Subject: Hello    World
+Content-Type: text/plain
+
+Body`;
+
+    const email = await PostalMime.parse(mail);
+
+    const subjectHeader = email.headerLines.find(h => h.key === 'subject');
+    assert.ok(subjectHeader);
+    // Raw line preserves multiple spaces
+    assert.strictEqual(subjectHeader.line, 'Subject: Hello    World');
+
+    // Compare with headers which normalizes whitespace
+    const normalizedSubject = email.headers.find(h => h.key === 'subject');
+    assert.strictEqual(normalizedSubject.value, 'Hello World');
+});
+
+test('headers array order unchanged after headerLines addition', async t => {
+    const mail = `From: first@example.com
+To: second@example.com
+Subject: third
+Date: Mon, 1 Jan 2024 00:00:00 +0000
+Content-Type: text/plain
+
+Body`;
+
+    const email = await PostalMime.parse(mail);
+
+    // Headers should be in original order (From, To, Subject, Date, Content-Type)
+    assert.strictEqual(email.headers[0].key, 'from');
+    assert.strictEqual(email.headers[1].key, 'to');
+    assert.strictEqual(email.headers[2].key, 'subject');
+    assert.strictEqual(email.headers[3].key, 'date');
+    assert.strictEqual(email.headers[4].key, 'content-type');
+});
+
+test('headerLines handles tab-folded headers', async t => {
+    const mail = `From: sender@example.com
+Subject: This is a subject
+\tthat is folded with a tab
+Content-Type: text/plain
+
+Body`;
+
+    const email = await PostalMime.parse(mail);
+
+    const subjectHeader = email.headerLines.find(h => h.key === 'subject');
+    assert.ok(subjectHeader);
+    // Tab-folded lines should be merged with newline preserved
+    assert.ok(subjectHeader.line.includes('\n'));
+    assert.ok(subjectHeader.line.includes('\t'));
+    assert.ok(subjectHeader.line.startsWith('Subject: This is a subject'));
+});
+
+test('headerLines handles multi-line folded headers (3+ lines)', async t => {
+    const mail = `From: sender@example.com
+Subject: This is a very long subject
+ that continues on the second line
+ and even on a third line
+ and a fourth line too
+Content-Type: text/plain
+
+Body`;
+
+    const email = await PostalMime.parse(mail);
+
+    const subjectHeader = email.headerLines.find(h => h.key === 'subject');
+    assert.ok(subjectHeader);
+    // Should contain three newlines (four lines merged)
+    assert.strictEqual((subjectHeader.line.match(/\n/g) || []).length, 3);
+    assert.ok(subjectHeader.line.includes('fourth line'));
+});
+
+test('headerLines handles CRLF line endings', async t => {
+    const mail = Buffer.from(
+        'From: sender@example.com\r\n' +
+        'Subject: Test with CRLF\r\n' +
+        'Content-Type: text/plain\r\n' +
+        '\r\n' +
+        'Body'
+    );
+
+    const email = await PostalMime.parse(mail);
+
+    assert.strictEqual(email.headerLines.length, 3);
+    const subjectHeader = email.headerLines.find(h => h.key === 'subject');
+    assert.ok(subjectHeader);
+    assert.strictEqual(subjectHeader.line, 'Subject: Test with CRLF');
+});
+
+test('headerLines not exposed for nested MIME parts', async t => {
+    const mail = `From: sender@example.com
+Subject: Main message
+Content-Type: multipart/mixed; boundary="boundary123"
+
+--boundary123
+Content-Type: text/plain
+X-Nested-Header: should not appear in headerLines
+
+This is the body
+--boundary123--`;
+
+    const email = await PostalMime.parse(mail);
+
+    // headerLines should only contain root message headers
+    assert.strictEqual(email.headerLines.length, 3);
+    assert.ok(email.headerLines.find(h => h.key === 'from'));
+    assert.ok(email.headerLines.find(h => h.key === 'subject'));
+    assert.ok(email.headerLines.find(h => h.key === 'content-type'));
+
+    // Nested MIME part headers should NOT be in headerLines
+    const nestedHeader = email.headerLines.find(h => h.key === 'x-nested-header');
+    assert.strictEqual(nestedHeader, undefined);
+});
+
+test('headerLines with headers near max size limit', async t => {
+    // Create a header value that's large but under the default 2MB limit
+    const longValue = 'x'.repeat(10000);
+    const mail = `From: sender@example.com
+Subject: ${longValue}
+Content-Type: text/plain
+
+Body`;
+
+    const email = await PostalMime.parse(mail);
+
+    const subjectHeader = email.headerLines.find(h => h.key === 'subject');
+    assert.ok(subjectHeader);
+    assert.strictEqual(subjectHeader.line, `Subject: ${longValue}`);
+    assert.strictEqual(subjectHeader.line.length, 10009); // "Subject: " + 10000 x's
+});

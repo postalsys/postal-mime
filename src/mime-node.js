@@ -208,38 +208,59 @@ export default class MimeNode {
     }
 
     processHeaders() {
+        // First pass: merge folded headers (backward iteration)
         for (let i = this.headerLines.length - 1; i >= 0; i--) {
             let line = this.headerLines[i];
             if (i && /^\s/.test(line)) {
                 this.headerLines[i - 1] += '\n' + line;
                 this.headerLines.splice(i, 1);
-            } else {
-                // remove folding and extra WS
-                line = line.replace(/\s+/g, ' ');
-                let sep = line.indexOf(':');
-                let key = sep < 0 ? line.trim() : line.substr(0, sep).trim();
-                let value = sep < 0 ? '' : line.substr(sep + 1).trim();
-                this.headers.push({ key: key.toLowerCase(), originalKey: key, value });
+            }
+        }
 
-                switch (key.toLowerCase()) {
-                    case 'content-type':
-                        if (this.contentType.default) {
-                            this.contentType = { value, parsed: {} };
-                        }
-                        break;
-                    case 'content-transfer-encoding':
-                        this.contentTransferEncoding = { value, parsed: {} };
-                        break;
-                    case 'content-disposition':
-                        this.contentDisposition = { value, parsed: {} };
-                        break;
-                    case 'content-id':
-                        this.contentId = value;
-                        break;
-                    case 'content-description':
-                        this.contentDescription = value;
-                        break;
-                }
+        // Initialize rawHeaderLines to store unmodified lines
+        this.rawHeaderLines = [];
+
+        // Second pass: process headers (MUST be backward to maintain this.headers order)
+        // The existing code iterates backward and postal-mime.js calls .reverse()
+        // We must preserve this behavior to avoid breaking changes
+        for (let i = this.headerLines.length - 1; i >= 0; i--) {
+            let rawLine = this.headerLines[i];
+
+            // Extract key from raw line for rawHeaderLines
+            let sep = rawLine.indexOf(':');
+            let rawKey = sep < 0 ? rawLine.trim() : rawLine.substr(0, sep).trim();
+
+            // Store raw line with lowercase key
+            this.rawHeaderLines.push({
+                key: rawKey.toLowerCase(),
+                line: rawLine
+            });
+
+            // Normalize for this.headers (existing behavior - order preserved)
+            let normalizedLine = rawLine.replace(/\s+/g, ' ');
+            sep = normalizedLine.indexOf(':');
+            let key = sep < 0 ? normalizedLine.trim() : normalizedLine.substr(0, sep).trim();
+            let value = sep < 0 ? '' : normalizedLine.substr(sep + 1).trim();
+            this.headers.push({ key: key.toLowerCase(), originalKey: key, value });
+
+            switch (key.toLowerCase()) {
+                case 'content-type':
+                    if (this.contentType.default) {
+                        this.contentType = { value, parsed: {} };
+                    }
+                    break;
+                case 'content-transfer-encoding':
+                    this.contentTransferEncoding = { value, parsed: {} };
+                    break;
+                case 'content-disposition':
+                    this.contentDisposition = { value, parsed: {} };
+                    break;
+                case 'content-id':
+                    this.contentId = value;
+                    break;
+                case 'content-description':
+                    this.contentDescription = value;
+                    break;
             }
         }
 

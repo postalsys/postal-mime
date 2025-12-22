@@ -517,6 +517,9 @@ export default class PostalMime {
 
         message.attachments = this.attachments;
 
+        // Expose raw header lines (reversed to match headers array order)
+        message.headerLines = (this.root.rawHeaderLines || []).slice().reverse();
+
         switch (this.attachmentEncoding) {
             case 'arraybuffer':
                 break;

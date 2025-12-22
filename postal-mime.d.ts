@@ -6,6 +6,13 @@ export type Header = {
     value: string;
 };
 
+export type HeaderLine = {
+    /** Lowercase header name */
+    key: string;
+    /** Complete raw header line including key and value (with folded lines merged) */
+    line: string;
+};
+
 export type Mailbox = {
     name: string;
     address: string;
@@ -34,6 +41,7 @@ export type Attachment = {
 
 export type Email = {
     headers: Header[];
+    headerLines: HeaderLine[];
     from?: Address;
     sender?: Address;
     replyTo?: Address[];
