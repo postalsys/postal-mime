@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.0](https://github.com/postalsys/postal-mime/compare/v2.6.1...v2.7.0) (2025-12-22)
+
+
+### Features
+
+* add headerLines property exposing raw header lines ([c79a02a](https://github.com/postalsys/postal-mime/commit/c79a02ab05d9cac44e05e95a433752ff292aa5eb))
+
 ## [2.6.1](https://github.com/postalsys/postal-mime/compare/v2.6.0...v2.6.1) (2025-11-26)
 
 
