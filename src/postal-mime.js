@@ -200,11 +200,11 @@ export default class PostalMime {
                 // is it an attachment
                 else if (node.content) {
                     const filename =
-                        node.contentDisposition.parsed.params.filename || node.contentType.parsed.params.name || null;
+                        node.contentDisposition?.parsed?.params?.filename || node.contentType.parsed.params.name || null;
                     const attachment = {
                         filename: filename ? decodeWords(filename) : null,
                         mimeType: node.contentType.parsed.value,
-                        disposition: node.contentDisposition.parsed.value || null
+                        disposition: node.contentDisposition?.parsed?.value || null
                     };
 
                     if (related && node.contentId) {
@@ -333,7 +333,7 @@ export default class PostalMime {
     }
 
     isInlineTextNode(node) {
-        if (node.contentDisposition.parsed.value === 'attachment') {
+        if (node.contentDisposition?.parsed?.value === 'attachment') {
             // no matter the type, this is an attachment
             return false;
         }
@@ -355,7 +355,7 @@ export default class PostalMime {
             return false;
         }
         let disposition =
-            node.contentDisposition.parsed.value || (this.options.rfc822Attachments ? 'attachment' : 'inline');
+            node.contentDisposition?.parsed?.value || (this.options.rfc822Attachments ? 'attachment' : 'inline');
         return disposition === 'inline';
     }
 
