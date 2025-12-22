@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.1](https://github.com/postalsys/postal-mime/compare/v2.7.0...v2.7.1) (2025-12-22)
+
+
+### Bug Fixes
+
+* Add null checks for contentDisposition.parsed access ([fd54c37](https://github.com/postalsys/postal-mime/commit/fd54c37093cc64737c6bb17986bc9d052d2d5add))
+
 ## [2.7.0](https://github.com/postalsys/postal-mime/compare/v2.6.1...v2.7.0) (2025-12-22)
 
 
