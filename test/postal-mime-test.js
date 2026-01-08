@@ -681,3 +681,321 @@ test('Parse Content-Type with comment but parentheses in quoted string preserved
     const email = await PostalMime.parse(mail);
     assert.strictEqual(email.attachments[0].filename, 'file (1).txt');
 });
+
+// RFC 3676 Format=Flowed tests
+
+test('Flowed text - basic soft line break', async t => {
+    const mail = Buffer.from(
+        'Content-Type: text/plain; format=flowed\r\n\r\n' + 'This is a long line that \r\n' + 'continues here.\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text, 'This is a long line that continues here.\n');
+});
+
+test('Flowed text - signature separator not joined (RFC 3676)', async t => {
+    // The signature separator "-- " should not be joined with following lines
+    // even though it ends with a space
+    const mail = Buffer.from(
+        'Content-Type: text/plain; format=flowed\r\n\r\n' + 'Body text \r\n' + 'continues.\r\n' + '-- \r\n' + 'Signature\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    // Signature separator should remain on its own line
+    assert.ok(email.text.includes('-- \n') || email.text.includes('--\n'));
+});
+
+test('Flowed text - DelSp=yes removes trailing space', async t => {
+    const mail = Buffer.from(
+        'Content-Type: text/plain; format=flowed; delsp=yes\r\n\r\n' + 'Hello \r\n' + 'World\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text, 'HelloWorld\n');
+});
+
+test('Flowed text - space stuffing removed', async t => {
+    // Lines starting with space, ">", or "From " are space-stuffed
+    const mail = Buffer.from(
+        'Content-Type: text/plain; format=flowed\r\n\r\n' + ' >quoted\r\n' + ' From someone\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.ok(email.text.includes('>quoted'));
+    assert.ok(email.text.includes('From someone'));
+});
+
+// RFC 2231 Parameter Value Continuations tests
+
+test('RFC 2231 - simple continuation', async t => {
+    const mail = Buffer.from(
+        'Content-Type: text/plain\r\n' +
+            "Content-Disposition: attachment;\r\n filename*0=long;\r\n filename*1=file;\r\n filename*2=name.txt\r\n\r\n" +
+            'Content'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.attachments[0].filename, 'longfilename.txt');
+});
+
+test('RFC 2231 - encoded continuation with charset', async t => {
+    const mail = Buffer.from(
+        'Content-Type: text/plain\r\n' +
+            "Content-Disposition: attachment;\r\n filename*0*=utf-8''%C3%A4bc;\r\n filename*1*=%C3%B6%C3%BC.txt\r\n\r\n" +
+            'Content'
+    );
+    const email = await PostalMime.parse(mail);
+    // Should decode UTF-8 percent-encoded characters (ä, ö, ü)
+    assert.strictEqual(email.attachments[0].filename, 'äbcöü.txt');
+});
+
+test('RFC 2231 - single encoded parameter (no continuation)', async t => {
+    const mail = Buffer.from(
+        'Content-Type: text/plain\r\n' +
+            "Content-Disposition: attachment; filename*=utf-8''%E2%9C%93check.txt\r\n\r\n" +
+            'Content'
+    );
+    const email = await PostalMime.parse(mail);
+    // Checkmark character
+    assert.ok(email.attachments[0].filename.includes('check.txt'));
+});
+
+// Boundary edge case tests
+
+test('Boundary - empty MIME part', async t => {
+    const mail = Buffer.from(
+        'Content-Type: multipart/mixed; boundary="bound"\r\n\r\n' +
+            '--bound\r\n' +
+            'Content-Type: text/plain\r\n\r\n' +
+            '\r\n' + // empty content
+            '--bound\r\n' +
+            'Content-Type: text/plain\r\n\r\n' +
+            'Second part\r\n' +
+            '--bound--\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.ok(email.text.includes('Second part'));
+});
+
+test('Boundary - with preamble and epilogue', async t => {
+    const mail = Buffer.from(
+        'Content-Type: multipart/mixed; boundary="bound"\r\n\r\n' +
+            'This is the preamble (should be ignored)\r\n' +
+            '--bound\r\n' +
+            'Content-Type: text/plain\r\n\r\n' +
+            'Body content\r\n' +
+            '--bound--\r\n' +
+            'This is the epilogue (should be ignored)\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text.trim(), 'Body content');
+    assert.ok(!email.text.includes('preamble'));
+    assert.ok(!email.text.includes('epilogue'));
+});
+
+test('Boundary - special characters in boundary string', async t => {
+    const mail = Buffer.from(
+        "Content-Type: multipart/mixed; boundary=\"=_Part_123_+special'\"\r\n\r\n" +
+            "--=_Part_123_+special'\r\n" +
+            'Content-Type: text/plain\r\n\r\n' +
+            'Content\r\n' +
+            "--=_Part_123_+special'--\r\n"
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text.trim(), 'Content');
+});
+
+test('Boundary - very long boundary string', async t => {
+    const boundary = 'a'.repeat(70); // Max allowed is 70 chars
+    const mail = Buffer.from(
+        `Content-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n` +
+            `--${boundary}\r\n` +
+            'Content-Type: text/plain\r\n\r\n' +
+            'Content\r\n' +
+            `--${boundary}--\r\n`
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text.trim(), 'Content');
+});
+
+// Nested multipart structure tests
+
+test('Nested multipart - alternative inside mixed', async t => {
+    const mail = Buffer.from(
+        'Content-Type: multipart/mixed; boundary="outer"\r\n\r\n' +
+            '--outer\r\n' +
+            'Content-Type: multipart/alternative; boundary="inner"\r\n\r\n' +
+            '--inner\r\n' +
+            'Content-Type: text/plain\r\n\r\n' +
+            'Plain text\r\n' +
+            '--inner\r\n' +
+            'Content-Type: text/html\r\n\r\n' +
+            '<p>HTML text</p>\r\n' +
+            '--inner--\r\n' +
+            '--outer\r\n' +
+            'Content-Type: text/plain\r\n' +
+            'Content-Disposition: attachment; filename="test.txt"\r\n\r\n' +
+            'Attachment content\r\n' +
+            '--outer--\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.ok(email.text.includes('Plain text'));
+    assert.ok(email.html.includes('<p>HTML text</p>'));
+    assert.strictEqual(email.attachments.length, 1);
+    assert.strictEqual(email.attachments[0].filename, 'test.txt');
+});
+
+test('Nested multipart - related with inline image', async t => {
+    const mail = Buffer.from(
+        'Content-Type: multipart/related; boundary="related"\r\n\r\n' +
+            '--related\r\n' +
+            'Content-Type: text/html\r\n\r\n' +
+            '<html><body><img src="cid:image1"/></body></html>\r\n' +
+            '--related\r\n' +
+            'Content-Type: image/png\r\n' +
+            'Content-ID: <image1>\r\n' +
+            'Content-Transfer-Encoding: base64\r\n\r\n' +
+            'iVBORw0KGgo=\r\n' +
+            '--related--\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.ok(email.html.includes('cid:image1'));
+    assert.strictEqual(email.attachments.length, 1);
+    assert.strictEqual(email.attachments[0].contentId, '<image1>');
+    assert.strictEqual(email.attachments[0].related, true);
+});
+
+// Malformed email permissive parsing tests
+
+test('Malformed - missing final boundary terminator', async t => {
+    const mail = Buffer.from(
+        'Content-Type: multipart/mixed; boundary="bound"\r\n\r\n' +
+            '--bound\r\n' +
+            'Content-Type: text/plain\r\n\r\n' +
+            'Content without terminator\r\n'
+        // Missing --bound--
+    );
+    const email = await PostalMime.parse(mail);
+    assert.ok(email.text.includes('Content without terminator'));
+});
+
+test('Malformed - extra whitespace in headers', async t => {
+    const mail = Buffer.from(
+        'Content-Type:   text/plain;   charset=utf-8  \r\n\r\n' + // extra spaces
+            'Content'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text.trim(), 'Content');
+});
+
+test('Malformed - LF only line endings (no CR)', async t => {
+    const mail = Buffer.from('Content-Type: text/plain\n\nBody with LF only');
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text.trim(), 'Body with LF only');
+});
+
+test('Malformed - mixed CRLF and LF line endings', async t => {
+    const mail = Buffer.from('Content-Type: text/plain\r\n\nBody\r\nMore body\n');
+    const email = await PostalMime.parse(mail);
+    assert.ok(email.text.includes('Body'));
+    assert.ok(email.text.includes('More body'));
+});
+
+test('Malformed - header without value', async t => {
+    const mail = Buffer.from('Content-Type: text/plain\r\nX-Empty-Header:\r\n\r\nBody');
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text.trim(), 'Body');
+    const emptyHeader = email.headers.find(h => h.key === 'x-empty-header');
+    assert.ok(emptyHeader);
+    assert.strictEqual(emptyHeader.value, '');
+});
+
+test('Malformed - duplicate Content-Type headers (last wins)', async t => {
+    const mail = Buffer.from(
+        'Content-Type: text/plain\r\n' + 'Content-Type: text/html\r\n\r\n' + '<p>Content</p>'
+    );
+    const email = await PostalMime.parse(mail);
+    // Last Content-Type is used (headers processed in reverse order)
+    assert.ok(email.html);
+    assert.ok(email.html.includes('Content'));
+});
+
+// Additional edge case tests
+
+test('Edge case - empty email', async t => {
+    const mail = Buffer.from('');
+    const email = await PostalMime.parse(mail);
+    assert.ok(email);
+    assert.strictEqual(email.text, undefined);
+});
+
+test('Edge case - headers only, no body', async t => {
+    const mail = Buffer.from('From: test@example.com\r\nSubject: Test\r\n');
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.from.address, 'test@example.com');
+    assert.strictEqual(email.subject, 'Test');
+});
+
+test('Edge case - body only, no headers', async t => {
+    const mail = Buffer.from('\r\nJust a body');
+    const email = await PostalMime.parse(mail);
+    assert.ok(email.text.includes('Just a body'));
+});
+
+test('Edge case - very long subject line (folded)', async t => {
+    const longSubject = 'Word '.repeat(100);
+    const mail = Buffer.from(`Subject: ${longSubject}\r\n\r\nBody`);
+    const email = await PostalMime.parse(mail);
+    assert.ok(email.subject.includes('Word'));
+});
+
+test('Edge case - Content-Type with multiple parameters', async t => {
+    const mail = Buffer.from(
+        'Content-Type: text/plain; charset=utf-8; format=flowed; delsp=yes; reply-type=original\r\n\r\n' +
+            'Flowed \r\n' +
+            'text\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text, 'Flowedtext\n');
+});
+
+test('Edge case - attachment with no filename', async t => {
+    const mail = Buffer.from(
+        'Content-Type: multipart/mixed; boundary="bound"\r\n\r\n' +
+            '--bound\r\n' +
+            'Content-Type: application/octet-stream\r\n' +
+            'Content-Transfer-Encoding: base64\r\n\r\n' +
+            'SGVsbG8=\r\n' +
+            '--bound--\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.attachments.length, 1);
+    assert.strictEqual(email.attachments[0].filename, null);
+});
+
+test('Edge case - multiple text/plain parts concatenated', async t => {
+    const mail = Buffer.from(
+        'Content-Type: multipart/mixed; boundary="bound"\r\n\r\n' +
+            '--bound\r\n' +
+            'Content-Type: text/plain\r\n\r\n' +
+            'First part\r\n' +
+            '--bound\r\n' +
+            'Content-Type: text/plain\r\n\r\n' +
+            'Second part\r\n' +
+            '--bound--\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.ok(email.text.includes('First part'));
+    assert.ok(email.text.includes('Second part'));
+});
+
+test('Edge case - Content-Transfer-Encoding case insensitive', async t => {
+    const mail = Buffer.from(
+        'Content-Type: text/plain\r\n' + 'Content-Transfer-Encoding: BASE64\r\n\r\n' + 'SGVsbG8gV29ybGQ='
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text.trim(), 'Hello World');
+});
+
+test('Edge case - quoted-printable with literal equals sign', async t => {
+    const mail = Buffer.from(
+        'Content-Type: text/plain\r\n' + 'Content-Transfer-Encoding: quoted-printable\r\n\r\n' + '1+1=3D2'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text.trim(), '1+1=2');
+});

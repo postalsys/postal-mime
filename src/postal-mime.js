@@ -358,7 +358,7 @@ export default class PostalMime {
             return false;
         }
 
-        switch (node.contentType.parsed.value) {
+        switch (node.contentType.parsed?.value) {
             case 'text/html':
             case 'text/plain':
                 return true;
@@ -371,7 +371,7 @@ export default class PostalMime {
     }
 
     isInlineMessageRfc822(node) {
-        if (node.contentType.parsed.value !== 'message/rfc822') {
+        if (node.contentType.parsed?.value !== 'message/rfc822') {
             return false;
         }
         let disposition =
@@ -388,7 +388,10 @@ export default class PostalMime {
         let forceRfc822Attachments = false;
         let walk = node => {
             if (!node.contentType.multipart) {
-                if (['message/delivery-status', 'message/feedback-report'].includes(node.contentType.parsed.value)) {
+                if (
+                    node.contentType.parsed &&
+                    ['message/delivery-status', 'message/feedback-report'].includes(node.contentType.parsed.value)
+                ) {
                     forceRfc822Attachments = true;
                 }
             }
