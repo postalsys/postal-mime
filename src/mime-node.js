@@ -30,8 +30,12 @@ export default class MimeNode {
         this.headerLines = [];
         this.headerSize = 0;
 
+        // RFC 2046 Section 5.1.5: multipart/digest defaults to message/rfc822
+        const parentMultipartType = this.options.parentMultipartType || null;
+        const defaultContentType = parentMultipartType === 'digest' ? 'message/rfc822' : 'text/plain';
+
         this.contentType = {
-            value: 'text/plain',
+            value: defaultContentType,
             default: true
         };
 
@@ -90,7 +94,61 @@ export default class MimeNode {
         }
     }
 
+    // Strip RFC 822 comments (parenthesized text) from structured header values
+    stripComments(str) {
+        let result = '';
+        let depth = 0;
+        let escaped = false;
+        let inQuote = false;
+
+        for (let i = 0; i < str.length; i++) {
+            const chr = str.charAt(i);
+
+            if (escaped) {
+                if (depth === 0) {
+                    result += chr;
+                }
+                escaped = false;
+                continue;
+            }
+
+            if (chr === '\\') {
+                escaped = true;
+                if (depth === 0) {
+                    result += chr;
+                }
+                continue;
+            }
+
+            if (chr === '"' && depth === 0) {
+                inQuote = !inQuote;
+                result += chr;
+                continue;
+            }
+
+            if (!inQuote) {
+                if (chr === '(') {
+                    depth++;
+                    continue;
+                }
+                if (chr === ')' && depth > 0) {
+                    depth--;
+                    continue;
+                }
+            }
+
+            if (depth === 0) {
+                result += chr;
+            }
+        }
+
+        return result;
+    }
+
     parseStructuredHeader(str) {
+        // Strip RFC 822 comments before parsing
+        str = this.stripComments(str);
+
         let response = {
             value: false,
             params: {}

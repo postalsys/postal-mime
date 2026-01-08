@@ -586,3 +586,98 @@ Body`;
     assert.strictEqual(subjectHeader.line, `Subject: ${longValue}`);
     assert.strictEqual(subjectHeader.line.length, 10009); // "Subject: " + 10000 x's
 });
+
+// RFC 2046 compliance tests
+
+test('Parse boundary with trailing whitespace (RFC 2046)', async t => {
+    const mail = Buffer.from(
+        'Content-Type: multipart/mixed; boundary="test"\r\n\r\n' +
+            '--test   \r\n' + // trailing spaces after boundary
+            'Content-Type: text/plain\r\n\r\n' +
+            'Hello\r\n' +
+            '--test--\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text.trim(), 'Hello');
+});
+
+test('Parse boundary with trailing tabs (RFC 2046)', async t => {
+    const mail = Buffer.from(
+        'Content-Type: multipart/mixed; boundary="testbound"\r\n\r\n' +
+            '--testbound\t\t\r\n' + // trailing tabs after boundary
+            'Content-Type: text/plain\r\n\r\n' +
+            'World\r\n' +
+            '--testbound--\t\r\n' // trailing tab on terminator too
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text.trim(), 'World');
+});
+
+test('Parse multipart/digest with default message/rfc822 (RFC 2046 Section 5.1.5)', async t => {
+    // In multipart/digest, parts without Content-Type should default to message/rfc822
+    // and be parsed as inline nested messages (their content is extracted)
+    const mail = Buffer.from(
+        'Content-Type: multipart/digest; boundary="digestbound"\r\n\r\n' +
+            '--digestbound\r\n' +
+            '\r\n' + // No Content-Type header - should default to message/rfc822
+            'From: nested@example.com\r\n' +
+            'Subject: Nested Message\r\n\r\n' +
+            'Body of nested message\r\n' +
+            '--digestbound--\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    // The nested message should be parsed and its content inlined
+    assert.ok(email.text.includes('nested@example.com'));
+    assert.ok(email.text.includes('Nested Message'));
+    assert.ok(email.text.includes('Body of nested message'));
+});
+
+test('Parse multipart/digest with rfc822Attachments option', async t => {
+    // With rfc822Attachments option, nested messages become attachments
+    const mail = Buffer.from(
+        'Content-Type: multipart/digest; boundary="digestbound"\r\n\r\n' +
+            '--digestbound\r\n' +
+            '\r\n' + // No Content-Type header - should default to message/rfc822
+            'From: nested@example.com\r\n' +
+            'Subject: Nested Message\r\n\r\n' +
+            'Body of nested message\r\n' +
+            '--digestbound--\r\n'
+    );
+    const email = await PostalMime.parse(mail, { rfc822Attachments: true });
+    // With rfc822Attachments, nested message should be an attachment
+    assert.ok(email.attachments.length > 0);
+    assert.strictEqual(email.attachments[0].mimeType, 'message/rfc822');
+});
+
+test('Parse Content-Type with RFC 822 comment', async t => {
+    const mail = Buffer.from('Content-Type: text/plain (this is a comment); charset=utf-8\r\n\r\nHello');
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text.trim(), 'Hello');
+});
+
+test('Parse Content-Type with nested RFC 822 comments', async t => {
+    const mail = Buffer.from(
+        'Content-Type: text/html (outer (nested) comment); charset=utf-8\r\n\r\n' + '<p>Hello</p>'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.ok(email.html.includes('<p>Hello</p>'));
+});
+
+test('Parse Content-Type with comment containing special characters', async t => {
+    const mail = Buffer.from(
+        'Content-Type: text/plain (comment with \\) escaped paren); charset=iso-8859-1\r\n\r\nTest'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text.trim(), 'Test');
+});
+
+test('Parse Content-Type with comment but parentheses in quoted string preserved', async t => {
+    // Parentheses inside quoted strings should NOT be treated as comments
+    const mail = Buffer.from(
+        'Content-Type: text/plain; name="file (1).txt"\r\n' +
+            'Content-Disposition: attachment; filename="file (1).txt"\r\n\r\n' +
+            'Content'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.attachments[0].filename, 'file (1).txt');
+});

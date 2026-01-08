@@ -55,24 +55,43 @@ export default class PostalMime {
             for (let i = boundaries.length - 1; i >= 0; i--) {
                 let boundary = boundaries[i];
 
-                if (line.length !== boundary.value.length + 2 && line.length !== boundary.value.length + 4) {
+                // Line must be at least long enough for "--" + boundary
+                if (line.length < boundary.value.length + 2) {
                     continue;
                 }
 
-                let isTerminator = line.length === boundary.value.length + 4;
-
-                if (isTerminator && (line[line.length - 2] !== 0x2d || line[line.length - 1] !== 0x2d)) {
-                    continue;
-                }
-
-                let boudaryMatches = true;
-                for (let i = 0; i < boundary.value.length; i++) {
-                    if (line[i + 2] !== boundary.value[i]) {
-                        boudaryMatches = false;
+                // Check if boundary value matches
+                let boundaryMatches = true;
+                for (let j = 0; j < boundary.value.length; j++) {
+                    if (line[j + 2] !== boundary.value[j]) {
+                        boundaryMatches = false;
                         break;
                     }
                 }
-                if (!boudaryMatches) {
+                if (!boundaryMatches) {
+                    continue;
+                }
+
+                // Check for terminator (-- after boundary) and determine where boundary ends
+                let boundaryEnd = boundary.value.length + 2;
+                let isTerminator = false;
+
+                if (line.length >= boundary.value.length + 4 &&
+                    line[boundary.value.length + 2] === 0x2d &&
+                    line[boundary.value.length + 3] === 0x2d) {
+                    isTerminator = true;
+                    boundaryEnd = boundary.value.length + 4;
+                }
+
+                // RFC 2046: boundary line may have trailing whitespace (space/tab) before CRLF
+                let hasValidTrailing = true;
+                for (let j = boundaryEnd; j < line.length; j++) {
+                    if (line[j] !== 0x20 && line[j] !== 0x09) {
+                        hasValidTrailing = false;
+                        break;
+                    }
+                }
+                if (!hasValidTrailing) {
                     continue;
                 }
 
@@ -87,6 +106,7 @@ export default class PostalMime {
                     this.currentNode = new MimeNode({
                         postalMime: this,
                         parentNode: boundary.node,
+                        parentMultipartType: boundary.node.contentType.multipart,
                         ...this.mimeOptions
                     });
                 }
