@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.7.2](https://github.com/postalsys/postal-mime/compare/v2.7.1...v2.7.2) (2026-01-08)
+
+
+### Bug Fixes
+
+* add null checks for contentType.parsed access ([ad8f4c6](https://github.com/postalsys/postal-mime/commit/ad8f4c62e0972fd0244859ee5a5184b2cac26395))
+* improve RFC compliance for MIME parsing ([e004c3a](https://github.com/postalsys/postal-mime/commit/e004c3acb29d72ed7eaf1b0b66351cf8b82b970d))
+
 ## [2.7.1](https://github.com/postalsys/postal-mime/compare/v2.7.0...v2.7.1) (2025-12-22)
 
 
