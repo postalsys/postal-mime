@@ -14,6 +14,9 @@
 -   **Handles complex MIME structures** - Multipart messages, nested parts, attachments
 -   **Security limits** - Built-in protection against deeply nested messages and oversized headers
 
+> [!NOTE]
+> Full documentation is available at [postal-mime.postalsys.com](https://postal-mime.postalsys.com/).
+
 ## Table of Contents
 
 -   [Source](#source)
