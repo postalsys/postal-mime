@@ -1,6 +1,6 @@
 # postal-mime
 
-**postal-mime** is an email parsing library that runs in browser environments (including Web Workers) and serverless functions (like Cloudflare Email Workers). It takes in a raw email message (RFC822 format) and outputs a structured object containing headers, recipients, attachments, and more.
+**postal-mime** is an email parsing library for Node.js, browsers (including Web Workers), and serverless environments (like Cloudflare Email Workers). It takes in a raw email message (RFC822 format) and outputs a structured object containing headers, recipients, attachments, and more.
 
 > [!TIP]
 > PostalMime is developed by the makers of [EmailEngine](https://emailengine.app/?utm_source=github&utm_campaign=imapflow&utm_medium=readme-link)—a self-hosted email gateway that provides a REST API for IMAP and SMTP servers and sends webhooks whenever something changes in registered accounts.
@@ -243,7 +243,7 @@ if (email.from && isMailbox(email.from)) {
 PostalMime.parse(email, options) -> Promise<Email>
 ```
 
--   **email**: An RFC822 formatted email. This can be a `string`, `ArrayBuffer/Uint8Array`, `Blob` (browser only), `Buffer` (Node.js), or a [ReadableStream](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream).
+-   **email**: An RFC822 formatted email. This can be a `string`, `ArrayBuffer/Uint8Array`, `Blob`, `Buffer` (Node.js), or a [ReadableStream](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream).
 -   **options**: Optional configuration object:
     -   **rfc822Attachments** (boolean, default: `false`): Treat `message/rfc822` attachments without a Content-Disposition as attachments.
     -   **forceRfc822Attachments** (boolean, default: `false`): Treat _all_ `message/rfc822` parts as attachments.
@@ -419,6 +419,6 @@ console.log(decoded); // Hello, エポスカード
 
 ## License
 
-&copy; 2021–2025 Andris Reinman
+&copy; 2021–2026 Andris Reinman
 
 `postal-mime` is licensed under the **MIT No Attribution license**.
