@@ -3,6 +3,8 @@ export type RawEmail = string | ArrayBuffer | Uint8Array | Blob | Buffer | Reada
 export type Header = {
     /** Lowercase header name */
     key: string;
+    /** Original header name preserving case */
+    originalKey: string;
     /** Header value */
     value: string;
 };
@@ -36,7 +38,7 @@ export type Attachment = {
     description?: string;
     contentId?: string;
     method?: string;
-    content: ArrayBuffer | string;
+    content: ArrayBuffer | Uint8Array | string;
     encoding?: "base64" | "utf8";
 };
 
