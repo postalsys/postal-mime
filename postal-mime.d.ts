@@ -1,8 +1,9 @@
 export type RawEmail = string | ArrayBuffer | Uint8Array | Blob | Buffer | ReadableStream;
 
 export type Header = {
+    /** Lowercase header name */
     key: string;
-    originalKey: string;
+    /** Header value */
     value: string;
 };
 
@@ -35,7 +36,7 @@ export type Attachment = {
     description?: string;
     contentId?: string;
     method?: string;
-    content: ArrayBuffer | Uint8Array | string;
+    content: ArrayBuffer | string;
     encoding?: "base64" | "utf8";
 };
 
