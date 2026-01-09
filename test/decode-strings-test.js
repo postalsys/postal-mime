@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { decodeWord, decodeWords, decodeURIComponentWithCharset } from '../src/decode-strings.js';
+import { decodeWord, decodeWords, decodeURIComponentWithCharset, getDecoder, getHex, blobToArrayBuffer, decodeBase64, decodeParameterValueContinuations } from '../src/decode-strings.js';
 
 // MIME Encoded-Word Decoding Tests (decodeWord)
 test('decodeWord - Q-encoding simple ASCII', () => {
@@ -340,4 +340,329 @@ test('decodeWords - multiple charsets in sequence', () => {
     assert.ok(result.includes('A'));
     assert.ok(result.includes('B'));
     assert.ok(result.includes('C'));
+});
+
+// getDecoder function tests
+test('getDecoder - utf-8 charset', () => {
+    const decoder = getDecoder('utf-8');
+    assert.ok(decoder instanceof TextDecoder);
+    const result = decoder.decode(new Uint8Array([72, 101, 108, 108, 111]));
+    assert.strictEqual(result, 'Hello');
+});
+
+test('getDecoder - UTF-8 uppercase', () => {
+    const decoder = getDecoder('UTF-8');
+    assert.ok(decoder instanceof TextDecoder);
+});
+
+test('getDecoder - iso-8859-1 charset', () => {
+    const decoder = getDecoder('iso-8859-1');
+    assert.ok(decoder instanceof TextDecoder);
+});
+
+test('getDecoder - windows-1252 charset', () => {
+    const decoder = getDecoder('windows-1252');
+    assert.ok(decoder instanceof TextDecoder);
+});
+
+test('getDecoder - unknown charset falls back to windows-1252', () => {
+    const decoder = getDecoder('unknown-fake-charset');
+    assert.ok(decoder instanceof TextDecoder);
+    // Should not throw and should be usable
+    const result = decoder.decode(new Uint8Array([84, 101, 115, 116]));
+    assert.strictEqual(result, 'Test');
+});
+
+test('getDecoder - null charset defaults to utf-8', () => {
+    const decoder = getDecoder(null);
+    assert.ok(decoder instanceof TextDecoder);
+});
+
+test('getDecoder - undefined charset defaults to utf-8', () => {
+    const decoder = getDecoder(undefined);
+    assert.ok(decoder instanceof TextDecoder);
+});
+
+test('getDecoder - empty string charset defaults to utf-8', () => {
+    const decoder = getDecoder('');
+    assert.ok(decoder instanceof TextDecoder);
+});
+
+test('getDecoder - charset with language tag', () => {
+    // Some charsets might have language tags that need to be handled
+    const decoder = getDecoder('utf-8');
+    const bytes = new TextEncoder().encode('Cafe');
+    const result = decoder.decode(bytes);
+    assert.strictEqual(result, 'Cafe');
+});
+
+// getHex function tests
+test('getHex - valid digit 0-9', () => {
+    for (let i = 0x30; i <= 0x39; i++) {
+        const result = getHex(i);
+        assert.strictEqual(result, String.fromCharCode(i));
+    }
+});
+
+test('getHex - valid lowercase a-f', () => {
+    for (let i = 0x61; i <= 0x66; i++) {
+        const result = getHex(i);
+        assert.strictEqual(result, String.fromCharCode(i));
+    }
+});
+
+test('getHex - valid uppercase A-F', () => {
+    for (let i = 0x41; i <= 0x46; i++) {
+        const result = getHex(i);
+        assert.strictEqual(result, String.fromCharCode(i));
+    }
+});
+
+test('getHex - invalid character G', () => {
+    const result = getHex(0x47); // 'G'
+    assert.strictEqual(result, false);
+});
+
+test('getHex - invalid character Z', () => {
+    const result = getHex(0x5A); // 'Z'
+    assert.strictEqual(result, false);
+});
+
+test('getHex - invalid character space', () => {
+    const result = getHex(0x20); // space
+    assert.strictEqual(result, false);
+});
+
+test('getHex - invalid character null', () => {
+    const result = getHex(0x00);
+    assert.strictEqual(result, false);
+});
+
+test('getHex - boundary check: character before 0', () => {
+    const result = getHex(0x2F); // '/'
+    assert.strictEqual(result, false);
+});
+
+test('getHex - boundary check: character after 9', () => {
+    const result = getHex(0x3A); // ':'
+    assert.strictEqual(result, false);
+});
+
+test('getHex - boundary check: character before A', () => {
+    const result = getHex(0x40); // '@'
+    assert.strictEqual(result, false);
+});
+
+test('getHex - boundary check: character after F', () => {
+    const result = getHex(0x47); // 'G'
+    assert.strictEqual(result, false);
+});
+
+test('getHex - boundary check: character before a', () => {
+    const result = getHex(0x60); // '`'
+    assert.strictEqual(result, false);
+});
+
+test('getHex - boundary check: character after f', () => {
+    const result = getHex(0x67); // 'g'
+    assert.strictEqual(result, false);
+});
+
+// blobToArrayBuffer function tests
+test('blobToArrayBuffer - simple text blob', async () => {
+    const blob = new Blob(['Hello World'], { type: 'text/plain' });
+    const buffer = await blobToArrayBuffer(blob);
+    assert.ok(buffer instanceof ArrayBuffer);
+    const text = new TextDecoder().decode(buffer);
+    assert.strictEqual(text, 'Hello World');
+});
+
+test('blobToArrayBuffer - empty blob', async () => {
+    const blob = new Blob([], { type: 'text/plain' });
+    const buffer = await blobToArrayBuffer(blob);
+    assert.ok(buffer instanceof ArrayBuffer);
+    assert.strictEqual(buffer.byteLength, 0);
+});
+
+test('blobToArrayBuffer - binary blob', async () => {
+    const bytes = new Uint8Array([0, 1, 2, 255, 254, 253]);
+    const blob = new Blob([bytes], { type: 'application/octet-stream' });
+    const buffer = await blobToArrayBuffer(blob);
+    assert.ok(buffer instanceof ArrayBuffer);
+    const result = new Uint8Array(buffer);
+    assert.strictEqual(result.length, 6);
+    assert.strictEqual(result[0], 0);
+    assert.strictEqual(result[5], 253);
+});
+
+test('blobToArrayBuffer - large blob', async () => {
+    const largeText = 'A'.repeat(10000);
+    const blob = new Blob([largeText], { type: 'text/plain' });
+    const buffer = await blobToArrayBuffer(blob);
+    assert.ok(buffer instanceof ArrayBuffer);
+    assert.strictEqual(buffer.byteLength, 10000);
+});
+
+test('blobToArrayBuffer - blob with multiple parts', async () => {
+    const blob = new Blob(['Hello', ' ', 'World'], { type: 'text/plain' });
+    const buffer = await blobToArrayBuffer(blob);
+    const text = new TextDecoder().decode(buffer);
+    assert.strictEqual(text, 'Hello World');
+});
+
+// decodeBase64 function tests
+test('decodeBase64 - simple ASCII', () => {
+    const result = decodeBase64('SGVsbG8gV29ybGQ=');
+    const text = new TextDecoder().decode(result);
+    assert.strictEqual(text, 'Hello World');
+});
+
+test('decodeBase64 - no padding', () => {
+    const result = decodeBase64('SGVsbG8');
+    const text = new TextDecoder().decode(result);
+    assert.strictEqual(text, 'Hello');
+});
+
+test('decodeBase64 - single padding', () => {
+    const result = decodeBase64('SGVsbG8h');
+    const text = new TextDecoder().decode(result);
+    assert.strictEqual(text, 'Hello!');
+});
+
+test('decodeBase64 - double padding', () => {
+    const result = decodeBase64('SGk=');
+    const text = new TextDecoder().decode(result);
+    assert.strictEqual(text, 'Hi');
+});
+
+test('decodeBase64 - empty string', () => {
+    const result = decodeBase64('');
+    assert.strictEqual(result.byteLength, 0);
+});
+
+test('decodeBase64 - single character (2 base64 chars)', () => {
+    const result = decodeBase64('QQ==');
+    const text = new TextDecoder().decode(result);
+    assert.strictEqual(text, 'A');
+});
+
+// decodeParameterValueContinuations tests
+test('decodeParameterValueContinuations - simple continuation', () => {
+    const header = {
+        value: 'attachment',
+        params: {
+            'filename*0': 'long',
+            'filename*1': 'file',
+            'filename*2': 'name.txt'
+        }
+    };
+    decodeParameterValueContinuations(header);
+    assert.strictEqual(header.params.filename, 'longfilename.txt');
+});
+
+test('decodeParameterValueContinuations - encoded with charset', () => {
+    const header = {
+        value: 'attachment',
+        params: {
+            "filename*0*": "utf-8''%C3%A4bc",
+            'filename*1*': '%C3%B6%C3%BC.txt'
+        }
+    };
+    decodeParameterValueContinuations(header);
+    // The actual decoded characters: a-umlaut, o-umlaut, u-umlaut
+    assert.strictEqual(header.params.filename, 'äbcöü.txt');
+});
+
+test('decodeParameterValueContinuations - single encoded parameter', () => {
+    const header = {
+        value: 'attachment',
+        params: {
+            "filename*": "utf-8''test%20file.txt"
+        }
+    };
+    decodeParameterValueContinuations(header);
+    assert.strictEqual(header.params.filename, 'test file.txt');
+});
+
+test('decodeParameterValueContinuations - out of order continuations', () => {
+    const header = {
+        value: 'attachment',
+        params: {
+            'filename*2': 'c',
+            'filename*0': 'a',
+            'filename*1': 'b'
+        }
+    };
+    decodeParameterValueContinuations(header);
+    assert.strictEqual(header.params.filename, 'abc');
+});
+
+test('decodeParameterValueContinuations - mixed regular and continuation params', () => {
+    const header = {
+        value: 'attachment',
+        params: {
+            'filename*0': 'test',
+            'filename*1': '.txt',
+            'size': '1234'
+        }
+    };
+    decodeParameterValueContinuations(header);
+    assert.strictEqual(header.params.filename, 'test.txt');
+    assert.strictEqual(header.params.size, '1234');
+});
+
+test('decodeParameterValueContinuations - no continuation params', () => {
+    const header = {
+        value: 'attachment',
+        params: {
+            'filename': 'test.txt',
+            'size': '1234'
+        }
+    };
+    decodeParameterValueContinuations(header);
+    assert.strictEqual(header.params.filename, 'test.txt');
+    assert.strictEqual(header.params.size, '1234');
+});
+
+test('decodeParameterValueContinuations - empty params', () => {
+    const header = {
+        value: 'attachment',
+        params: {}
+    };
+    decodeParameterValueContinuations(header);
+    assert.deepStrictEqual(header.params, {});
+});
+
+test('decodeParameterValueContinuations - single value continuation', () => {
+    const header = {
+        value: 'attachment',
+        params: {
+            'filename*0': 'onlypart.txt'
+        }
+    };
+    decodeParameterValueContinuations(header);
+    assert.strictEqual(header.params.filename, 'onlypart.txt');
+});
+
+test('decodeParameterValueContinuations - iso-8859-1 charset', () => {
+    const header = {
+        value: 'attachment',
+        params: {
+            "filename*": "iso-8859-1''Caf%E9.txt"
+        }
+    };
+    decodeParameterValueContinuations(header);
+    // %E9 in iso-8859-1 is the e-acute character
+    assert.strictEqual(header.params.filename, 'Café.txt');
+});
+
+test('decodeParameterValueContinuations - language tag ignored', () => {
+    const header = {
+        value: 'attachment',
+        params: {
+            "filename*": "utf-8'en-US'test.txt"
+        }
+    };
+    decodeParameterValueContinuations(header);
+    assert.strictEqual(header.params.filename, 'test.txt');
 });
