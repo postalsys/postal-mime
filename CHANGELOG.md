@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.3](https://github.com/postalsys/postal-mime/compare/v2.7.2...v2.7.3) (2026-01-09)
+
+
+### Bug Fixes
+
+* correct TypeScript type definitions to match implementation ([b225d7c](https://github.com/postalsys/postal-mime/commit/b225d7cca422cb9bc3ab5301e94c4c0bef9a69e2))
+
 ## [2.7.2](https://github.com/postalsys/postal-mime/compare/v2.7.1...v2.7.2) (2026-01-08)
 
 
