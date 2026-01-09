@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.4](https://github.com/postalsys/postal-mime/compare/v2.7.3...v2.7.4) (2026-01-09)
+
+
+### Bug Fixes
+
+* add missing originalKey to Header type and Uint8Array to Attachment content ([92cc91c](https://github.com/postalsys/postal-mime/commit/92cc91c1c8477e0462cb0e93ddf8ea6aec6534d0))
+
 ## [2.7.3](https://github.com/postalsys/postal-mime/compare/v2.7.2...v2.7.3) (2026-01-09)
 
 
