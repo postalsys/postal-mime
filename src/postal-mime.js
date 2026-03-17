@@ -478,7 +478,9 @@ export default class PostalMime {
         await this.processNodeTree();
 
         const message = {
-            headers: this.root.headers.map(entry => ({ key: entry.key, value: entry.value })).reverse()
+            headers: this.root.headers
+                .map(entry => ({ key: entry.key, originalKey: entry.originalKey, value: entry.value }))
+                .reverse()
         };
 
         for (const key of ['from', 'sender']) {
