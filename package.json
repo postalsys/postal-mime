@@ -38,14 +38,14 @@
     "author": "Andris Reinman",
     "license": "MIT-0",
     "devDependencies": {
-        "@types/node": "24.10.1",
+        "@types/node": "25.5.0",
         "cross-blob": "3.0.2",
         "cross-env": "10.1.0",
-        "esbuild": "0.27.0",
+        "esbuild": "0.27.4",
         "eslint": "8.57.0",
         "eslint-cli": "1.1.1",
         "iframe-resizer": "4.3.6",
-        "prettier": "3.6.2",
+        "prettier": "3.8.1",
         "typescript": "5.9.3"
     }
 }
