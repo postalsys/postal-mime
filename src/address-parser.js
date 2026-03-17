@@ -159,10 +159,18 @@ function _handleAddress(tokens, depth) {
 
         if (!data.address && /^=\?[^=]+?=$/.test(data.text.trim())) {
             // try to extract words from text content
-            const parsedSubAddresses = addressParser(decodeWords(data.text));
-            if (parsedSubAddresses && parsedSubAddresses.length) {
-                return parsedSubAddresses;
+            const decodedText = decodeWords(data.text);
+            // Security: only re-parse if decoded text contains angle-bracket addresses.
+            // Without this, a bare encoded email (e.g. =?utf-8?B?dGVzdEBldmlsLmNv?=)
+            // would be fabricated into an address from attacker-controlled input.
+            if (/<[^<>]+@[^<>]+>/.test(decodedText)) {
+                const parsedSubAddresses = addressParser(decodedText);
+                if (parsedSubAddresses && parsedSubAddresses.length) {
+                    return parsedSubAddresses;
+                }
             }
+            // No usable address found - treat decoded text as display name only
+            return [{ address: '', name: decodedText }];
         }
 
         if (!data.address && isGroup) {

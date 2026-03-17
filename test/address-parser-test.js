@@ -393,3 +393,40 @@ test('addressParser - mixed nested groups and addresses should not crash', () =>
     });
     assert.ok(Array.isArray(result));
 });
+
+// Security tests for RFC 2047 encoded-word address fabrication
+test('addressParser - RFC 2047 encoded bare email should not fabricate address (base64)', () => {
+    // =?utf-8?B?dGVzdEBldmlsLmNv?= decodes to "test@evil.co"
+    // This should NOT produce an address - only a display name
+    const result = addressParser('=?utf-8?B?dGVzdEBldmlsLmNv?=');
+    assert.strictEqual(result.length, 1);
+    assert.strictEqual(result[0].address, '');
+    assert.strictEqual(result[0].name, 'test@evil.co');
+});
+
+test('addressParser - RFC 2047 encoded full address with angle brackets should work (base64)', () => {
+    // =?utf-8?B?Sm9lIDxqQGEuY28+?= decodes to "Joe <j@a.co>"
+    const result = addressParser('=?utf-8?B?Sm9lIDxqQGEuY28+?=');
+    assert.strictEqual(result.length, 1);
+    assert.strictEqual(result[0].address, 'j@a.co');
+    assert.strictEqual(result[0].name, 'Joe');
+});
+
+test('addressParser - RFC 2047 encoded full address with angle brackets should work (QP)', () => {
+    // In QP encoding, < and > are tokenizer operators, so the MIME word gets
+    // split and the address is extracted directly from angle brackets.
+    // The underscore before < decodes to a space, leaving a trailing space in the name.
+    const result = addressParser('=?utf-8?Q?John_<john@a.co>?=');
+    assert.strictEqual(result.length, 1);
+    assert.strictEqual(result[0].address, 'john@a.co');
+    assert.strictEqual(result[0].name.trim(), 'John');
+});
+
+test('addressParser - RFC 2047 encoded bare email with base64 padding does not fabricate address', () => {
+    // =?utf-8?B?YXR0YWNrZXJAZXZpbC5jb20=?= decodes to "attacker@evil.com"
+    // The = padding in base64 causes the line 160 regex to reject entry to the
+    // re-parse block, so this already doesn't fabricate - verify it stays safe
+    const result = addressParser('=?utf-8?B?YXR0YWNrZXJAZXZpbC5jb20=?=');
+    assert.strictEqual(result.length, 1);
+    assert.ok(result[0].address !== 'attacker@evil.com', 'Should not fabricate a clean email address');
+});
