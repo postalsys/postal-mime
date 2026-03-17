@@ -137,10 +137,9 @@ test('PostalMime.parse - static method with Buffer input', async () => {
 });
 
 test('PostalMime.parse - static method with options', async () => {
-    const email = await PostalMime.parse(
-        'Content-Type: application/pdf\nContent-Disposition: attachment\n\nData',
-        { attachmentEncoding: 'base64' }
-    );
+    const email = await PostalMime.parse('Content-Type: application/pdf\nContent-Disposition: attachment\n\nData', {
+        attachmentEncoding: 'base64'
+    });
     assert.strictEqual(email.attachments[0].encoding, 'base64');
 });
 
@@ -266,7 +265,7 @@ PDF data
 
 test('Blob input - blob with binary content', async () => {
     const header = 'Content-Type: application/octet-stream\nContent-Disposition: attachment; filename="test.bin"\n\n';
-    const binaryData = new Uint8Array([0x00, 0x01, 0x02, 0xFF]);
+    const binaryData = new Uint8Array([0x00, 0x01, 0x02, 0xff]);
     const blob = new Blob([header, binaryData], { type: 'message/rfc822' });
 
     const parser = new PostalMime();

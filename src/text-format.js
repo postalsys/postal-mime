@@ -20,7 +20,7 @@ export function decodeHTMLEntities(str) {
             codePoint = parseInt(entity.substr(1), 10);
         }
 
-        var output = '';
+        let output = '';
 
         if ((codePoint >= 0xd800 && codePoint <= 0xdfff) || codePoint > 0x10ffff) {
             // Invalid range, return a replacement character instead

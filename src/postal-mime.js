@@ -9,6 +9,10 @@ export { addressParser, decodeWords };
 const MAX_NESTING_DEPTH = 256;
 const MAX_HEADERS_SIZE = 2 * 1024 * 1024;
 
+function toCamelCase(key) {
+    return key.replace(/-(.)/g, (o, c) => c.toUpperCase());
+}
+
 export default class PostalMime {
     static parse(buf, options) {
         const parser = new PostalMime(options);
@@ -76,9 +80,11 @@ export default class PostalMime {
                 let boundaryEnd = boundary.value.length + 2;
                 let isTerminator = false;
 
-                if (line.length >= boundary.value.length + 4 &&
+                if (
+                    line.length >= boundary.value.length + 4 &&
                     line[boundary.value.length + 2] === 0x2d &&
-                    line[boundary.value.length + 3] === 0x2d) {
+                    line[boundary.value.length + 3] === 0x2d
+                ) {
                     isTerminator = true;
                     boundaryEnd = boundary.value.length + 4;
                 }
@@ -130,13 +136,6 @@ export default class PostalMime {
         let startPos = this.readPos;
         let endPos = this.readPos;
 
-        let res = () => {
-            return {
-                bytes: new Uint8Array(this.buf, startPos, endPos - startPos),
-                done: this.readPos >= this.av.length
-            };
-        };
-
         while (this.readPos < this.av.length) {
             const c = this.av[this.readPos++];
 
@@ -145,11 +144,17 @@ export default class PostalMime {
             }
 
             if (c === 0x0a) {
-                return res();
+                return {
+                    bytes: new Uint8Array(this.buf, startPos, endPos - startPos),
+                    done: this.readPos >= this.av.length
+                };
             }
         }
 
-        return res();
+        return {
+            bytes: new Uint8Array(this.buf, startPos, endPos - startPos),
+            done: this.readPos >= this.av.length
+        };
     }
 
     async processNodeTree() {
@@ -220,7 +225,9 @@ export default class PostalMime {
                 // is it an attachment
                 else if (node.content) {
                     const filename =
-                        node.contentDisposition?.parsed?.params?.filename || node.contentType.parsed.params.name || null;
+                        node.contentDisposition?.parsed?.params?.filename ||
+                        node.contentType.parsed.params.name ||
+                        null;
                     const attachment = {
                         filename: filename ? decodeWords(filename) : null,
                         mimeType: node.contentType.parsed.value,
@@ -274,7 +281,7 @@ export default class PostalMime {
             }
         };
 
-        await walk(this.root, false, []);
+        await walk(this.root, false, false);
 
         textMap.forEach(mapEntry => {
             textTypes.forEach(textType => {
@@ -489,7 +496,7 @@ export default class PostalMime {
             if (addressHeader && addressHeader.value) {
                 const addresses = addressParser(addressHeader.value);
                 if (addresses && addresses.length && addresses[0].address) {
-                    const camelKey = key.replace(/\-(.)/g, (o, c) => c.toUpperCase());
+                    const camelKey = toCamelCase(key);
                     message[camelKey] = addresses[0].address;
                 }
             }
@@ -505,7 +512,7 @@ export default class PostalMime {
                 .forEach(parsed => (addresses = addresses.concat(parsed || [])));
 
             if (addresses && addresses.length) {
-                const camelKey = key.replace(/\-(.)/g, (o, c) => c.toUpperCase());
+                const camelKey = toCamelCase(key);
                 message[camelKey] = addresses;
             }
         }
@@ -513,7 +520,7 @@ export default class PostalMime {
         for (const key of ['subject', 'message-id', 'in-reply-to', 'references']) {
             const header = this.root.headers.find(line => line.key === key);
             if (header && header.value) {
-                const camelKey = key.replace(/\-(.)/g, (o, c) => c.toUpperCase());
+                const camelKey = toCamelCase(key);
                 message[camelKey] = decodeWords(header.value);
             }
         }
@@ -521,7 +528,7 @@ export default class PostalMime {
         let dateHeader = this.root.headers.find(line => line.key === 'date');
         if (dateHeader) {
             let date = new Date(dateHeader.value);
-            if (!date || date.toString() === 'Invalid Date') {
+            if (date.toString() === 'Invalid Date') {
                 date = dateHeader.value;
             } else {
                 // enforce ISO format if seems to be a valid date
@@ -567,7 +574,7 @@ export default class PostalMime {
                 break;
 
             default:
-                throw new Error('Unknwon attachment encoding');
+                throw new Error('Unknown attachment encoding');
         }
 
         return message;

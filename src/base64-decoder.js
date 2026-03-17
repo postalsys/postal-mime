@@ -16,9 +16,7 @@ export default class Base64Decoder {
     update(buffer) {
         let str = this.decoder.decode(buffer);
 
-        if (/[^a-zA-Z0-9+\/]/.test(str)) {
-            str = str.replace(/[^a-zA-Z0-9+\/]+/g, '');
-        }
+        str = str.replace(/[^a-zA-Z0-9+\/]+/g, '');
 
         this.remainder += str;
 

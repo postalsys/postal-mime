@@ -142,13 +142,13 @@ function _handleAddress(tokens, depth) {
             }
         }
 
-        // If there's still is no text but a comment exixts, replace the two
+        // If there's still no text but a comment exists, replace the two
         if (!data.text.length && data.comment.length) {
             data.text = data.comment;
             data.comment = [];
         }
 
-        // Keep only the first address occurence, push others to regular text
+        // Keep only the first address occurrence, push others to regular text
         if (data.address.length > 1) {
             data.text = data.text.concat(data.address.splice(1));
         }
@@ -173,24 +173,20 @@ function _handleAddress(tokens, depth) {
             return [{ address: '', name: decodedText }];
         }
 
-        if (!data.address && isGroup) {
-            return [];
-        } else {
-            address = {
-                address: data.address || data.text || '',
-                name: decodeWords(data.text || data.address || '')
-            };
+        address = {
+            address: data.address || data.text || '',
+            name: decodeWords(data.text || data.address || '')
+        };
 
-            if (address.address === address.name) {
-                if ((address.address || '').match(/@/)) {
-                    address.name = '';
-                } else {
-                    address.address = '';
-                }
+        if (address.address === address.name) {
+            if ((address.address || '').match(/@/)) {
+                address.name = '';
+            } else {
+                address.address = '';
             }
-
-            addresses.push(address);
         }
+
+        addresses.push(address);
     }
 
     return addresses;
@@ -288,7 +284,7 @@ class Tokenizer {
             this.operatorExpecting = this.operators[chr];
             this.escaped = false;
             return;
-        } else if (['"', "'"].includes(this.operatorExpecting) && chr === '\\') {
+        } else if (this.operatorExpecting === '"' && chr === '\\') {
             this.escaped = true;
             return;
         }

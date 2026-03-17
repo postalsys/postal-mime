@@ -531,10 +531,10 @@ Body`;
 test('headerLines handles CRLF line endings', async t => {
     const mail = Buffer.from(
         'From: sender@example.com\r\n' +
-        'Subject: Test with CRLF\r\n' +
-        'Content-Type: text/plain\r\n' +
-        '\r\n' +
-        'Body'
+            'Subject: Test with CRLF\r\n' +
+            'Content-Type: text/plain\r\n' +
+            '\r\n' +
+            'Body'
     );
 
     const email = await PostalMime.parse(mail);
@@ -696,7 +696,11 @@ test('Flowed text - signature separator not joined (RFC 3676)', async t => {
     // The signature separator "-- " should not be joined with following lines
     // even though it ends with a space
     const mail = Buffer.from(
-        'Content-Type: text/plain; format=flowed\r\n\r\n' + 'Body text \r\n' + 'continues.\r\n' + '-- \r\n' + 'Signature\r\n'
+        'Content-Type: text/plain; format=flowed\r\n\r\n' +
+            'Body text \r\n' +
+            'continues.\r\n' +
+            '-- \r\n' +
+            'Signature\r\n'
     );
     const email = await PostalMime.parse(mail);
     // Signature separator should remain on its own line
@@ -704,18 +708,14 @@ test('Flowed text - signature separator not joined (RFC 3676)', async t => {
 });
 
 test('Flowed text - DelSp=yes removes trailing space', async t => {
-    const mail = Buffer.from(
-        'Content-Type: text/plain; format=flowed; delsp=yes\r\n\r\n' + 'Hello \r\n' + 'World\r\n'
-    );
+    const mail = Buffer.from('Content-Type: text/plain; format=flowed; delsp=yes\r\n\r\n' + 'Hello \r\n' + 'World\r\n');
     const email = await PostalMime.parse(mail);
     assert.strictEqual(email.text, 'HelloWorld\n');
 });
 
 test('Flowed text - space stuffing removed', async t => {
     // Lines starting with space, ">", or "From " are space-stuffed
-    const mail = Buffer.from(
-        'Content-Type: text/plain; format=flowed\r\n\r\n' + ' >quoted\r\n' + ' From someone\r\n'
-    );
+    const mail = Buffer.from('Content-Type: text/plain; format=flowed\r\n\r\n' + ' >quoted\r\n' + ' From someone\r\n');
     const email = await PostalMime.parse(mail);
     assert.ok(email.text.includes('>quoted'));
     assert.ok(email.text.includes('From someone'));
@@ -726,7 +726,7 @@ test('Flowed text - space stuffing removed', async t => {
 test('RFC 2231 - simple continuation', async t => {
     const mail = Buffer.from(
         'Content-Type: text/plain\r\n' +
-            "Content-Disposition: attachment;\r\n filename*0=long;\r\n filename*1=file;\r\n filename*2=name.txt\r\n\r\n" +
+            'Content-Disposition: attachment;\r\n filename*0=long;\r\n filename*1=file;\r\n filename*2=name.txt\r\n\r\n' +
             'Content'
     );
     const email = await PostalMime.parse(mail);
@@ -790,7 +790,7 @@ test('Boundary - with preamble and epilogue', async t => {
 
 test('Boundary - special characters in boundary string', async t => {
     const mail = Buffer.from(
-        "Content-Type: multipart/mixed; boundary=\"=_Part_123_+special'\"\r\n\r\n" +
+        'Content-Type: multipart/mixed; boundary="=_Part_123_+special\'"\r\n\r\n' +
             "--=_Part_123_+special'\r\n" +
             'Content-Type: text/plain\r\n\r\n' +
             'Content\r\n' +
@@ -906,9 +906,7 @@ test('Malformed - header without value', async t => {
 });
 
 test('Malformed - duplicate Content-Type headers (last wins)', async t => {
-    const mail = Buffer.from(
-        'Content-Type: text/plain\r\n' + 'Content-Type: text/html\r\n\r\n' + '<p>Content</p>'
-    );
+    const mail = Buffer.from('Content-Type: text/plain\r\n' + 'Content-Type: text/html\r\n\r\n' + '<p>Content</p>');
     const email = await PostalMime.parse(mail);
     // Last Content-Type is used (headers processed in reverse order)
     assert.ok(email.html);

@@ -81,7 +81,6 @@ export default class QPDecoder {
         }
         if (encodedBytes.length) {
             this.chunks.push(this.decodeQPBytes(encodedBytes));
-            encodedBytes = [];
         }
     }
 

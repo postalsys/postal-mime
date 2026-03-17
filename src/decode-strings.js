@@ -4,7 +4,7 @@ const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456
 
 // Use a lookup table to find the index.
 const base64Lookup = new Uint8Array(256);
-for (var i = 0; i < base64Chars.length; i++) {
+for (let i = 0; i < base64Chars.length; i++) {
     base64Lookup[base64Chars.charCodeAt(i)] = i;
 }
 

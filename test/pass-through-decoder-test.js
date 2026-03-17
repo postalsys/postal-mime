@@ -87,7 +87,9 @@ Line 5`);
 });
 
 test('PassThroughDecoder - CRLF line endings', async () => {
-    const mail = Buffer.from('Content-Type: text/plain\r\nContent-Transfer-Encoding: 7bit\r\n\r\nLine 1\r\nLine 2\r\nLine 3');
+    const mail = Buffer.from(
+        'Content-Type: text/plain\r\nContent-Transfer-Encoding: 7bit\r\n\r\nLine 1\r\nLine 2\r\nLine 3'
+    );
 
     const parser = new PostalMime();
     const email = await parser.parse(mail);
@@ -149,7 +151,7 @@ ${longLine}`);
 
 test('PassThroughDecoder - binary data preserved', async () => {
     // Create mail with binary attachment
-    const binaryData = new Uint8Array([0x00, 0x01, 0x02, 0xFF, 0xFE, 0xFD]);
+    const binaryData = new Uint8Array([0x00, 0x01, 0x02, 0xff, 0xfe, 0xfd]);
     const mail = Buffer.concat([
         Buffer.from(`Content-Type: application/octet-stream
 Content-Transfer-Encoding: binary

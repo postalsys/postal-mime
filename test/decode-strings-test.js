@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { decodeWord, decodeWords, decodeURIComponentWithCharset, getDecoder, getHex, blobToArrayBuffer, decodeBase64, decodeParameterValueContinuations } from '../src/decode-strings.js';
+import {
+    decodeWord,
+    decodeWords,
+    decodeURIComponentWithCharset,
+    getDecoder,
+    getHex,
+    blobToArrayBuffer,
+    decodeBase64,
+    decodeParameterValueContinuations
+} from '../src/decode-strings.js';
 
 // MIME Encoded-Word Decoding Tests (decodeWord)
 test('decodeWord - Q-encoding simple ASCII', () => {
@@ -424,7 +433,7 @@ test('getHex - invalid character G', () => {
 });
 
 test('getHex - invalid character Z', () => {
-    const result = getHex(0x5A); // 'Z'
+    const result = getHex(0x5a); // 'Z'
     assert.strictEqual(result, false);
 });
 
@@ -439,12 +448,12 @@ test('getHex - invalid character null', () => {
 });
 
 test('getHex - boundary check: character before 0', () => {
-    const result = getHex(0x2F); // '/'
+    const result = getHex(0x2f); // '/'
     assert.strictEqual(result, false);
 });
 
 test('getHex - boundary check: character after 9', () => {
-    const result = getHex(0x3A); // ':'
+    const result = getHex(0x3a); // ':'
     assert.strictEqual(result, false);
 });
 
@@ -564,7 +573,7 @@ test('decodeParameterValueContinuations - encoded with charset', () => {
     const header = {
         value: 'attachment',
         params: {
-            "filename*0*": "utf-8''%C3%A4bc",
+            'filename*0*': "utf-8''%C3%A4bc",
             'filename*1*': '%C3%B6%C3%BC.txt'
         }
     };
@@ -577,7 +586,7 @@ test('decodeParameterValueContinuations - single encoded parameter', () => {
     const header = {
         value: 'attachment',
         params: {
-            "filename*": "utf-8''test%20file.txt"
+            'filename*': "utf-8''test%20file.txt"
         }
     };
     decodeParameterValueContinuations(header);
@@ -603,7 +612,7 @@ test('decodeParameterValueContinuations - mixed regular and continuation params'
         params: {
             'filename*0': 'test',
             'filename*1': '.txt',
-            'size': '1234'
+            size: '1234'
         }
     };
     decodeParameterValueContinuations(header);
@@ -615,8 +624,8 @@ test('decodeParameterValueContinuations - no continuation params', () => {
     const header = {
         value: 'attachment',
         params: {
-            'filename': 'test.txt',
-            'size': '1234'
+            filename: 'test.txt',
+            size: '1234'
         }
     };
     decodeParameterValueContinuations(header);
@@ -648,7 +657,7 @@ test('decodeParameterValueContinuations - iso-8859-1 charset', () => {
     const header = {
         value: 'attachment',
         params: {
-            "filename*": "iso-8859-1''Caf%E9.txt"
+            'filename*': "iso-8859-1''Caf%E9.txt"
         }
     };
     decodeParameterValueContinuations(header);
@@ -660,7 +669,7 @@ test('decodeParameterValueContinuations - language tag ignored', () => {
     const header = {
         value: 'attachment',
         params: {
-            "filename*": "utf-8'en-US'test.txt"
+            'filename*': "utf-8'en-US'test.txt"
         }
     };
     decodeParameterValueContinuations(header);

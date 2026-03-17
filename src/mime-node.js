@@ -3,6 +3,8 @@ import PassThroughDecoder from './pass-through-decoder.js';
 import Base64Decoder from './base64-decoder.js';
 import QPDecoder from './qp-decoder.js';
 
+const defaultDecoder = getDecoder();
+
 export default class MimeNode {
     constructor(options) {
         this.options = options || {};
@@ -233,7 +235,7 @@ export default class MimeNode {
                 // remove soft linebreaks
                 // soft linebreaks are added after space symbols
                 .reduce((previousValue, currentValue) => {
-                    if (/ $/.test(previousValue) && !/(^|\n)-- $/.test(previousValue)) {
+                    if (previousValue.endsWith(' ') && previousValue !== '-- ' && !previousValue.endsWith('\n-- ')) {
                         if (delSp) {
                             // delsp adds space to text to be able to fold it
                             // these spaces can be removed once the text is unfolded
@@ -360,7 +362,7 @@ export default class MimeNode {
                     throw error;
                 }
 
-                this.headerLines.push(getDecoder().decode(line));
+                this.headerLines.push(defaultDecoder.decode(line));
                 break;
             case 'body': {
                 // add line to body
