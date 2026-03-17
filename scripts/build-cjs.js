@@ -48,12 +48,15 @@ if (module.exports.default) {
     var defaultExport = module.exports.default;
     var namedExports = {};
     for (var key in module.exports) {
-        if (key !== 'default') {
+        if (key !== 'default' && key !== '__esModule') {
             namedExports[key] = module.exports[key];
         }
     }
     module.exports = defaultExport;
     Object.assign(module.exports, namedExports);
+    // Preserve __esModule and .default for bundler/transpiler interop
+    Object.defineProperty(module.exports, '__esModule', { value: true });
+    module.exports.default = defaultExport;
 }
 `
             }
