@@ -430,3 +430,34 @@ test('addressParser - RFC 2047 encoded bare email with base64 padding does not f
     assert.strictEqual(result.length, 1);
     assert.ok(result[0].address !== 'attacker@evil.com', 'Should not fabricate a clean email address');
 });
+
+// Coverage gap tests
+test('addressParser - comment-only input uses comment as name', () => {
+    const result = addressParser('(John Doe)');
+    assert.strictEqual(result.length, 1);
+    assert.strictEqual(result[0].name, 'John Doe');
+    assert.strictEqual(result[0].address, '');
+});
+
+test('addressParser - control characters do not crash', () => {
+    const result = addressParser('user\x00\x01\x02@example.com');
+    assert.ok(Array.isArray(result));
+    assert.strictEqual(result.length, 1);
+    assert.ok(result[0].address.includes('@example.com'));
+});
+
+test('addressParser - angle bracket immediately followed by comment', () => {
+    const result = addressParser('<user@example.com>(A comment)');
+    assert.strictEqual(result.length, 1);
+    assert.strictEqual(result[0].address, 'user@example.com');
+});
+
+test('addressParser - encoded word with base64 padding handled safely', () => {
+    // =?utf-8?B?QSA8YUBiLmNvPiwgQiA8Y0BkLmNvPg==?= decodes to "A <a@b.co>, B <c@d.co>"
+    // The base64 padding (==) prevents entry to the re-parse block
+    const result = addressParser('=?utf-8?B?QSA8YUBiLmNvPiwgQiA8Y0BkLmNvPg==?=');
+    assert.ok(Array.isArray(result));
+    assert.strictEqual(result.length, 1);
+    // Decoded text should appear as display name, not fabricated addresses
+    assert.ok(result[0].name.includes('a@b.co'));
+});

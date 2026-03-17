@@ -385,3 +385,25 @@ test('formatHtmlHeader - separator between addresses', () => {
     assert.ok(result.includes('postal-email-address-separator'));
     assert.ok(result.includes(', '));
 });
+
+// Coverage gap tests
+test('htmlToText - nested lists', () => {
+    const result = htmlToText('<ul><li>Item 1<ul><li>Sub item</li></ul></li><li>Item 2</li></ul>');
+    assert.ok(result.includes('Item 1'));
+    assert.ok(result.includes('Sub item'));
+    assert.ok(result.includes('Item 2'));
+});
+
+test('textToHtml - CRLF line endings', () => {
+    const result = textToHtml('Line 1\r\nLine 2');
+    // \r is not converted to <br />, only \n is
+    assert.ok(result.includes('<br />'));
+    assert.ok(result.includes('Line 1'));
+    assert.ok(result.includes('Line 2'));
+});
+
+test('formatTextHeader - message with no fields', () => {
+    const result = formatTextHeader({});
+    // Should not crash, returns template with empty rows
+    assert.ok(typeof result === 'string');
+});

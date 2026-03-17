@@ -675,3 +675,45 @@ test('decodeParameterValueContinuations - language tag ignored', () => {
     decodeParameterValueContinuations(header);
     assert.strictEqual(header.params.filename, 'test.txt');
 });
+
+// Coverage gap tests
+test('decodeWord - QP with incomplete hex at end', () => {
+    const result = decodeWord('utf-8', 'Q', 'Hello=C');
+    assert.ok(typeof result === 'string');
+    assert.ok(result.includes('Hello'));
+});
+
+test('decodeWords - three consecutive encoded words joined', () => {
+    const result = decodeWords('=?utf-8?B?SGVs?= =?utf-8?B?bG8g?= =?utf-8?B?V29ybGQ=?=');
+    assert.strictEqual(result, 'Hello World');
+});
+
+test('decodeParameterValueContinuations - gaps in sequence', () => {
+    const header = {
+        value: 'attachment',
+        params: {
+            'filename*0': 'part1',
+            'filename*2': 'part3'
+        }
+    };
+    decodeParameterValueContinuations(header);
+    assert.ok(header.params.filename.includes('part1'));
+    assert.ok(header.params.filename.includes('part3'));
+});
+
+test('decodeParameterValueContinuations - empty charset defaults to utf-8', () => {
+    const header = {
+        value: 'attachment',
+        params: {
+            'filename*0*': "''hello.txt"
+        }
+    };
+    decodeParameterValueContinuations(header);
+    assert.strictEqual(header.params.filename, 'hello.txt');
+});
+
+test('decodeWords - spaces between encoded words of different encodings removed', () => {
+    // Mixed B and Q encoding with same charset - spaces between should be removed
+    const result = decodeWords('=?utf-8?B?SGVsbG8=?= =?utf-8?Q?World?=');
+    assert.strictEqual(result, 'HelloWorld');
+});

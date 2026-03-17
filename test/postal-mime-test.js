@@ -997,3 +997,88 @@ test('Edge case - quoted-printable with literal equals sign', async t => {
     const email = await PostalMime.parse(mail);
     assert.strictEqual(email.text.trim(), '1+1=2');
 });
+
+// Coverage gap tests
+test('Coverage - invalid attachment encoding throws', async t => {
+    const mail = Buffer.from('Content-Type: text/plain\r\n\r\nBody');
+    await assert.rejects(async () => PostalMime.parse(mail, { attachmentEncoding: 'invalid' }), {
+        message: 'Unknown attachment encoding'
+    });
+});
+
+test('Coverage - null input returns empty message', async t => {
+    const email = await PostalMime.parse(null);
+    assert.ok(email);
+    assert.deepStrictEqual(email.attachments, []);
+});
+
+test('Coverage - Content-Disposition attachment overrides inline text', async t => {
+    const mail = Buffer.from(
+        'Content-Type: multipart/mixed; boundary="b"\r\n\r\n' +
+            '--b\r\n' +
+            'Content-Type: text/plain\r\n' +
+            'Content-Disposition: attachment; filename="note.txt"\r\n\r\n' +
+            'This is an attachment\r\n' +
+            '--b--\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text, undefined);
+    assert.strictEqual(email.attachments.length, 1);
+    assert.strictEqual(email.attachments[0].filename, 'note.txt');
+});
+
+test('Coverage - rfc822Attachments without Content-Disposition', async t => {
+    const innerMessage = 'From: inner@example.com\r\nSubject: Inner\r\n\r\nInner body';
+    const mail = Buffer.from(
+        'Content-Type: multipart/mixed; boundary="b"\r\n\r\n' +
+            '--b\r\n' +
+            'Content-Type: message/rfc822\r\n\r\n' +
+            innerMessage +
+            '\r\n--b--\r\n'
+    );
+    const email = await PostalMime.parse(mail, { rfc822Attachments: true });
+    assert.strictEqual(email.attachments.length, 1);
+    assert.strictEqual(email.attachments[0].mimeType, 'message/rfc822');
+});
+
+test('Coverage - empty ReadableStream input', async t => {
+    const stream = new ReadableStream({
+        start(controller) {
+            controller.close();
+        }
+    });
+    const email = await PostalMime.parse(stream);
+    assert.ok(email);
+    assert.deepStrictEqual(email.attachments, []);
+});
+
+test('Coverage - contentId outside multipart/related should not be marked related', async t => {
+    const mail = Buffer.from(
+        'Content-Type: multipart/mixed; boundary="b"\r\n\r\n' +
+            '--b\r\n' +
+            'Content-Type: text/plain\r\n\r\n' +
+            'Hello\r\n' +
+            '--b\r\n' +
+            'Content-Type: image/png\r\n' +
+            'Content-ID: <img1>\r\n' +
+            'Content-Disposition: attachment\r\n\r\n' +
+            'data\r\n' +
+            '--b--\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.attachments.length, 1);
+    assert.strictEqual(email.attachments[0].contentId, '<img1>');
+    assert.strictEqual(email.attachments[0].related, undefined);
+});
+
+test('Coverage - multiple consecutive flowed text soft breaks', async t => {
+    const mail = Buffer.from(
+        'Content-Type: text/plain; format=flowed\r\n\r\n' +
+            'This is \r\n' +
+            'a very \r\n' +
+            'long \r\n' +
+            'sentence.\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text, 'This is a very long sentence.\n');
+});

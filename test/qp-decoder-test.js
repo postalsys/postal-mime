@@ -573,3 +573,43 @@ Test`);
     assert.ok(email.text.includes('World'));
     assert.ok(email.text.includes('Test'));
 });
+
+// Coverage gap tests
+test('QP decoder - invalid hex char in sequence', async () => {
+    const mail = Buffer.from(
+        'Content-Type: text/plain; charset=UTF-8\r\n' +
+            'Content-Transfer-Encoding: quoted-printable\r\n\r\n' +
+            'Hello=2Gworld'
+    );
+    const parser = new PostalMime();
+    const email = await parser.parse(mail);
+    // =2G is invalid QP, should be preserved as-is
+    assert.ok(email.text.includes('=2G'));
+});
+
+test('QP decoder - consecutive soft breaks mixed line endings', async () => {
+    const mail = Buffer.from(
+        'Content-Type: text/plain; charset=UTF-8\r\n' +
+            'Content-Transfer-Encoding: quoted-printable\r\n\r\n' +
+            'Line=\r\n' +
+            'one=\n' +
+            'two'
+    );
+    const parser = new PostalMime();
+    const email = await parser.parse(mail);
+    // Soft breaks removed, lines concatenated
+    assert.ok(email.text.includes('Lineonetwo'));
+});
+
+test('QP decoder - complete QP sequences decode correctly', async () => {
+    // The =20 at line end is a valid QP space, but test that
+    // decoder handles sequences split across lines
+    const mail = Buffer.from(
+        'Content-Type: text/plain; charset=UTF-8\r\n' +
+            'Content-Transfer-Encoding: quoted-printable\r\n\r\n' +
+            'Hello=20World=0D=0ANew line'
+    );
+    const parser = new PostalMime();
+    const email = await parser.parse(mail);
+    assert.ok(email.text.includes('Hello World'));
+});

@@ -545,3 +545,32 @@ END:VCALENDAR`);
 
     assert.strictEqual(email.attachments.length, 1);
 });
+
+// Coverage gap tests
+test('MimeNode - parseStructuredHeader with empty param after semicolons', async () => {
+    const mail = Buffer.from('Content-Type: text/plain; ;charset=utf-8\r\n\r\nBody');
+    const parser = new PostalMime();
+    const email = await parser.parse(mail);
+    assert.ok(email.text.includes('Body'));
+});
+
+test('MimeNode - parseStructuredHeader with key without value', async () => {
+    const mail = Buffer.from('Content-Type: text/plain; charset\r\n\r\nBody');
+    const parser = new PostalMime();
+    const email = await parser.parse(mail);
+    assert.ok(email.text.includes('Body'));
+});
+
+test('MimeNode - stripComments with unmatched paren', async () => {
+    const mail = Buffer.from('From: sender@example.com (Unclosed comment\r\n\r\nBody');
+    const parser = new PostalMime();
+    const email = await parser.parse(mail);
+    assert.ok(email.from);
+});
+
+test('MimeNode - getTextContent with no content returns empty', async () => {
+    const mail = Buffer.from('Content-Type: text/plain\r\n\r\n');
+    const parser = new PostalMime();
+    const email = await parser.parse(mail);
+    assert.strictEqual(email.text, undefined);
+});

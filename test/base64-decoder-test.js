@@ -592,3 +592,21 @@ VVVVVVU=`);
     const bytes = new Uint8Array(email.attachments[0].content);
     assert.ok(bytes.every(b => b === 0x55));
 });
+
+// Coverage gap tests
+test('Base64 decoder - large input triggers chunk flush', async () => {
+    // Generate base64 larger than 100KB chunk threshold
+    const largeData = Buffer.alloc(80 * 1024, 0x41); // 80KB of 'A'
+    const base64 = largeData.toString('base64');
+    const mail = Buffer.from(
+        'Content-Type: application/octet-stream\r\n' +
+            'Content-Transfer-Encoding: base64\r\n' +
+            'Content-Disposition: attachment; filename="large.bin"\r\n\r\n' +
+            base64
+    );
+    const parser = new PostalMime();
+    const email = await parser.parse(mail);
+    const bytes = new Uint8Array(email.attachments[0].content);
+    assert.strictEqual(bytes.length, 80 * 1024);
+    assert.ok(bytes.every(b => b === 0x41));
+});
