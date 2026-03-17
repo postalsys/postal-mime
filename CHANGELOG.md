@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.7.4](https://github.com/postalsys/postal-mime/compare/v2.7.3...v2.7.4) (2026-03-17)
+
+
+### Bug Fixes
+
+* add missing originalKey to Header type and Uint8Array to Attachment content ([92cc91c](https://github.com/postalsys/postal-mime/commit/92cc91c1c8477e0462cb0e93ddf8ea6aec6534d0))
+* include originalKey in parsed headers output ([83521c8](https://github.com/postalsys/postal-mime/commit/83521c87f62e5e095ae09913c70798f20e2ab347))
+* preserve __esModule and .default in CJS build for bundler interop ([1466910](https://github.com/postalsys/postal-mime/commit/1466910e31608b9e5307724ecc6a0a3a70556048))
+* prevent RFC 2047 encoded-word address fabrication ([844f920](https://github.com/postalsys/postal-mime/commit/844f92023d49d819ef13b9ad5c50b7c346eb02d3))
+
 ## [2.7.3](https://github.com/postalsys/postal-mime/compare/v2.7.2...v2.7.3) (2026-01-09)
 
 
