@@ -3,6 +3,34 @@ import test from 'node:test';
 import assert from 'node:assert';
 import PostalMime from '../src/postal-mime.js';
 
+// Charset alias handling
+test('Charset - iso-8859-8-i body decodes Hebrew', async () => {
+    // raw iso-8859-8 bytes for "שלום עולם" placed directly in an 8bit body
+    const mail = Buffer.concat([
+        Buffer.from('Content-Type: text/plain; charset="iso-8859-8-i"\r\n\r\n'),
+        Buffer.from('+ezl7SDy5ezt', 'base64')
+    ]);
+
+    const parser = new PostalMime();
+    const email = await parser.parse(mail);
+
+    assert.strictEqual(email.text.trim(), 'שלום עולם');
+    assert.ok(!email.text.includes('�'));
+});
+
+test('Charset - iso-8859-8-e body decodes Hebrew', async () => {
+    const mail = Buffer.concat([
+        Buffer.from('Content-Type: text/plain; charset="iso-8859-8-e"\r\n\r\n'),
+        Buffer.from('+ezl7SDy5ezt', 'base64')
+    ]);
+
+    const parser = new PostalMime();
+    const email = await parser.parse(mail);
+
+    assert.strictEqual(email.text.trim(), 'שלום עולם');
+    assert.ok(!email.text.includes('�'));
+});
+
 // Boundary Detection Edge Cases
 test('Edge case - boundary-like content in body', async () => {
     const mail = Buffer.from(`Content-Type: multipart/mixed; boundary="boundary"

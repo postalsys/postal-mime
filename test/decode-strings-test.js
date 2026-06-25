@@ -382,6 +382,34 @@ test('getDecoder - unknown charset falls back to windows-1252', () => {
     assert.strictEqual(result, 'Test');
 });
 
+test('getDecoder - iso-8859-8-i alias decodes as iso-8859-8', () => {
+    // "iso-8859-8-i" (logical order) is not a label strict WHATWG TextDecoders accept;
+    // it must be aliased to iso-8859-8 so Hebrew decodes instead of falling back to windows-1252.
+    const decoder = getDecoder('iso-8859-8-i');
+    // bytes for "שלום עולם" in iso-8859-8
+    const bytes = new Uint8Array([0xf9, 0xec, 0xe5, 0xed, 0x20, 0xf2, 0xe5, 0xec, 0xed]);
+    const result = decoder.decode(bytes);
+    assert.strictEqual(result, 'שלום עולם');
+    assert.ok(!result.includes('�'));
+});
+
+test('getDecoder - iso-8859-8-e alias decodes as iso-8859-8', () => {
+    // "iso-8859-8-e" is not a WHATWG label at all, so without the alias it would throw
+    // and fall back to windows-1252, producing mojibake in browsers/Workers.
+    const decoder = getDecoder('iso-8859-8-e');
+    const bytes = new Uint8Array([0xf9, 0xec, 0xe5, 0xed, 0x20, 0xf2, 0xe5, 0xec, 0xed]);
+    const result = decoder.decode(bytes);
+    assert.strictEqual(result, 'שלום עולם');
+    assert.ok(!result.includes('�'));
+});
+
+test('getDecoder - charset alias is case-insensitive', () => {
+    const decoder = getDecoder('ISO-8859-8-I');
+    const bytes = new Uint8Array([0xf9, 0xec, 0xe5, 0xed]);
+    const result = decoder.decode(bytes);
+    assert.strictEqual(result, 'שלום');
+});
+
 test('getDecoder - null charset defaults to utf-8', () => {
     const decoder = getDecoder(null);
     assert.ok(decoder instanceof TextDecoder);

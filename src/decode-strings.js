@@ -42,8 +42,21 @@ export function decodeBase64(base64) {
     return arrayBuffer;
 }
 
+// Charset aliases that the WHATWG Encoding Standard (and thus TextDecoder in
+// browsers and Workers) does not recognize, but that map cleanly to a supported
+// encoding. Node's ICU-backed TextDecoder resolves these natively; strict WHATWG
+// runtimes would otherwise throw and fall back to windows-1252, emitting mojibake.
+// eg. Hebrew bodies declared as the logical (iso-8859-8-i) or explicit (iso-8859-8-e)
+// variants decode to the same code points as iso-8859-8.
+const charsetAliases = new Map([
+    ['iso-8859-8-i', 'iso-8859-8'],
+    ['iso-8859-8-e', 'iso-8859-8']
+]);
+
 export function getDecoder(charset) {
-    charset = charset || 'utf8';
+    charset = (charset || 'utf8').trim().toLowerCase();
+    charset = charsetAliases.get(charset) || charset;
+
     let decoder;
 
     try {
