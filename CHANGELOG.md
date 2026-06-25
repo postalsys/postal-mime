@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.5](https://github.com/postalsys/postal-mime/compare/v2.7.4...v2.7.5) (2026-06-25)
+
+
+### Bug Fixes
+
+* decode iso-8859-8-i and iso-8859-8-e charsets as iso-8859-8 ([d7af50b](https://github.com/postalsys/postal-mime/commit/d7af50b7b0ebcd8e12c40942083382636aed7f66))
+
 ## [2.7.4](https://github.com/postalsys/postal-mime/compare/v2.7.3...v2.7.4) (2026-03-17)
 
 
