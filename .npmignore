@@ -2,8 +2,7 @@
 .prettierrc.cjs
 .prettierrc.json
 .prettierignore
-.eslintrc
-.eslintrc.cjs
+eslint.config.js
 .github
 example
 test

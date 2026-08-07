@@ -42,8 +42,8 @@
         "cross-blob": "3.0.2",
         "cross-env": "10.1.0",
         "esbuild": "0.28.1",
-        "eslint": "8.57.0",
-        "eslint-cli": "1.1.1",
+        "eslint": "10.8.0",
+        "globals": "17.9.0",
         "iframe-resizer": "4.3.6",
         "prettier": "3.9.6",
         "typescript": "7.0.2"
