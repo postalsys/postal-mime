@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.7.6](https://github.com/postalsys/postal-mime/compare/v2.7.5...v2.7.6) (2026-08-07)
+
+
+### Bug Fixes
+
+* bound inline message/rfc822 recursion and validate limit options ([94e2a3c](https://github.com/postalsys/postal-mime/commit/94e2a3c9617587a78a1aabe08c4fe8c0818bbffa))
+
+
+### Performance Improvements
+
+* release MIME node content decoder after finalize ([4d52365](https://github.com/postalsys/postal-mime/commit/4d52365e38851c510249ec6d07d80841bd170164))
+
 ## [2.7.5](https://github.com/postalsys/postal-mime/compare/v2.7.4...v2.7.5) (2026-06-25)
 
 
