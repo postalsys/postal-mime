@@ -87,6 +87,11 @@ export default class MimeNode {
 
         this.content = this.contentDecoder ? await this.contentDecoder.finalize() : null;
 
+        // The decoder buffers every body line it received, so keeping it around
+        // retains a second copy of the content for the lifetime of the node.
+        // Nothing reads it once the node is finished, so release it here.
+        this.contentDecoder = false;
+
         this.state = 'finished';
     }
 
