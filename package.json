@@ -16,7 +16,7 @@
     "scripts": {
         "build": "node scripts/build-cjs.js",
         "test": "npm run lint && npm run type-check && node --test",
-        "lint": "eslint",
+        "lint": "eslint src scripts test example",
         "type-check": "tsc --noEmit",
         "update": "rm -rf node_modules package-lock.json && ncu -u && npm install",
         "format": "prettier --write \"**/*.{js,mjs,json}\" --ignore-path .prettierignore",
@@ -38,14 +38,14 @@
     "author": "Andris Reinman",
     "license": "MIT-0",
     "devDependencies": {
-        "@types/node": "25.5.0",
+        "@types/node": "26.1.2",
         "cross-blob": "3.0.2",
         "cross-env": "10.1.0",
-        "esbuild": "0.27.4",
+        "esbuild": "0.28.1",
         "eslint": "8.57.0",
         "eslint-cli": "1.1.1",
         "iframe-resizer": "4.3.6",
-        "prettier": "3.8.1",
-        "typescript": "5.9.3"
+        "prettier": "3.9.6",
+        "typescript": "7.0.2"
     }
 }

@@ -15,4 +15,4 @@ scripts
 CLAUDE.md
 tsconfig.json
 node_modules
-.ncurc.js
+.ncurc.cjs
