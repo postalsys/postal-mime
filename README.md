@@ -256,9 +256,26 @@ PostalMime.parse(email, options) -> Promise<Email>
         -   `"arraybuffer"` (no decoding, returns `ArrayBuffer`)
     -   **maxNestingDepth** (number, default: `256`): Maximum allowed MIME part nesting depth. Throws an error if exceeded.
     -   **maxHeadersSize** (number, default: `2097152`): Maximum allowed total header size in bytes (default 2MB). Throws an error if exceeded.
+    -   **maxRfc822NestingDepth** (number, default: `10`): Maximum allowed recursion depth for inline `message/rfc822` sub-messages. Nested messages deeper than this are treated as regular attachments instead of being parsed inline, and the resulting attachment has `rfc822DepthExceeded: true` set. Use `0` to disable inline parsing entirely.
+
+All three limit options must be non-negative integers. Any other value, including a numeric string, `NaN` or `Infinity`, throws a `TypeError`. Passing `0` means a literal zero, not "use the default".
 
 > [!IMPORTANT]
-> The `maxNestingDepth` and `maxHeadersSize` options provide built-in security against malicious emails with deeply nested MIME structures or oversized headers that could cause performance issues or memory exhaustion.
+> The `maxNestingDepth`, `maxHeadersSize` and `maxRfc822NestingDepth` options provide built-in security against malicious emails with deeply nested MIME structures or oversized headers that could cause performance issues or memory exhaustion. Each inline `message/rfc822` sub-message is parsed by a new parser instance, so `maxNestingDepth` and `maxHeadersSize` bound each sub-message individually rather than the message as a whole. `maxRfc822NestingDepth` bounds how many such sub-parsers can be nested.
+>
+> These options limit nesting, not breadth. A single multipart part with a very large number of children is still expensive to parse, so untrusted input should also be bounded by size before it reaches the parser.
+
+> [!WARNING]
+> If you scan messages for malicious content, do not treat `attachments` as complete without checking `rfc822DepthExceeded`. Anything nested below `maxRfc822NestingDepth` stays inside the raw bytes of the flagged attachment and is not reflected in `text`, `html` or `attachments`, so a sender can push a payload past the limit to hide it from a scanner. Re-parse the flagged attachment's `content` if you need to see inside it:
+>
+> ```js
+> for (const attachment of email.attachments) {
+>     if (attachment.rfc822DepthExceeded) {
+>         const nested = await PostalMime.parse(attachment.content);
+>         // scan `nested` too, and bound how many times you do this
+>     }
+> }
+> ```
 
 **Returns**: A Promise that resolves to a structured `Email` object with the following properties:
 

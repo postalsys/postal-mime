@@ -8,23 +8,59 @@ export { addressParser, decodeWords };
 
 const MAX_NESTING_DEPTH = 256;
 const MAX_HEADERS_SIZE = 2 * 1024 * 1024;
+// Inline message/rfc822 parts are parsed recursively. Without a dedicated limit
+// each nesting level spawns a new parser that retains the full nested message,
+// so a small crafted email can exhaust memory (OOM crash). Cap the recursion and
+// treat deeper nested messages as regular attachments instead.
+const MAX_RFC822_NESTING_DEPTH = 10;
 
 function toCamelCase(key) {
     return key.replace(/-(.)/g, (o, c) => c.toUpperCase());
 }
 
+// Limit options must be validated rather than falsy-coalesced. `0` would silently
+// restore the default, and a string or NaN disables the limit altogether, because
+// every `size > limit` comparison against such a value is false. Callers that
+// forward a request supplied options object would otherwise hand an attacker a way
+// to turn the limits off.
+function parseLimitOption(value, defaultValue, name) {
+    if (value === undefined || value === null) {
+        return defaultValue;
+    }
+
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+        throw new TypeError(`${name} must be a non-negative integer`);
+    }
+
+    return value;
+}
+
 export default class PostalMime {
-    static parse(buf, options) {
+    // async so that an invalid option rejects the returned promise instead of throwing
+    // synchronously, which would escape a `.catch()` chain
+    static async parse(buf, options) {
         const parser = new PostalMime(options);
         return parser.parse(buf);
     }
 
-    constructor(options) {
+    // rfc822NestingDepth is internal state that nested parsers receive from their parent.
+    // It is deliberately a separate argument rather than an option, so that forwarding a
+    // caller supplied options object can not seed it and switch the recursion limit off.
+    constructor(options, rfc822NestingDepth = 0) {
         this.options = options || {};
         this.mimeOptions = {
-            maxNestingDepth: this.options.maxNestingDepth || MAX_NESTING_DEPTH,
-            maxHeadersSize: this.options.maxHeadersSize || MAX_HEADERS_SIZE
+            maxNestingDepth: parseLimitOption(this.options.maxNestingDepth, MAX_NESTING_DEPTH, 'maxNestingDepth'),
+            maxHeadersSize: parseLimitOption(this.options.maxHeadersSize, MAX_HEADERS_SIZE, 'maxHeadersSize')
         };
+
+        // A limit of 0 disables inline parsing entirely, so every message/rfc822 part
+        // becomes an attachment.
+        this.maxRfc822NestingDepth = parseLimitOption(
+            this.options.maxRfc822NestingDepth,
+            MAX_RFC822_NESTING_DEPTH,
+            'maxRfc822NestingDepth'
+        );
+        this.rfc822NestingDepth = rfc822NestingDepth;
 
         this.root = this.currentNode = new MimeNode({
             postalMime: this,
@@ -172,9 +208,22 @@ export default class PostalMime {
             related = related || false;
 
             if (!node.contentType.multipart) {
+                const inlineRfc822 = this.isInlineMessageRfc822(node) && !forceRfc822Attachments;
+                const rfc822DepthExceeded = inlineRfc822 && this.rfc822NestingDepth >= this.maxRfc822NestingDepth;
+
                 // is it inline message/rfc822
-                if (this.isInlineMessageRfc822(node) && !forceRfc822Attachments) {
-                    const subParser = new PostalMime();
+                if (inlineRfc822 && !rfc822DepthExceeded) {
+                    const subParser = new PostalMime(
+                        {
+                            // Only the limits are inherited. Options that decide how a part
+                            // is classified stay with the parser that was configured.
+                            ...this.mimeOptions,
+                            maxRfc822NestingDepth: this.maxRfc822NestingDepth,
+                            // attachments are encoded by the parent parser, keep raw buffers here
+                            attachmentEncoding: 'arraybuffer'
+                        },
+                        this.rfc822NestingDepth + 1
+                    );
                     node.subMessage = await subParser.parse(node.content);
 
                     if (!textMap.has(node)) {
@@ -234,8 +283,17 @@ export default class PostalMime {
                         disposition: node.contentDisposition?.parsed?.value || null
                     };
 
-                    if (related && node.contentId) {
+                    // A nested message that was not parsed is not a renderable inline
+                    // resource, so it must not join the cid map behind an <img src>.
+                    if (related && node.contentId && !rfc822DepthExceeded) {
                         attachment.related = true;
+                    }
+
+                    if (rfc822DepthExceeded) {
+                        // Tell the caller this part would have been parsed inline but hit
+                        // maxRfc822NestingDepth, so anything inside it is not reflected in
+                        // email.text, email.html or email.attachments.
+                        attachment.rfc822DepthExceeded = true;
                     }
 
                     if (node.contentDescription) {

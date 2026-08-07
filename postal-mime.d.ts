@@ -38,6 +38,12 @@ export type Attachment = {
     description?: string;
     contentId?: string;
     method?: string;
+    /**
+     * Set when a `message/rfc822` part hit `maxRfc822NestingDepth` and was emitted as an
+     * attachment instead of being parsed. Its own parts are not reflected in `text`,
+     * `html` or `attachments`.
+     */
+    rfc822DepthExceeded?: boolean;
     content: ArrayBuffer | Uint8Array | string;
     encoding?: "base64" | "utf8";
 };
@@ -81,7 +87,8 @@ export type PostalMimeOptions = {
     forceRfc822Attachments?: boolean,
     attachmentEncoding?: "base64" | "utf8" | "arraybuffer",
     maxNestingDepth?: number,
-    maxHeadersSize?: number
+    maxHeadersSize?: number,
+    maxRfc822NestingDepth?: number
 }
 
 export default class PostalMime {
