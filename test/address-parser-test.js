@@ -452,12 +452,21 @@ test('addressParser - angle bracket immediately followed by comment', () => {
     assert.strictEqual(result[0].address, 'user@example.com');
 });
 
-test('addressParser - encoded word with base64 padding handled safely', () => {
-    // =?utf-8?B?QSA8YUBiLmNvPiwgQiA8Y0BkLmNvPg==?= decodes to "A <a@b.co>, B <c@d.co>"
-    // The base64 padding (==) prevents entry to the re-parse block
+test('addressParser - encoded word with base64 padding handled the same as without', () => {
+    // =?utf-8?B?QSA8YUBiLmNvPiwgQiA8Y0BkLmNvPg==?= decodes to "A <a@b.co>, B <c@d.co>".
+    // Whether the base64 payload happens to need padding must not decide how the value is
+    // treated, so this re-parses into real addresses just like an unpadded word would.
     const result = addressParser('=?utf-8?B?QSA8YUBiLmNvPiwgQiA8Y0BkLmNvPg==?=');
     assert.ok(Array.isArray(result));
+    assert.strictEqual(result.length, 2);
+    assert.strictEqual(result[0].address, 'a@b.co');
+    assert.strictEqual(result[1].address, 'c@d.co');
+});
+
+test('addressParser - bare encoded email is never fabricated into an address', () => {
+    // No angle brackets in the decoded text, so nothing may become an address
+    const result = addressParser('=?utf-8?B?dGVzdEBldmlsLmNv?=');
     assert.strictEqual(result.length, 1);
-    // Decoded text should appear as display name, not fabricated addresses
-    assert.ok(result[0].name.includes('a@b.co'));
+    assert.strictEqual(result[0].address, '');
+    assert.strictEqual(result[0].name, 'test@evil.co');
 });

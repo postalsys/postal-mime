@@ -77,17 +77,17 @@ function testTypeNarrowing(email: Email) {
 
     // Array handling
     if (email.to) {
-        email.to.forEach((addr) => {
+        email.to.forEach(addr => {
             if (isMailbox(addr)) {
                 console.log(addr.address);
             } else {
-                addr.group.forEach((m) => console.log(m.address));
+                addr.group.forEach(m => console.log(m.address));
             }
         });
     }
 
     // Attachment encoding
-    email.attachments.forEach((att) => {
+    email.attachments.forEach(att => {
         if (att.encoding === 'base64' || att.encoding === 'utf8') {
             const str: string = att.content as string;
         }

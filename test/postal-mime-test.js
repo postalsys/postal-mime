@@ -45,8 +45,13 @@ Hello world`;
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
+    // Unfolding removes the line break and keeps the folding whitespace, so the
+    // indentation of the continuation lines is still part of the value
     assert.strictEqual(
-        email.references,
+        email.references
+            .split(/\s+/)
+            .filter(part => part)
+            .join(' '),
         '<831872163.433861.2199124418162.JavaMail.otbatch@blabla.bla.bla.com> <TY1PR0301MB1149CEFEA528CEA0045533B1FBA70@TY1PR0301MB1149.apcprd03.prod.outlook.com>'
     );
 });
@@ -467,9 +472,9 @@ Body`;
     // Raw line preserves multiple spaces
     assert.strictEqual(subjectHeader.line, 'Subject: Hello    World');
 
-    // Compare with headers which normalizes whitespace
-    const normalizedSubject = email.headers.find(h => h.key === 'subject');
-    assert.strictEqual(normalizedSubject.value, 'Hello World');
+    // Parsed values preserve them too, only the folding line break is removed
+    const parsedSubject = email.headers.find(h => h.key === 'subject');
+    assert.strictEqual(parsedSubject.value, 'Hello    World');
 });
 
 test('headers array order unchanged after headerLines addition', async t => {
@@ -905,12 +910,12 @@ test('Malformed - header without value', async t => {
     assert.strictEqual(emptyHeader.value, '');
 });
 
-test('Malformed - duplicate Content-Type headers (last wins)', async t => {
+test('Malformed - duplicate Content-Type headers (first wins)', async t => {
     const mail = Buffer.from('Content-Type: text/plain\r\n' + 'Content-Type: text/html\r\n\r\n' + '<p>Content</p>');
     const email = await PostalMime.parse(mail);
-    // Last Content-Type is used (headers processed in reverse order)
-    assert.ok(email.html);
-    assert.ok(email.html.includes('Content'));
+    // The first Content-Type wins, so a second one can not change how the body is read
+    assert.ok(email.text);
+    assert.ok(email.text.includes('<p>Content</p>'));
 });
 
 // Additional edge case tests

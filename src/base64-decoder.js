@@ -13,35 +13,41 @@ export default class Base64Decoder {
         this.remainder = '';
     }
 
+    pushChunk(base64Str) {
+        if (base64Str.length) {
+            this.chunks.push(decodeBase64(base64Str));
+        }
+    }
+
+    flushRemainder() {
+        this.pushChunk(this.remainder);
+        this.remainder = '';
+    }
+
     update(buffer) {
-        let str = this.decoder.decode(buffer);
+        let str = this.decoder.decode(buffer).replace(/[^a-zA-Z0-9+/=]+/g, '');
 
-        str = str.replace(/[^a-zA-Z0-9+\/]+/g, '');
-
-        this.remainder += str;
+        // '=' terminates a base64 unit. Some mailers pad every line, and erasing the
+        // padding used to concatenate the units, which knocked everything after the first
+        // embedded pad out of 4 character alignment and decoded it to garbage.
+        const units = str.split(/=+/);
+        for (let i = 0; i < units.length; i++) {
+            this.remainder += units[i];
+            // the trailing piece is not followed by padding, so it stays open
+            if (i < units.length - 1) {
+                this.flushRemainder();
+            }
+        }
 
         if (this.remainder.length >= this.maxChunkSize) {
-            let allowedBytes = Math.floor(this.remainder.length / 4) * 4;
-            let base64Str;
-
-            if (allowedBytes === this.remainder.length) {
-                base64Str = this.remainder;
-                this.remainder = '';
-            } else {
-                base64Str = this.remainder.substr(0, allowedBytes);
-                this.remainder = this.remainder.substr(allowedBytes);
-            }
-
-            if (base64Str.length) {
-                this.chunks.push(decodeBase64(base64Str));
-            }
+            const alignedLength = Math.floor(this.remainder.length / 4) * 4;
+            this.pushChunk(this.remainder.substring(0, alignedLength));
+            this.remainder = this.remainder.substring(alignedLength);
         }
     }
 
     finalize() {
-        if (this.remainder && !/^=+$/.test(this.remainder)) {
-            this.chunks.push(decodeBase64(this.remainder));
-        }
+        this.flushRemainder();
 
         return blobToArrayBuffer(new Blob(this.chunks, { type: 'application/octet-stream' }));
     }

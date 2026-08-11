@@ -95,6 +95,30 @@ export function htmlToText(str) {
     return str;
 }
 
+// A message date is not always a date. PostalMime keeps the raw header value when it does
+// not parse, and Intl.DateTimeFormat throws a RangeError on that, which used to reject the
+// whole parse of any message carrying a forwarded copy with a broken Date header.
+function formatDate(date) {
+    if (typeof Intl === 'undefined') {
+        return date;
+    }
+
+    const parsed = new Date(date);
+    if (isNaN(parsed.getTime())) {
+        return date;
+    }
+
+    return new Intl.DateTimeFormat('default', {
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+        hour12: false
+    }).format(parsed);
+}
+
 function formatTextAddress(address) {
     return []
         .concat(address.name || [])
@@ -200,7 +224,9 @@ export function formatTextHeader(message) {
     let rows = [];
 
     if (message.from) {
-        rows.push({ key: 'From', val: formatTextAddress(message.from) });
+        // through the plural formatter, because `From:` may hold RFC 5322 group syntax
+        // and a group has no address of its own
+        rows.push({ key: 'From', val: formatTextAddresses([message.from]) });
     }
 
     if (message.subject) {
@@ -208,22 +234,7 @@ export function formatTextHeader(message) {
     }
 
     if (message.date) {
-        let dateOptions = {
-            year: 'numeric',
-            month: 'numeric',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: 'numeric',
-            second: 'numeric',
-            hour12: false
-        };
-
-        let dateStr =
-            typeof Intl === 'undefined'
-                ? message.date
-                : new Intl.DateTimeFormat('default', dateOptions).format(new Date(message.date));
-
-        rows.push({ key: 'Date', val: dateStr });
+        rows.push({ key: 'Date', val: formatDate(message.date) });
     }
 
     if (message.to && message.to.length) {
@@ -290,7 +301,9 @@ export function formatHtmlHeader(message) {
 
     if (message.from) {
         rows.push(
-            `<div class="postal-email-header-key">From</div><div class="postal-email-header-value">${formatHtmlAddress(message.from)}</div>`
+            // through the plural formatter, because `From:` may hold RFC 5322 group syntax
+            // and a group has no address of its own
+            `<div class="postal-email-header-key">From</div><div class="postal-email-header-value">${formatHtmlAddresses([message.from])}</div>`
         );
     }
 
@@ -303,25 +316,10 @@ export function formatHtmlHeader(message) {
     }
 
     if (message.date) {
-        let dateOptions = {
-            year: 'numeric',
-            month: 'numeric',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: 'numeric',
-            second: 'numeric',
-            hour12: false
-        };
-
-        let dateStr =
-            typeof Intl === 'undefined'
-                ? message.date
-                : new Intl.DateTimeFormat('default', dateOptions).format(new Date(message.date));
-
         rows.push(
             `<div class="postal-email-header-key">Date</div><div class="postal-email-header-value postal-email-header-date" data-date="${escapeHtml(
                 message.date
-            )}">${escapeHtml(dateStr)}</div>`
+            )}">${escapeHtml(formatDate(message.date))}</div>`
         );
     }
 

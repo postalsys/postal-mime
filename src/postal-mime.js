@@ -68,6 +68,9 @@ export default class PostalMime {
         });
         this.boundaries = [];
 
+        // Header bytes seen across every part of this message, see MimeNode.feed
+        this.headerSize = 0;
+
         this.textContent = {};
         this.attachments = [];
 
@@ -297,7 +300,9 @@ export default class PostalMime {
                     }
 
                     if (node.contentDescription) {
-                        attachment.description = node.contentDescription;
+                        // decoded like filename, it is an unstructured header that may
+                        // carry encoded words
+                        attachment.description = decodeWords(node.contentDescription);
                     }
 
                     if (node.contentId) {
@@ -517,9 +522,12 @@ export default class PostalMime {
             buf = await blobToArrayBuffer(buf);
         }
 
-        // Cast Node.js Buffer object or Uint8Array into ArrayBuffer
-        if (buf.buffer instanceof ArrayBuffer) {
-            buf = new Uint8Array(buf).buffer;
+        // Cast a Node.js Buffer, a typed array or a DataView into an ArrayBuffer.
+        // `new Uint8Array(view)` only works for array-likes, so a DataView produced an
+        // empty buffer and the message parsed to nothing without an error. Slicing off
+        // byteOffset also keeps views over a larger buffer from reading their neighbours.
+        if (ArrayBuffer.isView(buf)) {
+            buf = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
         }
 
         this.buf = buf;
@@ -536,9 +544,11 @@ export default class PostalMime {
         await this.processNodeTree();
 
         const message = {
-            headers: this.root.headers
-                .map(entry => ({ key: entry.key, originalKey: entry.originalKey, value: entry.value }))
-                .reverse()
+            headers: this.root.headers.map(entry => ({
+                key: entry.key,
+                originalKey: entry.originalKey,
+                value: entry.value
+            }))
         };
 
         for (const key of ['from', 'sender']) {
@@ -607,8 +617,8 @@ export default class PostalMime {
 
         message.attachments = this.attachments;
 
-        // Expose raw header lines (reversed to match headers array order)
-        message.headerLines = (this.root.rawHeaderLines || []).slice().reverse();
+        // Expose raw header lines, in the same order as the headers array
+        message.headerLines = (this.root.rawHeaderLines || []).slice();
 
         switch (this.attachmentEncoding) {
             case 'arraybuffer':

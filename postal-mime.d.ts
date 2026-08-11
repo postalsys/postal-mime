@@ -33,7 +33,7 @@ export type Address =
 export type Attachment = {
     filename: string | null;
     mimeType: string;
-    disposition: "attachment" | "inline" | null;
+    disposition: 'attachment' | 'inline' | null;
     related?: boolean;
     description?: string;
     contentId?: string;
@@ -45,7 +45,7 @@ export type Attachment = {
      */
     rfc822DepthExceeded?: boolean;
     content: ArrayBuffer | Uint8Array | string;
-    encoding?: "base64" | "utf8";
+    encoding?: 'base64' | 'utf8';
 };
 
 export type Email = {
@@ -70,32 +70,24 @@ export type Email = {
 };
 
 export type AddressParserOptions = {
-    flatten?: boolean
-}
+    flatten?: boolean;
+};
 
-export function addressParser (
-    str: string,
-    options?: AddressParserOptions
-): Address[];
+export function addressParser(str: string, options?: AddressParserOptions): Address[];
 
-export function decodeWords (
-    str: string
-): string;
+export function decodeWords(str: string): string;
 
 export type PostalMimeOptions = {
-    rfc822Attachments?: boolean,
-    forceRfc822Attachments?: boolean,
-    attachmentEncoding?: "base64" | "utf8" | "arraybuffer",
-    maxNestingDepth?: number,
-    maxHeadersSize?: number,
-    maxRfc822NestingDepth?: number
-}
+    rfc822Attachments?: boolean;
+    forceRfc822Attachments?: boolean;
+    attachmentEncoding?: 'base64' | 'utf8' | 'arraybuffer';
+    maxNestingDepth?: number;
+    maxHeadersSize?: number;
+    maxRfc822NestingDepth?: number;
+};
 
 export default class PostalMime {
     constructor(options?: PostalMimeOptions);
-    static parse(
-        email: RawEmail,
-        options?: PostalMimeOptions
-    ): Promise<Email>;
+    static parse(email: RawEmail, options?: PostalMimeOptions): Promise<Email>;
     parse(email: RawEmail): Promise<Email>;
 }

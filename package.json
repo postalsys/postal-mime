@@ -19,8 +19,8 @@
         "lint": "eslint src scripts test example",
         "type-check": "tsc --noEmit",
         "update": "rm -rf node_modules package-lock.json && ncu -u && npm install",
-        "format": "prettier --write \"**/*.{js,mjs,json}\" --ignore-path .prettierignore",
-        "format:check": "prettier --check \"**/*.{js,mjs,json}\" --ignore-path .prettierignore",
+        "format": "prettier --write \"**/*.{js,mjs,ts,json}\" --ignore-path .prettierignore",
+        "format:check": "prettier --check \"**/*.{js,mjs,ts,json}\" --ignore-path .prettierignore",
         "prepublishOnly": "npm run build"
     },
     "keywords": [

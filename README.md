@@ -3,7 +3,7 @@
 **postal-mime** is an email parsing library for Node.js, browsers (including Web Workers), and serverless environments (like Cloudflare Email Workers). It takes in a raw email message (RFC822 format) and outputs a structured object containing headers, recipients, attachments, and more.
 
 > [!TIP]
-> PostalMime is developed by the makers of [EmailEngine](https://emailengine.app/?utm_source=github&utm_campaign=imapflow&utm_medium=readme-link)—a self-hosted email gateway that provides a REST API for IMAP and SMTP servers and sends webhooks whenever something changes in registered accounts.
+> PostalMime is developed by the makers of [EmailEngine](https://emailengine.app/?utm_source=github&utm_campaign=imapflow&utm_medium=readme-link), a self-hosted email gateway that provides a REST API for IMAP and SMTP servers and sends webhooks whenever something changes in registered accounts.
 
 ## Features
 
@@ -261,7 +261,7 @@ PostalMime.parse(email, options) -> Promise<Email>
 All three limit options must be non-negative integers. Any other value, including a numeric string, `NaN` or `Infinity`, throws a `TypeError`. Passing `0` means a literal zero, not "use the default".
 
 > [!IMPORTANT]
-> The `maxNestingDepth`, `maxHeadersSize` and `maxRfc822NestingDepth` options provide built-in security against malicious emails with deeply nested MIME structures or oversized headers that could cause performance issues or memory exhaustion. Each inline `message/rfc822` sub-message is parsed by a new parser instance, so `maxNestingDepth` and `maxHeadersSize` bound each sub-message individually rather than the message as a whole. `maxRfc822NestingDepth` bounds how many such sub-parsers can be nested.
+> The `maxNestingDepth`, `maxHeadersSize` and `maxRfc822NestingDepth` options provide built-in security against malicious emails with deeply nested MIME structures or oversized headers that could cause performance issues or memory exhaustion. `maxHeadersSize` counts the header bytes of every MIME part of a message together, so a multipart cannot carry the budget again for each part it declares. Each inline `message/rfc822` sub-message is parsed by a new parser instance, so both limits start over for a sub-message. `maxRfc822NestingDepth` bounds how many such sub-parsers can be nested.
 >
 > These options limit nesting, not breadth. A single multipart part with a very large number of children is still expensive to parse, so untrusted input should also be bounded by size before it reaches the parser.
 
@@ -281,7 +281,9 @@ All three limit options must be non-negative integers. Any other value, includin
 
 -   **headers**: An array of `Header` objects, each containing:
     -   `key`: Lowercase header name (e.g., `"dkim-signature"`).
-    -   `value`: Unprocessed header value as a string.
+    -   `value`: Header value as a string, unfolded per RFC 5322 and otherwise unprocessed. Unfolding removes the line break of a folded header and keeps the folding whitespace, so `Subject: Hello\r\n    World` reads as `Hello    World`. Encoded words are not decoded here.
+
+    Headers appear in the order they were sent, including duplicates. Where a single value is exposed on its own property, such as `subject` or `from`, the first occurrence of the header wins.
 -   **from**, **sender**: Processed `Address` objects (can be a `Mailbox` or address group):
     -   `name`: Decoded display name, or an empty string if not set.
     -   `address`: Email address.
@@ -439,6 +441,6 @@ console.log(decoded); // Hello, エポスカード
 
 ## License
 
-&copy; 2021–2026 Andris Reinman
+&copy; 2021-2026 Andris Reinman
 
 `postal-mime` is licensed under the **MIT No Attribution license**.

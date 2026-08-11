@@ -1,4 +1,54 @@
-import { decodeWords } from './decode-strings.js';
+import { decodeWords, isEncodedWordsOnly } from './decode-strings.js';
+
+const WORD_CHAR_REGEX = /\w/;
+const NON_SPACE_TOKEN_REGEX = /[^\s]+/g;
+
+/**
+ * Finds the first address looking token in a run of text.
+ *
+ * This replaces a `\s*\b[^@\s]+@[^\s]+\b\s*` scan over the whole string, which backtracks
+ * quadratically: the leading `\s*` makes every position inside a whitespace run a viable
+ * start, and `[^@\s]+` then gives back one character at a time looking for an '@'. A
+ * single header well inside the default size limit could hold a core busy for minutes.
+ *
+ * Scanning whitespace delimited tokens instead is linear and keeps the word boundary
+ * semantics of the regex: the local part has to open on a word character and the domain
+ * has to end on one.
+ *
+ * @param {String} text Text to search
+ * @return {Object|null} `{index, length, value}` of the address, or null if there is none
+ */
+function findAddressInText(text) {
+    NON_SPACE_TOKEN_REGEX.lastIndex = 0;
+
+    let match;
+    while ((match = NON_SPACE_TOKEN_REGEX.exec(text))) {
+        const token = match[0];
+        const at = token.indexOf('@');
+
+        // `\b[^@\s]+@` needs at least one character before the '@'
+        let start = 0;
+        while (start < at && !WORD_CHAR_REGEX.test(token.charAt(start))) {
+            start++;
+        }
+        if (start >= at) {
+            continue;
+        }
+
+        // `[^\s]+\b` needs at least one character after the '@', ending on a word character
+        let end = token.length;
+        while (end > at + 1 && !WORD_CHAR_REGEX.test(token.charAt(end - 1))) {
+            end--;
+        }
+        if (end <= at + 1) {
+            continue;
+        }
+
+        return { index: match.index + start, length: end - start, value: token.substring(start, end) };
+    }
+
+    return null;
+}
 
 /**
  * Converts tokens for a single address into an address object
@@ -118,25 +168,24 @@ function _handleAddress(tokens, depth) {
                 }
             }
 
-            let _regexHandler = function (address) {
-                if (!data.address.length) {
-                    data.address = [address.trim()];
-                    return ' ';
-                } else {
-                    return address;
-                }
-            };
-
             // still no address
             if (!data.address.length) {
                 for (i = data.text.length - 1; i >= 0; i--) {
                     // Security fix: Do not extract email addresses from quoted strings
                     if (!data.textWasQuoted[i]) {
-                        // fixed the regex to parse email address correctly when email address has more than one @
-                        data.text[i] = data.text[i].replace(/\s*\b[^@\s]+@[^\s]+\b\s*/, _regexHandler).trim();
-                        if (data.address.length) {
+                        // handles an email address that has more than one @
+                        const found = findAddressInText(data.text[i]);
+                        if (found) {
+                            data.address = [found.value];
+                            // the address and the whitespace around it collapse to one space
+                            data.text[i] = (
+                                data.text[i].substring(0, found.index).replace(/\s+$/, '') +
+                                ' ' +
+                                data.text[i].substring(found.index + found.length).replace(/^\s+/, '')
+                            ).trim();
                             break;
                         }
+                        data.text[i] = data.text[i].trim();
                     }
                 }
             }
@@ -157,7 +206,10 @@ function _handleAddress(tokens, depth) {
         data.text = data.text.join(' ');
         data.address = data.address.join(' ');
 
-        if (!data.address && /^=\?[^=]+?=$/.test(data.text.trim())) {
+        // `^=\?[^=]+?=$` could not match a base64 word whose padding puts an '=' inside it,
+        // so whether a bare encoded word was decoded or left to become the address itself
+        // came down to whether its payload happened to need padding.
+        if (!data.address && isEncodedWordsOnly(data.text.trim())) {
             // try to extract words from text content
             const decodedText = decodeWords(data.text);
             // Security: only re-parse if decoded text contains angle-bracket addresses.

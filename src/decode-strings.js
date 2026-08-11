@@ -9,24 +9,26 @@ for (let i = 0; i < base64Chars.length; i++) {
 }
 
 export function decodeBase64(base64) {
-    let bufferLength = Math.ceil(base64.length / 4) * 3;
-    const len = base64.length;
-
-    let p = 0;
-
-    if (base64.length % 4 === 3) {
-        bufferLength--;
-    } else if (base64.length % 4 === 2) {
-        bufferLength -= 2;
-    } else if (base64[base64.length - 1] === '=') {
-        bufferLength--;
-        if (base64[base64.length - 2] === '=') {
-            bufferLength--;
-        }
+    // Padding carries no data, so the byte count comes from the payload alone. Sizing the
+    // buffer from the raw length instead treated '=' as a data character and left the
+    // output padded with NUL bytes, which then travelled into subjects and filenames.
+    let len = base64.length;
+    while (len > 0 && base64.charAt(len - 1) === '=') {
+        len--;
     }
+
+    // A remainder of one character cannot encode a byte, it is a truncated group
+    if (len % 4 === 1) {
+        len--;
+    }
+
+    const remainder = len % 4;
+    const bufferLength = Math.floor(len / 4) * 3 + (remainder ? remainder - 1 : 0);
 
     const arrayBuffer = new ArrayBuffer(bufferLength);
     const bytes = new Uint8Array(arrayBuffer);
+
+    let p = 0;
 
     for (let i = 0; i < len; i += 4) {
         let encoded1 = base64Lookup[base64.charCodeAt(i)];
@@ -35,8 +37,12 @@ export function decodeBase64(base64) {
         let encoded4 = base64Lookup[base64.charCodeAt(i + 3)];
 
         bytes[p++] = (encoded1 << 2) | (encoded2 >> 4);
-        bytes[p++] = ((encoded2 & 15) << 4) | (encoded3 >> 2);
-        bytes[p++] = ((encoded3 & 3) << 6) | (encoded4 & 63);
+        if (p < bufferLength) {
+            bytes[p++] = ((encoded2 & 15) << 4) | (encoded3 >> 2);
+        }
+        if (p < bufferLength) {
+            bytes[p++] = ((encoded3 & 3) << 6) | (encoded4 & 63);
+        }
     }
 
     return arrayBuffer;
@@ -159,15 +165,27 @@ export async function blobToArrayBuffer(blob) {
     });
 }
 
-export function getHex(c) {
-    if (
-        (c >= 0x30 /* 0 */ && c <= 0x39) /* 9 */ ||
-        (c >= 0x61 /* a */ && c <= 0x66) /* f */ ||
-        (c >= 0x41 /* A */ && c <= 0x46) /* F */
-    ) {
-        return String.fromCharCode(c);
+/**
+ * Numeric value of an ASCII hex digit
+ *
+ * @param {Number} c Byte to read
+ * @return {Number} Value 0-15, or -1 if the byte is not a hex digit
+ */
+export function hexNibble(c) {
+    if (c >= 0x30 /* 0 */ && c <= 0x39 /* 9 */) {
+        return c - 0x30;
     }
-    return false;
+    if (c >= 0x61 /* a */ && c <= 0x66 /* f */) {
+        return c - 0x61 + 10;
+    }
+    if (c >= 0x41 /* A */ && c <= 0x46 /* F */) {
+        return c - 0x41 + 10;
+    }
+    return -1;
+}
+
+export function getHex(c) {
+    return hexNibble(c) < 0 ? false : String.fromCharCode(c);
 }
 
 /**
@@ -201,11 +219,10 @@ export function decodeWord(charset, encoding, str) {
         for (let i = 0, len = buf.length; i < len; i++) {
             let c = buf[i];
             if (i <= len - 2 && c === 0x3d /* = */) {
-                let c1 = getHex(buf[i + 1]);
-                let c2 = getHex(buf[i + 2]);
-                if (c1 && c2) {
-                    let c = parseInt(c1 + c2, 16);
-                    encodedBytes.push(c);
+                let high = hexNibble(buf[i + 1]);
+                let low = hexNibble(buf[i + 2]);
+                if (high >= 0 && low >= 0) {
+                    encodedBytes.push((high << 4) | low);
                     i += 2;
                     continue;
                 }
@@ -227,60 +244,135 @@ export function decodeWord(charset, encoding, str) {
     return getDecoder(charset).decode(byteStr);
 }
 
-export function decodeWords(str) {
-    let joinString = true;
-    let done = false;
+// A charset label runs to the next '?' so that labels containing punctuation, eg.
+// ISO_8859-1:1987, are recognised. Whitespace is excluded so a stray '=?' in running text
+// can not swallow the rest of the line.
+const ENCODED_WORD_PATTERN = '=\\?([^?\\s]+)\\?([QqBb])\\?([^?]*)\\?=';
+const ENCODED_WORD_REGEX = new RegExp(ENCODED_WORD_PATTERN, 'g');
 
-    while (!done) {
-        let result = (str || '')
-            .toString()
-            // find base64 words that can be joined
-            .replace(
-                /(=\?([^?]+)\?[Bb]\?([^?]*)\?=)\s*(?==\?([^?]+)\?[Bb]\?[^?]*\?=)/g,
-                (match, left, chLeft, encodedLeftStr, chRight) => {
-                    if (!joinString) {
-                        return match;
-                    }
-                    // only mark b64 chunks to be joined if charsets match and left side does not end with =
-                    if (chLeft === chRight && encodedLeftStr.length % 4 === 0 && !/=$/.test(encodedLeftStr)) {
-                        // set a joiner marker
-                        return left + '__\x00JOIN\x00__';
-                    }
+// Only linear whitespace separates encoded words, the rest is content
+const WORD_SEPARATOR_REGEX = /^[ \t\r\n]+$/;
 
-                    return match;
-                }
-            )
-            // find QP words that can be joined
-            .replace(
-                /(=\?([^?]+)\?[Qq]\?[^?]*\?=)\s*(?==\?([^?]+)\?[Qq]\?[^?]*\?=)/g,
-                (match, left, chLeft, chRight) => {
-                    if (!joinString) {
-                        return match;
-                    }
-                    // only mark QP chunks to be joined if charsets match
-                    if (chLeft === chRight) {
-                        // set a joiner marker
-                        return left + '__\x00JOIN\x00__';
-                    }
-                    return match;
-                }
-            )
-            // join base64 encoded words
-            .replace(/(\?=)?__\x00JOIN\x00__(=\?([^?]+)\?[QqBb]\?)?/g, '')
-            // remove spaces between mime encoded words
-            .replace(/(=\?[^?]+\?[QqBb]\?[^?]*\?=)\s+(?==\?[^?]+\?[QqBb]\?[^?]*\?=)/g, '$1')
-            // decode words
-            .replace(/=\?([\w_\-*]+)\?([QqBb])\?([^?]*)\?=/g, (m, charset, encoding, text) =>
-                decodeWord(charset, encoding, text)
-            );
+const ENCODED_WORDS_ONLY_REGEX = new RegExp(`^(?:${ENCODED_WORD_PATTERN}\\s*)+$`);
 
-        if (joinString && result.indexOf('\ufffd') >= 0) {
-            // text contains \ufffd (EF BF BD), so unicode conversion failed, retry without joining strings
-            joinString = false;
-        } else {
-            return result;
+/**
+ * Checks whether a string is nothing but RFC 2047 encoded words. Kept next to the grammar
+ * it depends on, so the pattern has a single definition.
+ *
+ * @param {String} str String to check
+ * @return {Boolean} true if the string holds encoded words and nothing else
+ */
+export function isEncodedWordsOnly(str) {
+    return ENCODED_WORDS_ONLY_REGEX.test(str);
+}
+
+/**
+ * Splits a string into encoded words and the literal text around them.
+ *
+ * Working on a token list rather than marking joinable words with an in band sentinel
+ * means the input can not contain the marker, which previously let a sender delete text
+ * from a subject or a display name by writing the marker into the header themselves.
+ *
+ * @param {String} str String to split
+ * @return {Array} Array of `{text}` and `{charset, encoding, encodedText}` tokens
+ */
+function splitEncodedWords(str) {
+    const tokens = [];
+
+    ENCODED_WORD_REGEX.lastIndex = 0;
+
+    let pos = 0;
+    let match;
+
+    while ((match = ENCODED_WORD_REGEX.exec(str))) {
+        if (match.index > pos) {
+            tokens.push({ text: str.substring(pos, match.index) });
         }
+        tokens.push({ charset: match[1], encoding: match[2], encodedText: match[3] });
+        pos = match.index + match[0].length;
     }
+
+    if (pos < str.length) {
+        tokens.push({ text: str.substring(pos) });
+    }
+
+    return tokens;
+}
+
+/**
+ * Checks if two adjacent encoded words may be decoded as a single unit. A multi byte
+ * character is often split across two words, so the bytes have to be concatenated before
+ * they are decoded. Base64 additionally needs the left chunk to end on a group boundary,
+ * otherwise the concatenation shifts every byte that follows.
+ */
+function canJoinWords(left, right) {
+    const encoding = left.encoding.toUpperCase();
+
+    if (left.charset !== right.charset || encoding !== right.encoding.toUpperCase()) {
+        return false;
+    }
+
+    if (encoding === 'B') {
+        return left.encodedText.length % 4 === 0 && !/=$/.test(left.encodedText);
+    }
+
+    return true;
+}
+
+/**
+ * Decodes a token list into a string, optionally merging adjacent encoded words.
+ *
+ * @param {Array} tokens Tokens from splitEncodedWords
+ * @param {Boolean} joinWords Whether adjacent encoded words may be decoded as one unit
+ * @return {String} Decoded string
+ */
+function renderTokens(tokens, joinWords) {
+    let result = '';
+    let pending = null;
+
+    for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i];
+
+        if (token.text !== undefined) {
+            // whitespace between two encoded words is a folding artifact, not content
+            const nextToken = tokens[i + 1];
+            if (pending && nextToken && nextToken.text === undefined && WORD_SEPARATOR_REGEX.test(token.text)) {
+                continue;
+            }
+            if (pending) {
+                result += decodeWord(pending.charset, pending.encoding, pending.encodedText);
+                pending = null;
+            }
+            result += token.text;
+            continue;
+        }
+
+        if (pending && joinWords && canJoinWords(pending, token)) {
+            pending.encodedText += token.encodedText;
+            continue;
+        }
+
+        if (pending) {
+            result += decodeWord(pending.charset, pending.encoding, pending.encodedText);
+        }
+        pending = { charset: token.charset, encoding: token.encoding, encodedText: token.encodedText };
+    }
+
+    if (pending) {
+        result += decodeWord(pending.charset, pending.encoding, pending.encodedText);
+    }
+
+    return result;
+}
+
+export function decodeWords(str) {
+    const tokens = splitEncodedWords((str || '').toString());
+
+    const result = renderTokens(tokens, true);
+
+    // A replacement character means the bytes did not decode, which happens when two
+    // words were joined that should have stayed apart. Retry keeping them separate.
+    return result.indexOf('\ufffd') < 0 ? result : renderTokens(tokens, false);
 }
 
 export function decodeURIComponentWithCharset(encodedStr, charset) {
@@ -343,24 +435,44 @@ export function decodeParameterValueContinuations(header) {
         }
 
         let value = header.params[key];
-        if (nr === 0 && match[0].charAt(match[0].length - 1) === '*' && (match = value.match(/^([^']*)'[^']*'(.*)$/))) {
+        // RFC 2231 section 4.1: only a section whose name ends in '*' is percent encoded.
+        // A plain `name*0=` section is literal text, so decoding it invents characters
+        // that never appeared on the wire, turning `a%2F..%2Fetc` into a path traversal.
+        let encoded = match[0].charAt(match[0].length - 1) === '*';
+
+        if (nr === 0 && encoded && (match = value.match(/^([^']*)'[^']*'(.*)$/))) {
             paramVal.charset = match[1] || 'utf-8';
             value = match[2];
         }
 
-        paramVal.values.push({ nr, value });
+        paramVal.values.push({ nr, value, encoded });
 
         // remove the old reference
         delete header.params[key];
     });
 
     paramKeys.forEach((paramVal, key) => {
-        header.params[key] = decodeURIComponentWithCharset(
-            paramVal.values
-                .sort((a, b) => a.nr - b.nr)
-                .map(a => a.value)
-                .join(''),
-            paramVal.charset
-        );
+        let result = '';
+        // Adjacent encoded sections are decoded together, because a single multi byte
+        // character may be percent encoded across a section boundary.
+        let pending = '';
+
+        for (let part of paramVal.values.sort((a, b) => a.nr - b.nr)) {
+            if (part.encoded) {
+                pending += part.value;
+                continue;
+            }
+            if (pending) {
+                result += decodeURIComponentWithCharset(pending, paramVal.charset);
+                pending = '';
+            }
+            result += part.value;
+        }
+
+        if (pending) {
+            result += decodeURIComponentWithCharset(pending, paramVal.charset);
+        }
+
+        header.params[key] = result;
     });
 }
