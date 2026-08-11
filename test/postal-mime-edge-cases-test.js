@@ -31,6 +31,21 @@ test('Charset - iso-8859-8-e body decodes Hebrew', async () => {
     assert.ok(!email.text.includes('�'));
 });
 
+test('Charset - cp932 body and subject decode Japanese', async () => {
+    // cp932 is not a label TextDecoder accepts, so before it was aliased to shift_jis
+    // both the body and the encoded word decoded as windows-1252 without any error.
+    const mail = Buffer.concat([
+        Buffer.from('Content-Type: text/plain; charset="cp932"\r\nSubject: =?cp932?B?k/qWe4zq?=\r\n\r\n'),
+        Buffer.from('k/qWe4zq', 'base64')
+    ]);
+
+    const parser = new PostalMime();
+    const email = await parser.parse(mail);
+
+    assert.strictEqual(email.subject.trim(), '日本語');
+    assert.strictEqual(email.text.trim(), '日本語');
+});
+
 // Boundary Detection Edge Cases
 test('Edge case - boundary-like content in body', async () => {
     const mail = Buffer.from(`Content-Type: multipart/mixed; boundary="boundary"

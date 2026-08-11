@@ -410,6 +410,98 @@ test('getDecoder - charset alias is case-insensitive', () => {
     assert.strictEqual(result, 'שלום');
 });
 
+test('getDecoder - cp932 aliases decode as shift_jis', () => {
+    // "日本語" in Shift_JIS. cp932 is not a WHATWG label even though Japanese mail
+    // clients have written it for decades, so without the alias these fall back to
+    // windows-1252 and produce mojibake instead of failing.
+    const bytes = new Uint8Array([0x93, 0xfa, 0x96, 0x7b, 0x8c, 0xea]);
+    for (const label of [
+        'cp932',
+        'windows-932',
+        'x-ms-cp932',
+        'x-cp932',
+        'ibm932',
+        'x-shift-jis',
+        'windows31j',
+        'ms-kanji'
+    ]) {
+        assert.strictEqual(getDecoder(label).decode(bytes), '日本語', `unexpected result for ${label}`);
+    }
+});
+
+test('getDecoder - eucjp aliases decode as euc-jp', () => {
+    // "日本語" in EUC-JP
+    const bytes = new Uint8Array([0xc6, 0xfc, 0xcb, 0xdc, 0xb8, 0xec]);
+    for (const label of ['cp51932', 'eucjp', 'euc_jp', 'x-eucjp']) {
+        assert.strictEqual(getDecoder(label).decode(bytes), '日本語', `unexpected result for ${label}`);
+    }
+});
+
+test('getDecoder - iso2022jp aliases decode as iso-2022-jp', () => {
+    // "日本語" in ISO-2022-JP, ie. ESC $ B ... ESC ( B
+    const bytes = new Uint8Array([0x1b, 0x24, 0x42, 0x46, 0x7c, 0x4b, 0x5c, 0x38, 0x6c, 0x1b, 0x28, 0x42]);
+    for (const label of [
+        'cp50220',
+        'cp50221',
+        'cp50222',
+        'iso2022jp',
+        'x-iso2022jp',
+        'x-iso-2022-jp',
+        'iso-2022-jp-1',
+        'iso-2022-jp-2',
+        'junet'
+    ]) {
+        assert.strictEqual(getDecoder(label).decode(bytes), '日本語', `unexpected result for ${label}`);
+    }
+});
+
+test('getDecoder - cp936 aliases decode as gbk', () => {
+    // "中文" in GBK
+    const bytes = new Uint8Array([0xd6, 0xd0, 0xce, 0xc4]);
+    for (const label of ['cp936', 'windows-936', 'ms936', 'x-gb2312']) {
+        assert.strictEqual(getDecoder(label).decode(bytes), '中文', `unexpected result for ${label}`);
+    }
+});
+
+test('getDecoder - cp950 aliases decode as big5', () => {
+    // "中文" in Big5
+    const bytes = new Uint8Array([0xa4, 0xa4, 0xa4, 0xe5]);
+    for (const label of ['cp950', 'windows-950', 'ms950', 'x-big5', 'x-windows-950']) {
+        assert.strictEqual(getDecoder(label).decode(bytes), '中文', `unexpected result for ${label}`);
+    }
+});
+
+test('getDecoder - cp949 aliases decode as euc-kr', () => {
+    // "한국어" in EUC-KR
+    const bytes = new Uint8Array([0xc7, 0xd1, 0xb1, 0xb9, 0xbe, 0xee]);
+    for (const label of ['cp949', 'uhc', 'ms949', 'x-windows-949', 'ks_c_5601', 'euc_kr', 'x-euc-kr', 'ksc-5601']) {
+        assert.strictEqual(getDecoder(label).decode(bytes), '한국어', `unexpected result for ${label}`);
+    }
+});
+
+test('getDecoder - cp874 aliases decode as windows-874', () => {
+    // "สวัสดี" in windows-874
+    const bytes = new Uint8Array([0xca, 0xc7, 0xd1, 0xca, 0xb4, 0xd5]);
+    for (const label of ['cp874', 'ms874', 'tis620']) {
+        assert.strictEqual(getDecoder(label).decode(bytes), 'สวัสดี', `unexpected result for ${label}`);
+    }
+});
+
+test('getDecoder - labels the runtime accepts are used as written', () => {
+    // Normalization strips x- prefixes, so it must only run after the label itself has
+    // been tried: "user-defined" and "mac-cyrillic" are not labels on their own.
+    assert.strictEqual(getDecoder('x-user-defined').encoding, 'x-user-defined');
+    assert.strictEqual(getDecoder('x-mac-cyrillic').encoding, 'x-mac-cyrillic');
+});
+
+test('getDecoder - code pages with no equivalent still fall back', () => {
+    // The code page allowlist must not match every cpNNN label. These have no index in
+    // the Encoding Standard, so windows-1252 stays the right answer for them.
+    for (const label of ['cp437', 'cp850', 'ibm852', 'cp1361']) {
+        assert.strictEqual(getDecoder(label).encoding, 'windows-1252', `unexpected result for ${label}`);
+    }
+});
+
 test('getDecoder - null charset defaults to utf-8', () => {
     const decoder = getDecoder(null);
     assert.ok(decoder instanceof TextDecoder);
