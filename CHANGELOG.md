@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.0.0](https://github.com/postalsys/postal-mime/compare/v2.7.6...v3.0.0) (2026-08-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* header values in `headers[].value` keep the whitespace that folding introduced instead of having every whitespace run collapsed to a single space, single value headers such as `subject` and `from` resolve to the first occurrence of a duplicated header rather than the last, and `to`, `cc`, `bcc` and `replyTo` are returned in document order rather than reversed.
+
+### Bug Fixes
+
+* resolve non-WHATWG charset labels instead of falling back to windows-1252 ([6378618](https://github.com/postalsys/postal-mime/commit/6378618ac3faefd8fd96a44eb5f9a8bbe010e5b7)), closes [#94](https://github.com/postalsys/postal-mime/issues/94)
+* unfold headers per RFC 5322 and resolve duplicated headers first-wins ([7b0ca9d](https://github.com/postalsys/postal-mime/commit/7b0ca9d5bcf1a31ce4f0fa230e552564a9789458))
+
 ## [2.7.6](https://github.com/postalsys/postal-mime/compare/v2.7.5...v2.7.6) (2026-08-07)
 
 
