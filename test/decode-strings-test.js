@@ -488,10 +488,23 @@ test('getDecoder - cp874 aliases decode as windows-874', () => {
 });
 
 test('getDecoder - labels the runtime accepts are used as written', () => {
-    // Normalization strips x- prefixes, so it must only run after the label itself has
-    // been tried: "user-defined" and "mac-cyrillic" are not labels on their own.
-    assert.strictEqual(getDecoder('x-user-defined').encoding, 'x-user-defined');
-    assert.strictEqual(getDecoder('x-mac-cyrillic').encoding, 'x-mac-cyrillic');
+    // The alias table and normalization must only run once the label itself has been
+    // tried, so a runtime that knows iso-8859-8-i keeps its own decoder for it rather
+    // than the aliased iso-8859-8 one.
+    assert.strictEqual(getDecoder('iso-8859-8-i').encoding, 'iso-8859-8-i');
+
+    // Same for x- prefixed labels, whose stripped forms ("user-defined", "mac-cyrillic")
+    // are not labels on their own. Which of these a runtime knows varies by version, so
+    // only assert about the ones it has.
+    for (const label of ['x-user-defined', 'x-mac-cyrillic']) {
+        let native;
+        try {
+            native = new TextDecoder(label).encoding;
+        } catch (err) {
+            continue;
+        }
+        assert.strictEqual(getDecoder(label).encoding, native, `unexpected result for ${label}`);
+    }
 });
 
 test('getDecoder - code pages with no equivalent still fall back', () => {
