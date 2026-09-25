@@ -113,3 +113,18 @@ test('an encoded word that decodes to an angle bracket address is parsed as one'
 
     assert.deepStrictEqual(email.to, [{ address: 'a@b.c', name: 'Name' }]);
 });
+
+test('a calendar attachment with a long run of blank lines is normalized in linear time', async () => {
+    const lines = 128 * 1024;
+    for (const type of ['text/calendar', 'application/ics']) {
+        const email = await timed(() =>
+            PostalMime.parse(
+                `Content-Type: ${type}\r\nContent-Disposition: attachment\r\n\r\nA${'\r\n'.repeat(lines)}B\r\n\r\n\r\n`,
+                { attachmentEncoding: 'utf8' }
+            )
+        );
+
+        // line endings become LF and the text ends in exactly one newline
+        assert.strictEqual(email.attachments[0].content, `A${'\n'.repeat(lines)}B\n`);
+    }
+});

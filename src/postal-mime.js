@@ -320,9 +320,15 @@ export default class PostalMime {
                                     .trim();
                             }
 
-                            // Enforce into unicode
-                            const decodedText = node.getTextContent().replace(/\r?\n/g, '\n').replace(/\n*$/, '\n');
-                            attachment.content = textEncoder.encode(decodedText);
+                            // Enforce into unicode, ending in exactly one newline. The trailing
+                            // newlines are counted rather than replaced with `/\n*$/`, which
+                            // retries at every newline of a run that does not end the text.
+                            const decodedText = node.getTextContent().replace(/\r?\n/g, '\n');
+                            let end = decodedText.length;
+                            while (end > 0 && decodedText.charCodeAt(end - 1) === 0x0a) {
+                                end--;
+                            }
+                            attachment.content = textEncoder.encode(decodedText.slice(0, end) + '\n');
                             break;
                         }
 
