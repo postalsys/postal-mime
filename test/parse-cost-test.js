@@ -2,7 +2,7 @@ import { Buffer } from 'node:buffer';
 import test from 'node:test';
 import assert from 'node:assert';
 import PostalMime from '../src/postal-mime.js';
-import { getDecoder } from '../src/decode-strings.js';
+import { getDecoder, ENCODING_LABELS } from '../src/decode-strings.js';
 
 // Parse paths that used to cost O(n²) in the input size,
 // https://github.com/postalsys/postal-mime/issues/97
@@ -12,11 +12,11 @@ import { getDecoder } from '../src/decode-strings.js';
 
 const LIMIT_MS = 5000;
 
-const timed = async fn => {
+const timed = async (fn, label = '') => {
     const started = Date.now();
     const result = await fn();
     const elapsed = Date.now() - started;
-    assert.ok(elapsed < LIMIT_MS, `took ${elapsed}ms`);
+    assert.ok(elapsed < LIMIT_MS, `${label} took ${elapsed}ms`);
     return result;
 };
 
@@ -175,27 +175,51 @@ test('html parts with unclosed tags are converted to text in linear time', async
     };
 
     for (const [name, html] of Object.entries(shapes)) {
-        const started = Date.now();
         // the text/plain sibling makes PostalMime derive text from the html part
-        const email = await PostalMime.parse(
-            [
-                'Content-Type: multipart/mixed; boundary=XX',
-                '',
-                '--XX',
-                'Content-Type: text/plain',
-                '',
-                'plain',
-                '--XX',
-                'Content-Type: text/html',
-                '',
-                html,
-                '--XX--',
-                ''
-            ].join('\r\n')
+        const email = await timed(
+            () =>
+                PostalMime.parse(
+                    [
+                        'Content-Type: multipart/mixed; boundary=XX',
+                        '',
+                        '--XX',
+                        'Content-Type: text/plain',
+                        '',
+                        'plain',
+                        '--XX',
+                        'Content-Type: text/html',
+                        '',
+                        html,
+                        '--XX--',
+                        ''
+                    ].join('\r\n')
+                ),
+            name
         );
-        const elapsed = Date.now() - started;
 
-        assert.ok(elapsed < LIMIT_MS, `${name} took ${elapsed}ms`);
         assert.ok(email.text.startsWith('plain\n'), name);
+    }
+});
+
+test('the WHATWG label list matches what TextDecoder accepts', () => {
+    const replacement = new Set([
+        'csiso2022kr',
+        'hz-gb-2312',
+        'iso-2022-cn',
+        'iso-2022-cn-ext',
+        'iso-2022-kr',
+        'replacement'
+    ]);
+    assert.strictEqual(ENCODING_LABELS.size, 228);
+
+    // a label missing from the list would silently decode as windows-1252
+    for (const label of ENCODING_LABELS) {
+        let accepted = true;
+        try {
+            new TextDecoder(label);
+        } catch (err) {
+            accepted = false;
+        }
+        assert.strictEqual(accepted, !replacement.has(label), label);
     }
 });

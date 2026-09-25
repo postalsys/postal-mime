@@ -118,7 +118,7 @@ function normalizeCharset(charset) {
 // without constructing a decoder for it. Letting the constructor throw instead costs
 // several times the decode itself, and a message controls how often it happens: once
 // per encoded word, twice when the label also fails after normalization.
-const ENCODING_LABELS = new Set(
+export const ENCODING_LABELS = new Set(
     [
         // UTF-8
         'unicode-1-1-utf-8 unicode11utf8 unicode20utf8 utf-8 utf8 x-unicode20utf8',
