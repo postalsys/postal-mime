@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import test from 'node:test';
 import assert from 'node:assert';
 import PostalMime from '../src/postal-mime.js';
+import { getDecoder } from '../src/decode-strings.js';
 
 // Parse paths that used to cost O(n²) in the input size,
 // https://github.com/postalsys/postal-mime/issues/97
@@ -127,4 +128,37 @@ test('a calendar attachment with a long run of blank lines is normalized in line
         // line endings become LF and the text ends in exactly one newline
         assert.strictEqual(email.attachments[0].content, `A${'\n'.repeat(lines)}B\n`);
     }
+});
+
+test('encoded words under unknown charset labels do not construct decoders', async () => {
+    const labels = '0123456789abcdefghijklmnopqrstuvwxyz'.split('');
+    let subject = '';
+    for (let i = 0; subject.length < 62000; i++) {
+        subject += `=?${labels[i % labels.length]}?Q??=`;
+    }
+    // a word that does not decode makes decodeWords render the header a second time
+    subject += '=?utf-8?Q?=FF?=';
+
+    const part = `--XX\r\nContent-Type: message/rfc822\r\n\r\nSubject: ${subject}\r\n\r\nx\r\n`;
+    const email = await timed(() =>
+        PostalMime.parse(`Content-Type: multipart/mixed; boundary=XX\r\n\r\n${part.repeat(128)}--XX--\r\n`)
+    );
+
+    assert.ok(email.text.includes('Subject: \ufffd'));
+});
+
+test('getDecoder reuses one decoder per label and falls back for labels TextDecoder refuses', () => {
+    assert.strictEqual(getDecoder('iso-8859-2'), getDecoder('iso-8859-2'));
+    assert.strictEqual(getDecoder('ISO-8859-2').encoding, 'iso-8859-2');
+
+    // the replacement encoding and made up labels both end up as windows-1252
+    for (const label of ['iso-2022-kr', 'hz-gb-2312', 'replacement', 'x-made-up', 'utf-32']) {
+        assert.strictEqual(getDecoder(label).encoding, 'windows-1252', label);
+    }
+
+    // a reused decoder starts from a fresh state on every call
+    const decoder = getDecoder('utf-8');
+    assert.strictEqual(decoder.decode(new Uint8Array([0xe6, 0x97])), '\ufffd');
+    assert.strictEqual(decoder.decode(new Uint8Array([0xa5])), '\ufffd');
+    assert.strictEqual(decoder.decode(new Uint8Array([0xef, 0xbb, 0xbf, 0x61])), 'a');
 });
