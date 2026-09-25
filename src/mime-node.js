@@ -15,7 +15,22 @@ const headerDecoder = new TextDecoder('utf-8', { ignoreBOM: true });
 // `from` header, and since the first occurrence of a header wins it outranked the real
 // sender. Leaving the character in the key keeps the line visible without letting it
 // collide with a genuine header.
-const trimWsp = str => str.replace(/^[ \t]+|[ \t]+$/g, '');
+//
+// An index scan rather than `/^[ \t]+|[ \t]+$/g`, which retries the trailing branch at
+// every position of a blank run that is followed by other text, so a single header with
+// a long run of spaces in the middle took seconds to trim.
+const isWsp = c => c === 0x20 || c === 0x09;
+const trimWsp = str => {
+    let start = 0;
+    let end = str.length;
+    while (start < end && isWsp(str.charCodeAt(start))) {
+        start++;
+    }
+    while (end > start && isWsp(str.charCodeAt(end - 1))) {
+        end--;
+    }
+    return str.slice(start, end);
+};
 
 // Headers that decide how this part's body is read, see processHeaders
 const CONTENT_HEADERS = new Set([
