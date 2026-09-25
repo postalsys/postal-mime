@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.0.1](https://github.com/postalsys/postal-mime/compare/v3.0.0...v3.0.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* collect parsed addresses in linear time ([68cd065](https://github.com/postalsys/postal-mime/commit/68cd065f92c2cb64227b91cab7ba1409d89b9824)), closes [#97](https://github.com/postalsys/postal-mime/issues/97)
+* convert html to text in linear time ([38b2a83](https://github.com/postalsys/postal-mime/commit/38b2a839ca1f83bf570f7628375c1330f4495aef)), closes [#97](https://github.com/postalsys/postal-mime/issues/97)
+* detect angle bracket addresses in decoded words in linear time ([390be2b](https://github.com/postalsys/postal-mime/commit/390be2b4395ff46458ff7b8bf3d148d1e0997e0e)), closes [#97](https://github.com/postalsys/postal-mime/issues/97)
+* normalize calendar attachment line endings in linear time ([36edda7](https://github.com/postalsys/postal-mime/commit/36edda70629074622a6b8d1529b2366ff2cfa71d)), closes [#97](https://github.com/postalsys/postal-mime/issues/97)
+* strip header comments in linear time ([5d877da](https://github.com/postalsys/postal-mime/commit/5d877da9b700059f14318251083d62c9dd116c5a)), closes [#97](https://github.com/postalsys/postal-mime/issues/97)
+* trim header whitespace in linear time ([932441f](https://github.com/postalsys/postal-mime/commit/932441fc984b0c86804d55e504d5cd11c290b763)), closes [#97](https://github.com/postalsys/postal-mime/issues/97)
+* trim text around an extracted address in linear time ([511a194](https://github.com/postalsys/postal-mime/commit/511a19482dca01c1225d2bc01ea33409ba9233ad)), closes [#97](https://github.com/postalsys/postal-mime/issues/97)
+* unfold format=flowed text in linear time ([237c7a9](https://github.com/postalsys/postal-mime/commit/237c7a98debf1bf9308e40b54a6d6662aba5cdf6)), closes [#97](https://github.com/postalsys/postal-mime/issues/97)
+
+
+### Performance Improvements
+
+* skip decoder construction for charset labels TextDecoder cannot know ([5407771](https://github.com/postalsys/postal-mime/commit/5407771692d0b989e9109a9edb3d1d33df62cd64)), closes [#97](https://github.com/postalsys/postal-mime/issues/97)
+
 ## [3.0.0](https://github.com/postalsys/postal-mime/compare/v2.7.6...v3.0.0) (2026-08-11)
 
 
