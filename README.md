@@ -469,7 +469,7 @@ The source lives in `src/` as TypeScript. `npm run build` compiles it twice, int
 
 ```bash
 npm install          # installs dependencies and builds dist/
-npm test             # builds, then runs the test suite against src/ and the built package
+npm test             # builds, then runs the test suite against src/ and the built package, one file at a time
 npm run lint         # ESLint and a full type-check of src/ and test/
 npm run format       # Prettier
 ```

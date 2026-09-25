@@ -22,7 +22,7 @@
         "build": "node scripts/build.js",
         "typecheck": "tsc -p tsconfig.json",
         "pretest": "npm run build",
-        "test": "node --import tsx --test test/*-test.ts",
+        "test": "node --import tsx --test --test-concurrency=1 test/*-test.ts",
         "lint": "eslint . && npm run typecheck",
         "lint:fix": "eslint . --fix",
         "format": "prettier --write \"**/*.{js,cjs,mjs,ts,json}\"",
