@@ -55,3 +55,18 @@ test('format=flowed keeps the signature separator and empty lines', async () => 
     );
     assert.strictEqual(email.text, '\nab\n-- \nsig\nx\n');
 });
+
+test('an address header with many addresses parses in linear time', async () => {
+    const count = 150000;
+    const email = await timed(() => PostalMime.parse(`To: ${'a@b,'.repeat(count)}\r\n\r\nx`));
+
+    assert.strictEqual(email.to.length, count);
+    assert.deepStrictEqual(email.to[count - 1], { address: 'a@b', name: '' });
+});
+
+test('many address headers of one kind are collected in linear time', async () => {
+    const count = 160000;
+    const email = await timed(() => PostalMime.parse(`${'Cc: a@b\r\n'.repeat(count)}\r\nx`));
+
+    assert.strictEqual(email.cc.length, count);
+});

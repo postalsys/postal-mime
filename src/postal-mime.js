@@ -573,15 +573,17 @@ export default class PostalMime {
         }
 
         for (const key of ['to', 'cc', 'bcc', 'reply-to']) {
-            const addressHeaders = this.root.headers.filter(line => line.key === key);
-            let addresses = [];
+            // Appended in place, concat() copies the whole list for every header
+            const addresses = [];
+            for (const entry of this.root.headers) {
+                if (entry.key === key && entry.value) {
+                    for (const address of addressParser(entry.value)) {
+                        addresses.push(address);
+                    }
+                }
+            }
 
-            addressHeaders
-                .filter(entry => entry && entry.value)
-                .map(entry => addressParser(entry.value))
-                .forEach(parsed => (addresses = addresses.concat(parsed || [])));
-
-            if (addresses && addresses.length) {
+            if (addresses.length) {
                 const camelKey = toCamelCase(key);
                 message[camelKey] = addresses;
             }

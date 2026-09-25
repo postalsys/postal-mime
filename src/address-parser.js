@@ -143,7 +143,9 @@ function _handleAddress(tokens, depth) {
             parsedGroup.forEach(member => {
                 if (member.group) {
                     // Nested group detected - flatten it by adding its members directly
-                    groupMembers = groupMembers.concat(member.group);
+                    for (const nestedMember of member.group) {
+                        groupMembers.push(nestedMember);
+                    }
                 } else {
                     groupMembers.push(member);
                 }
@@ -401,7 +403,7 @@ function addressParser(str, options) {
 
     let addresses = [];
     let address = [];
-    let parsedAddresses = [];
+    const parsedAddresses = [];
 
     tokens.forEach(token => {
         if (token.type === 'operator' && (token.value === ',' || token.value === ';')) {
@@ -418,12 +420,13 @@ function addressParser(str, options) {
         addresses.push(address);
     }
 
-    addresses.forEach(address => {
-        address = _handleAddress(address, depth);
-        if (address.length) {
-            parsedAddresses = parsedAddresses.concat(address);
+    // Appended in place. Rebuilding the list with concat() for every address copies
+    // everything parsed so far and is quadratic in the number of addresses.
+    for (const tokens of addresses) {
+        for (const address of _handleAddress(tokens, depth)) {
+            parsedAddresses.push(address);
         }
-    });
+    }
 
     if (options.flatten) {
         let addresses = [];
