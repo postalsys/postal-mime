@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import test from 'node:test';
 import assert from 'node:assert';
 import PostalMime from '../src/postal-mime.js';
@@ -95,4 +96,20 @@ test('an address after a long whitespace run is extracted in linear time', async
     const email = await timed(() => PostalMime.parse(`To: x${run}!a@b.c\r\n\r\nx`));
 
     assert.deepStrictEqual(email.to, [{ address: 'a@b.c', name: `x${run}!` }]);
+});
+
+test('an encoded word that decodes to an unclosed angle bracket parses in linear time', async () => {
+    const decoded = '<' + 'a@'.repeat(96 * 1024);
+    const encoded = `=?utf-8?B?${Buffer.from(decoded).toString('base64')}?=`;
+    const email = await timed(() => PostalMime.parse(`To: ${encoded}\r\n\r\nx`));
+
+    // no angle bracket address, so the decoded text is only a display name
+    assert.deepStrictEqual(email.to, [{ address: '', name: decoded }]);
+});
+
+test('an encoded word that decodes to an angle bracket address is parsed as one', async () => {
+    const encoded = `=?utf-8?B?${Buffer.from('Name <a@b.c>').toString('base64')}?=`;
+    const email = await PostalMime.parse(`To: ${encoded}\r\n\r\nx`);
+
+    assert.deepStrictEqual(email.to, [{ address: 'a@b.c', name: 'Name' }]);
 });

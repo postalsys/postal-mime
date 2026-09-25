@@ -51,6 +51,41 @@ function findAddressInText(text) {
 }
 
 /**
+ * Checks whether text holds an angle bracket address, ie. `<` and `>` around a run
+ * without other angle brackets that has an '@' with at least one character on each side.
+ *
+ * Same answer as `/<[^<>]+@[^<>]+>/.test(text)`, which backtracks quadratically on a `<`
+ * followed by a long run of '@' and no closing `>`.
+ *
+ * @param {String} text Text to check
+ * @return {Boolean} true if an angle bracket address is present
+ */
+function hasAngleAddress(text) {
+    // position right after the `<` that opened the current bracket, or -1
+    let start = -1;
+    // first '@' inside the bracket that has a character before it, or -1
+    let at = -1;
+
+    for (let i = 0; i < text.length; i++) {
+        const chr = text.charAt(i);
+        if (chr === '<') {
+            start = i + 1;
+            at = -1;
+        } else if (chr === '>') {
+            if (at >= 0 && at < i - 1) {
+                return true;
+            }
+            start = -1;
+            at = -1;
+        } else if (chr === '@' && start >= 0 && at < 0 && i > start) {
+            at = i;
+        }
+    }
+
+    return false;
+}
+
+/**
  * Converts tokens for a single address into an address object
  *
  * @param {Array} tokens Tokens object
@@ -219,7 +254,7 @@ function _handleAddress(tokens, depth) {
             // Security: only re-parse if decoded text contains angle-bracket addresses.
             // Without this, a bare encoded email (e.g. =?utf-8?B?dGVzdEBldmlsLmNv?=)
             // would be fabricated into an address from attacker-controlled input.
-            if (/<[^<>]+@[^<>]+>/.test(decodedText)) {
+            if (hasAngleAddress(decodedText)) {
                 const parsedSubAddresses = addressParser(decodedText);
                 if (parsedSubAddresses && parsedSubAddresses.length) {
                     return parsedSubAddresses;
