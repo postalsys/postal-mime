@@ -407,3 +407,19 @@ test('formatTextHeader - message with no fields', () => {
     // Should not crash, returns template with empty rows
     assert.ok(typeof result === 'string');
 });
+
+test('htmlToText - tags left open are kept or dropped as before', () => {
+    // no closing `>`, so nothing here is a tag
+    assert.strictEqual(htmlToText('a <b <br <li c'), 'a <b <br <li c');
+    // an unterminated comment or script is left alone
+    assert.strictEqual(htmlToText('a <!-- b'), 'a <!-- b');
+    assert.strictEqual(htmlToText('a <script>b</script c'), 'a b</script c');
+    // `.*?` does not reach a closer on another line, so this is only removed as a tag
+    assert.strictEqual(htmlToText('a<!--\rb-->c'), 'a c');
+    // an anchor without href is dropped like any other inline tag
+    assert.strictEqual(htmlToText('<a <a name="x">y</a>'), 'y');
+    assert.strictEqual(htmlToText('<a class="x" href="http://e.com/">y</a>'), ' (http://e.com/) y');
+    // the last body tag on the first line wins, the first closing body tag on the last line does
+    assert.strictEqual(htmlToText('x<body>y<body>z</body>w'), 'z');
+    assert.strictEqual(htmlToText('x<body>y <body>z'), 'y  z');
+});

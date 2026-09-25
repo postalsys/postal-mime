@@ -162,3 +162,40 @@ test('getDecoder reuses one decoder per label and falls back for labels TextDeco
     assert.strictEqual(decoder.decode(new Uint8Array([0xa5])), '\ufffd');
     assert.strictEqual(decoder.decode(new Uint8Array([0xef, 0xbb, 0xbf, 0x61])), 'a');
 });
+
+test('html parts with unclosed tags are converted to text in linear time', async () => {
+    const size = 128 * 1024;
+    const shapes = {
+        'bare <': '<'.repeat(size),
+        '<a without href': '<a '.repeat(size / 3) + '>',
+        'unclosed comments': '<!--'.repeat(size / 4),
+        'unclosed script end tags': '<script>' + '</script'.repeat(size / 8),
+        'unclosed body tags': '<body'.repeat(size / 5),
+        'unclosed br tags': '<br'.repeat(size / 3)
+    };
+
+    for (const [name, html] of Object.entries(shapes)) {
+        const started = Date.now();
+        // the text/plain sibling makes PostalMime derive text from the html part
+        const email = await PostalMime.parse(
+            [
+                'Content-Type: multipart/mixed; boundary=XX',
+                '',
+                '--XX',
+                'Content-Type: text/plain',
+                '',
+                'plain',
+                '--XX',
+                'Content-Type: text/html',
+                '',
+                html,
+                '--XX--',
+                ''
+            ].join('\r\n')
+        );
+        const elapsed = Date.now() - started;
+
+        assert.ok(elapsed < LIMIT_MS, `${name} took ${elapsed}ms`);
+        assert.ok(email.text.startsWith('plain\n'), name);
+    }
+});

@@ -54,31 +54,248 @@ export function textToHtml(str) {
     return '<div>' + html + '</div>';
 }
 
+// htmlToText strips tags with regexes like `<br\b[^>]*>` and `<!--.*?-->`. Handed to
+// String#replace as they are, the engine tries every candidate in turn and a candidate
+// that does not close scans on to the next `>`, the end of the line or the end of the
+// input before giving up, so an html part holding many unclosed `<`, `<a ` or `<!--`
+// took seconds to minutes to convert. The helpers below give the same results in linear
+// time: they find candidates with a regex for the opening only, and look for what closes
+// them with searches that each scan the string once.
+
+// Characters that `.` does not match, so a `.*` can not run across them
+const LINE_TERMINATOR = /[\n\r\u2028\u2029]/g;
+
+/**
+ * Returns a function that finds the next match of a global regex at or after a position.
+ *
+ * Callers only ever ask about positions that move forward, so a match stays the answer
+ * until a position passes it, and no match stays the answer for good. That way every part
+ * of the string is scanned once, however many times it is asked about.
+ *
+ * @param {String} str String to search
+ * @param {RegExp} regex Global regex to look for
+ * @return {Function} `pos => match` of the next match, or null if there is none
+ */
+function createFinder(str, regex) {
+    let searchedFrom = Infinity;
+    let found = null;
+
+    return pos => {
+        if (pos < searchedFrom || (found && pos > found.index)) {
+            regex.lastIndex = pos;
+            found = regex.exec(str);
+            searchedFrom = pos;
+        }
+        return found;
+    };
+}
+
+/**
+ * `str.replace(pattern, replacement)` for a pattern that starts with `prefix` and ends on
+ * a `>`, eg. `<br\b[^>]*>`.
+ *
+ * A candidate with no `>` after it ends the search, since no later candidate can close
+ * either. A candidate that does not match skips every other candidate before the same
+ * `>`, since those see the same tag body and fail the same way.
+ *
+ * @param {String} str String to process
+ * @param {RegExp} prefix Global regex for the start of a candidate, which can not contain `>`
+ * @param {RegExp} pattern The whole pattern as a sticky regex
+ * @param {String|Function} replacement Replacement text, or a function given the match and its groups
+ * @return {String} Processed string
+ */
+function replaceTags(str, prefix, pattern, replacement) {
+    const nextGt = createFinder(str, />/g);
+    const parts = [];
+    // everything before this index is already in parts
+    let copied = 0;
+    let searchFrom = 0;
+
+    while (true) {
+        prefix.lastIndex = searchFrom;
+        const candidate = prefix.exec(str);
+        if (!candidate) {
+            break;
+        }
+
+        const start = candidate.index;
+        const gt = nextGt(start);
+        if (!gt) {
+            break;
+        }
+
+        pattern.lastIndex = start;
+        const match = pattern.exec(str);
+        if (!match) {
+            searchFrom = gt.index + 1;
+            continue;
+        }
+
+        parts.push(str.slice(copied, start), typeof replacement === 'function' ? replacement(...match) : replacement);
+        copied = searchFrom = start + match[0].length;
+    }
+
+    parts.push(str.slice(copied));
+    return parts.join('');
+}
+
+/**
+ * `str.replace(pattern, replacement)` for a pattern like `<!--.*?-->` or
+ * `<script\b[^>]*>.*?<\/script\b[^>]*>`, ie. an opener and a closer, either of which may
+ * continue with `[^>]*>`, and a lazy `.*?` between them.
+ *
+ * @param {String} str String to process
+ * @param {RegExp} open Global regex for the opener
+ * @param {Boolean} openToGt Whether the opener continues with `[^>]*>`
+ * @param {RegExp} close Global regex for the closer
+ * @param {Boolean} closeToGt Whether the closer continues with `[^>]*>`
+ * @param {String} replacement Replacement text
+ * @return {String} Processed string
+ */
+function replaceBlocks(str, open, openToGt, close, closeToGt, replacement) {
+    // separate finders for the openers and the closers, so each is asked about positions
+    // that only move forward
+    const nextOpenGt = createFinder(str, />/g);
+    const nextCloseGt = createFinder(str, />/g);
+    const nextClose = createFinder(str, close);
+    const nextLineEnd = createFinder(str, LINE_TERMINATOR);
+    const parts = [];
+    let copied = 0;
+    let searchFrom = 0;
+
+    while (true) {
+        open.lastIndex = searchFrom;
+        const opener = open.exec(str);
+        if (!opener) {
+            break;
+        }
+
+        const start = opener.index;
+        searchFrom = start + 1;
+
+        // where the lazy `.*?` starts
+        let from = start + opener[0].length;
+        if (openToGt) {
+            const gt = nextOpenGt(from);
+            if (!gt) {
+                // neither this opener nor any later one can close
+                break;
+            }
+            from = gt.index + 1;
+        }
+
+        const closer = nextClose(from);
+        if (!closer) {
+            // no closer follows this opener, so none follows a later one either
+            break;
+        }
+
+        // `.*?` can not reach the closer across a line terminator
+        const lineEnd = nextLineEnd(from);
+        if (lineEnd && lineEnd.index < closer.index) {
+            continue;
+        }
+
+        let end = closer.index + closer[0].length;
+        if (closeToGt) {
+            const gt = nextCloseGt(end);
+            if (!gt) {
+                // this is the first closer after the opener, and any other one comes
+                // later, so none of them is followed by `>`
+                break;
+            }
+            end = gt.index + 1;
+        }
+
+        parts.push(str.slice(copied, start), replacement);
+        copied = searchFrom = end;
+    }
+
+    parts.push(str.slice(copied));
+    return parts.join('');
+}
+
+/**
+ * `str.replace(pattern, '')` for `^.*<tag\b[^>]*>`, ie. drops everything up to and
+ * including the last such tag on the first line.
+ *
+ * @param {String} str String to process
+ * @param {RegExp} prefix Global regex for the start of the tag, which can not contain `>`
+ * @return {String} Processed string
+ */
+function stripThroughLastTag(str, prefix) {
+    LINE_TERMINATOR.lastIndex = 0;
+    const lineEnd = LINE_TERMINATOR.exec(str);
+    // `.*` stops at the first line terminator, and `[^>]*>` needs a `>` after the tag
+    const limit = Math.min(lineEnd ? lineEnd.index : str.length, str.lastIndexOf('>'));
+
+    let last = -1;
+    prefix.lastIndex = 0;
+    let match;
+    while ((match = prefix.exec(str)) && match.index < limit) {
+        last = match.index;
+    }
+
+    return last < 0 ? str : str.slice(str.indexOf('>', last) + 1);
+}
+
+/**
+ * `str.replace(pattern, '')` for `<tag\b[^>]*>.*$`, ie. drops the first such tag that is
+ * on the last line and everything after it.
+ *
+ * @param {String} str String to process
+ * @param {RegExp} prefix Global regex for the start of the tag, which can not contain `>`
+ * @return {String} Processed string
+ */
+function stripFromFirstTag(str, prefix) {
+    // `.*$` has to reach the end of the string without crossing a line terminator
+    let lastLineEnd = str.length - 1;
+    while (lastLineEnd >= 0 && !/[\n\r\u2028\u2029]/.test(str.charAt(lastLineEnd))) {
+        lastLineEnd--;
+    }
+
+    const nextGt = createFinder(str, />/g);
+    prefix.lastIndex = 0;
+    let match;
+    while ((match = prefix.exec(str))) {
+        const gt = nextGt(match.index);
+        if (!gt) {
+            break;
+        }
+        if (gt.index > lastLineEnd) {
+            return str.slice(0, match.index);
+        }
+    }
+
+    return str;
+}
+
 export function htmlToText(str) {
+    // we can't process tags on multiple lines so remove newlines first
+    str = str.replace(/\r?\n/g, '\u0001');
+
+    str = replaceBlocks(str, /<!--/g, false, /-->/g, false, ' ');
+
+    str = replaceTags(str, /<br\b/gi, /<br\b[^>]*>/iy, '\n');
+    str = replaceTags(str, /<\/?(p|div|table|tr|td|th)\b/gi, /<\/?(p|div|table|tr|td|th)\b[^>]*>/iy, '\n\n');
+    str = replaceBlocks(str, /<script\b/gi, true, /<\/script\b/gi, true, ' ');
+    str = stripThroughLastTag(str, /<body\b/gi);
+    str = stripThroughLastTag(str, /<\/head\b/gi);
+    str = stripThroughLastTag(str, /<!doctype\b/gi);
+    str = stripFromFirstTag(str, /<\/body\b/gi);
+    str = stripFromFirstTag(str, /<\/html\b/gi);
+
+    str = replaceTags(str, /<a\b/gi, /<a\b[^>]*href\s*=\s*["']?([^\s"']+)[^>]*>/iy, (match, href) => ` (${href}) `);
+
+    str = replaceTags(str, /<\/?(span|em|i|strong|b|u|a)\b/gi, /<\/?(span|em|i|strong|b|u|a)\b[^>]*>/iy, '');
+
+    str = replaceTags(str, /<li\b/gi, /<li\b[^>]*>[\n\u0001\s]*/iy, '* ');
+
+    str = replaceTags(str, /<hr\b/g, /<hr\b[^>]*>/y, '\n-------------\n');
+
+    str = replaceTags(str, /</g, /<[^>]*>/y, ' ');
+
     str = str
-        // we can't process tags on multiple lines so remove newlines first
-        .replace(/\r?\n/g, '\u0001')
-        .replace(/<\!\-\-.*?\-\->/gi, ' ')
-
-        .replace(/<br\b[^>]*>/gi, '\n')
-        .replace(/<\/?(p|div|table|tr|td|th)\b[^>]*>/gi, '\n\n')
-        .replace(/<script\b[^>]*>.*?<\/script\b[^>]*>/gi, ' ')
-        .replace(/^.*<body\b[^>]*>/i, '')
-        .replace(/^.*<\/head\b[^>]*>/i, '')
-        .replace(/^.*<\!doctype\b[^>]*>/i, '')
-        .replace(/<\/body\b[^>]*>.*$/i, '')
-        .replace(/<\/html\b[^>]*>.*$/i, '')
-
-        .replace(/<a\b[^>]*href\s*=\s*["']?([^\s"']+)[^>]*>/gi, ' ($1) ')
-
-        .replace(/<\/?(span|em|i|strong|b|u|a)\b[^>]*>/gi, '')
-
-        .replace(/<li\b[^>]*>[\n\u0001\s]*/gi, '* ')
-
-        .replace(/<hr\b[^>]*>/g, '\n-------------\n')
-
-        .replace(/<[^>]*>/g, ' ')
-
         // convert linebreak placeholders back to newlines
         .replace(/\u0001/g, '\n')
 
