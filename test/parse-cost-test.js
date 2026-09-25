@@ -201,25 +201,50 @@ test('html parts with unclosed tags are converted to text in linear time', async
     }
 });
 
-test('the WHATWG label list matches what TextDecoder accepts', () => {
-    const replacement = new Set([
-        'csiso2022kr',
-        'hz-gb-2312',
-        'iso-2022-cn',
-        'iso-2022-cn-ext',
-        'iso-2022-kr',
-        'replacement'
-    ]);
+test('TextDecoder accepts no charset label that is missing from the WHATWG list', () => {
     assert.strictEqual(ENCODING_LABELS.size, 228);
 
-    // a label missing from the list would silently decode as windows-1252
-    for (const label of ENCODING_LABELS) {
-        let accepted = true;
+    const accepts = label => {
         try {
             new TextDecoder(label);
+            return true;
         } catch (err) {
-            accepted = false;
+            return false;
         }
-        assert.strictEqual(accepted, !replacement.has(label), label);
+    };
+
+    // A label the runtime accepts but the list lacks would be turned away and decode as
+    // windows-1252. The other direction is fine: a runtime built without an encoding,
+    // like Node 20 without iso-8859-16, rejects a listed label and falls back as before.
+    const candidates = new Set([
+        'utf-32',
+        'utf-7',
+        'binary',
+        'ucs2',
+        'cp437',
+        'cp850',
+        'iso-8859-11:2001',
+        'gb2312-80'
+    ]);
+    for (const label of ENCODING_LABELS) {
+        for (const variant of [
+            `x-${label}`,
+            `cs${label}`,
+            label.replace(/[-_]/g, ''),
+            label.replace(/-/g, '_'),
+            label.replace(/_/g, '-')
+        ]) {
+            candidates.add(variant);
+        }
+    }
+
+    for (const label of candidates) {
+        if (!ENCODING_LABELS.has(label)) {
+            assert.strictEqual(accepts(label), false, label);
+        }
+    }
+
+    for (const label of ['iso-2022-kr', 'hz-gb-2312', 'replacement']) {
+        assert.strictEqual(accepts(label), false, label);
     }
 });
