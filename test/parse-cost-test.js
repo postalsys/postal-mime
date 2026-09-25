@@ -89,3 +89,10 @@ test('structured headers with many parentheses in a parameter value parse in lin
     assert.strictEqual(email.attachments[0].filename, `b${parens}`);
     assert.deepStrictEqual(new Uint8Array(email.attachments[0].content), new Uint8Array([0x78]));
 });
+
+test('an address after a long whitespace run is extracted in linear time', async () => {
+    const run = ' '.repeat(128 * 1024);
+    const email = await timed(() => PostalMime.parse(`To: x${run}!a@b.c\r\n\r\nx`));
+
+    assert.deepStrictEqual(email.to, [{ address: 'a@b.c', name: `x${run}!` }]);
+});

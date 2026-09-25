@@ -179,11 +179,13 @@ function _handleAddress(tokens, depth) {
                         const found = findAddressInText(data.text[i]);
                         if (found) {
                             data.address = [found.value];
-                            // the address and the whitespace around it collapse to one space
+                            // the address and the whitespace around it collapse to one space.
+                            // trimEnd rather than `/\s+$/`, which retries at every position of
+                            // a whitespace run that is not at the end and is quadratic in it.
                             data.text[i] = (
-                                data.text[i].substring(0, found.index).replace(/\s+$/, '') +
+                                data.text[i].substring(0, found.index).trimEnd() +
                                 ' ' +
-                                data.text[i].substring(found.index + found.length).replace(/^\s+/, '')
+                                data.text[i].substring(found.index + found.length).trimStart()
                             ).trim();
                             break;
                         }
