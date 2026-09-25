@@ -8,7 +8,7 @@ for (let i = 0; i < base64Chars.length; i++) {
     base64Lookup[base64Chars.charCodeAt(i)] = i;
 }
 
-export function decodeBase64(base64) {
+export function decodeBase64(base64: string): ArrayBuffer {
     // Padding carries no data, so the byte count comes from the payload alone. Sizing the
     // buffer from the raw length instead treated '=' as a data character and left the
     // output padded with NUL bytes, which then travelled into subjects and filenames.
@@ -57,7 +57,7 @@ export function decodeBase64(base64) {
 // label, eg. `eucjp` also catches `euc_jp`, `x-eucjp` and `x-euc-jp`. Only labels that
 // need real encoding knowledge belong here; anything that differs from a supported
 // label by nothing but an `x-` prefix or a separator is handled by normalization alone.
-const charsetAliases = new Map([
+const charsetAliases = new Map<string, string>([
     // Hebrew. The logical and explicit ordering variants share the iso-8859-8 index.
     ['iso88598i', 'iso-8859-8'],
     ['iso88598e', 'iso-8859-8'],
@@ -90,7 +90,7 @@ const charsetAliases = new Map([
 // or ibm932. An explicit allowlist rather than a derived one, because plenty of code
 // pages that appear in mail (cp437, cp850, cp1361) have no equivalent to map onto and
 // have to keep falling back.
-const codePageAliases = new Map([
+const codePageAliases = new Map<string, string>([
     ['932', 'shift_jis'],
     ['936', 'gbk'],
     ['949', 'euc-kr'],
@@ -108,7 +108,7 @@ const codePagePattern = /^(?:cp|windows|ms|ibm)(\d+)$/;
 
 // Strip the decorations mail clients add to an otherwise standard label: an x- vendor
 // prefix, the IANA cs- prefix, and any separators.
-function normalizeCharset(charset) {
+function normalizeCharset(charset: string): string {
     return charset.replace(/^(?:x-ms-|x-|cs)/, '').replace(/[\s._-]+/g, '');
 }
 
@@ -217,27 +217,32 @@ export const ENCODING_LABELS = new Set(
 //
 // Sharing a decoder is safe because nothing decodes with `stream: true`, so every
 // decode() call starts from a fresh state.
-const decoders = new Map();
+const decoders = new Map<string, TextDecoder | null>();
 
-function tryDecoder(charset) {
+function tryDecoder(charset: string): TextDecoder | null {
     if (!ENCODING_LABELS.has(charset)) {
         return null;
     }
 
-    if (!decoders.has(charset)) {
-        let decoder = null;
+    let decoder = decoders.get(charset);
+    if (decoder === undefined) {
+        decoder = null;
         try {
             decoder = new TextDecoder(charset);
-        } catch (err) {
+        } catch {
             // not supported by this runtime
         }
         decoders.set(charset, decoder);
     }
 
-    return decoders.get(charset);
+    return decoder;
 }
 
-export function getDecoder(charset) {
+// Every runtime has utf-8, so a decoder is always returned even where windows-1252 is
+// missing, rather than letting the caller fail on a null decoder
+const utf8Decoder = new TextDecoder();
+
+export function getDecoder(charset?: string | null): TextDecoder {
     charset = (charset || 'utf8').trim().toLowerCase();
 
     // Try the label as written first, so the alias table only ever adds to what the
@@ -254,15 +259,15 @@ export function getDecoder(charset) {
     // differed from a supported label only by a prefix or a separator, eg. x-big5.
     const alias = (codePage && codePageAliases.get(codePage[1])) || charsetAliases.get(normalized) || normalized;
 
-    return tryDecoder(alias) || tryDecoder('windows-1252');
+    return tryDecoder(alias) || tryDecoder('windows-1252') || utf8Decoder;
 }
 
 /**
  * Converts a Blob into an ArrayBuffer
- * @param {Blob} blob Blob to convert
- * @returns {ArrayBuffer} Converted value
+ * @param blob Blob to convert
+ * @returns Converted value
  */
-export async function blobToArrayBuffer(blob) {
+export async function blobToArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
     if ('arrayBuffer' in blob) {
         return await blob.arrayBuffer();
     }
@@ -270,11 +275,11 @@ export async function blobToArrayBuffer(blob) {
     const fr = new FileReader();
 
     return new Promise((resolve, reject) => {
-        fr.onload = function (e) {
-            resolve(e.target.result);
+        fr.onload = () => {
+            resolve(fr.result as ArrayBuffer);
         };
 
-        fr.onerror = function (e) {
+        fr.onerror = () => {
             reject(fr.error);
         };
 
@@ -285,10 +290,10 @@ export async function blobToArrayBuffer(blob) {
 /**
  * Numeric value of an ASCII hex digit
  *
- * @param {Number} c Byte to read
- * @return {Number} Value 0-15, or -1 if the byte is not a hex digit
+ * @param c Byte to read
+ * @return Value 0-15, or -1 if the byte is not a hex digit
  */
-export function hexNibble(c) {
+export function hexNibble(c: number): number {
     if (c >= 0x30 /* 0 */ && c <= 0x39 /* 9 */) {
         return c - 0x30;
     }
@@ -301,17 +306,19 @@ export function hexNibble(c) {
     return -1;
 }
 
-export function getHex(c) {
+export function getHex(c: number): string | false {
     return hexNibble(c) < 0 ? false : String.fromCharCode(c);
 }
 
 /**
  * Decode a complete mime word encoded string
  *
- * @param {String} str Mime word encoded string
- * @return {String} Decoded unicode string
+ * @param charset Character set of the encoded word
+ * @param encoding `Q` or `B`
+ * @param str Mime word encoded string
+ * @return Decoded unicode string
  */
-export function decodeWord(charset, encoding, str) {
+export function decodeWord(charset: string, encoding: string, str: string): string {
     // RFC2231 added language tag to the encoding
     // see: https://tools.ietf.org/html/rfc2231#section-5
     // this implementation silently ignores this tag
@@ -322,7 +329,7 @@ export function decodeWord(charset, encoding, str) {
 
     encoding = encoding.toUpperCase();
 
-    let byteStr;
+    let byteStr: ArrayBuffer | Uint8Array;
 
     if (encoding === 'Q') {
         str = str
@@ -332,7 +339,7 @@ export function decodeWord(charset, encoding, str) {
             .replace(/[_\s]/g, ' ');
 
         let buf = textEncoder.encode(str);
-        let encodedBytes = [];
+        let encodedBytes: number[] = [];
         for (let i = 0, len = buf.length; i < len; i++) {
             let c = buf[i];
             if (i <= len - 2 && c === 0x3d /* = */) {
@@ -376,12 +383,25 @@ const ENCODED_WORDS_ONLY_REGEX = new RegExp(`^(?:${ENCODED_WORD_PATTERN}\\s*)+$`
  * Checks whether a string is nothing but RFC 2047 encoded words. Kept next to the grammar
  * it depends on, so the pattern has a single definition.
  *
- * @param {String} str String to check
- * @return {Boolean} true if the string holds encoded words and nothing else
+ * @param str String to check
+ * @return true if the string holds encoded words and nothing else
  */
-export function isEncodedWordsOnly(str) {
+export function isEncodedWordsOnly(str: string): boolean {
     return ENCODED_WORDS_ONLY_REGEX.test(str);
 }
+
+interface TextToken {
+    text: string;
+}
+
+interface EncodedWordToken {
+    text?: undefined;
+    charset: string;
+    encoding: string;
+    encodedText: string;
+}
+
+type Token = TextToken | EncodedWordToken;
 
 /**
  * Splits a string into encoded words and the literal text around them.
@@ -390,16 +410,16 @@ export function isEncodedWordsOnly(str) {
  * means the input can not contain the marker, which previously let a sender delete text
  * from a subject or a display name by writing the marker into the header themselves.
  *
- * @param {String} str String to split
- * @return {Array} Array of `{text}` and `{charset, encoding, encodedText}` tokens
+ * @param str String to split
+ * @return Array of `{text}` and `{charset, encoding, encodedText}` tokens
  */
-function splitEncodedWords(str) {
-    const tokens = [];
+function splitEncodedWords(str: string): Token[] {
+    const tokens: Token[] = [];
 
     ENCODED_WORD_REGEX.lastIndex = 0;
 
     let pos = 0;
-    let match;
+    let match: RegExpExecArray | null;
 
     while ((match = ENCODED_WORD_REGEX.exec(str))) {
         if (match.index > pos) {
@@ -422,7 +442,7 @@ function splitEncodedWords(str) {
  * they are decoded. Base64 additionally needs the left chunk to end on a group boundary,
  * otherwise the concatenation shifts every byte that follows.
  */
-function canJoinWords(left, right) {
+function canJoinWords(left: EncodedWordToken, right: EncodedWordToken): boolean {
     const encoding = left.encoding.toUpperCase();
 
     if (left.charset !== right.charset || encoding !== right.encoding.toUpperCase()) {
@@ -439,13 +459,13 @@ function canJoinWords(left, right) {
 /**
  * Decodes a token list into a string, optionally merging adjacent encoded words.
  *
- * @param {Array} tokens Tokens from splitEncodedWords
- * @param {Boolean} joinWords Whether adjacent encoded words may be decoded as one unit
- * @return {String} Decoded string
+ * @param tokens Tokens from splitEncodedWords
+ * @param joinWords Whether adjacent encoded words may be decoded as one unit
+ * @return Decoded string
  */
-function renderTokens(tokens, joinWords) {
+function renderTokens(tokens: Token[], joinWords: boolean): string {
     let result = '';
-    let pending = null;
+    let pending: EncodedWordToken | null = null;
 
     for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
@@ -482,7 +502,13 @@ function renderTokens(tokens, joinWords) {
     return result;
 }
 
-export function decodeWords(str) {
+/**
+ * Decodes RFC 2047 encoded words in a string
+ *
+ * @param str String that may contain encoded words
+ * @return Unicode string with every encoded word decoded
+ */
+export function decodeWords(str: string): string {
     const tokens = splitEncodedWords((str || '').toString());
 
     const result = renderTokens(tokens, true);
@@ -492,10 +518,10 @@ export function decodeWords(str) {
     return result.indexOf('\ufffd') < 0 ? result : renderTokens(tokens, false);
 }
 
-export function decodeURIComponentWithCharset(encodedStr, charset) {
+export function decodeURIComponentWithCharset(encodedStr: string, charset?: string | null): string {
     charset = charset || 'utf-8';
 
-    let encodedBytes = [];
+    let encodedBytes: number[] = [];
     for (let i = 0; i < encodedStr.length; i++) {
         let c = encodedStr.charAt(i);
         if (c === '%' && /^[a-f0-9]{2}/i.test(encodedStr.substr(i + 1, 2))) {
@@ -504,9 +530,9 @@ export function decodeURIComponentWithCharset(encodedStr, charset) {
             i += 2;
             encodedBytes.push(parseInt(byte, 16));
         } else if (c.charCodeAt(0) > 126) {
-            c = textEncoder.encode(c);
-            for (let j = 0; j < c.length; j++) {
-                encodedBytes.push(c[j]);
+            const bytes = textEncoder.encode(c);
+            for (let j = 0; j < bytes.length; j++) {
+                encodedBytes.push(bytes[j]);
             }
         } else {
             // "normal" char
@@ -523,12 +549,32 @@ export function decodeURIComponentWithCharset(encodedStr, charset) {
     return getDecoder(charset).decode(byteStr);
 }
 
-export function decodeParameterValueContinuations(header) {
+interface ContinuationSection {
+    nr: number;
+    value: string;
+    encoded: boolean;
+}
+
+interface ContinuationParam {
+    charset: string | null;
+    values: ContinuationSection[];
+}
+
+/**
+ * A structured header value such as `text/plain; charset=utf-8`, split into the
+ * lowercased value and its parameters
+ */
+export interface StructuredHeader {
+    value: string;
+    params: Record<string, string>;
+}
+
+export function decodeParameterValueContinuations(header: StructuredHeader): void {
     // handle parameter value continuations
     // https://tools.ietf.org/html/rfc2231#section-3
 
     // preprocess values
-    let paramKeys = new Map();
+    let paramKeys = new Map<string, ContinuationParam>();
 
     Object.keys(header.params).forEach(key => {
         let match = key.match(/\*((\d+)\*?)?$/);
@@ -540,15 +586,13 @@ export function decodeParameterValueContinuations(header) {
         let actualKey = key.substr(0, match.index).toLowerCase();
         let nr = Number(match[2]) || 0;
 
-        let paramVal;
-        if (!paramKeys.has(actualKey)) {
+        let paramVal = paramKeys.get(actualKey);
+        if (!paramVal) {
             paramVal = {
-                charset: false,
+                charset: null,
                 values: []
             };
             paramKeys.set(actualKey, paramVal);
-        } else {
-            paramVal = paramKeys.get(actualKey);
         }
 
         let value = header.params[key];

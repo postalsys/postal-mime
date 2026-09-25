@@ -13,7 +13,7 @@ SGVsbG8gV29ybGQ=`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Hello World');
+    assert.strictEqual(email.text!.trim(), 'Hello World');
 });
 
 test('Base64 decoder - longer text', async () => {
@@ -27,7 +27,7 @@ aGVuIGVuY29kZWQgaW4gYmFzZTY0IGZvcm1hdC4=`);
     const email = await parser.parse(mail);
 
     assert.strictEqual(
-        email.text.trim(),
+        email.text!.trim(),
         'This is a longer test message that spans multiple lines when encoded in base64 format.'
     );
 });
@@ -41,7 +41,7 @@ Q2Fmw6kgbmHDr3ZlIHLDqXN1bcOp`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Café naïve résumé');
+    assert.strictEqual(email.text!.trim(), 'Café naïve résumé');
 });
 
 test('Base64 decoder - emoji', async () => {
@@ -53,7 +53,7 @@ SGVsbG8g8J+YgCBXb3JsZCDwn46J`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Hello 😀 World 🎉');
+    assert.strictEqual(email.text!.trim(), 'Hello 😀 World 🎉');
 });
 
 test('Base64 decoder - newlines in content', async () => {
@@ -65,7 +65,7 @@ TGluZSBvbmUKTGluZSB0d28KTGluZSB0aHJlZQ==`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Line one\nLine two\nLine three');
+    assert.strictEqual(email.text!.trim(), 'Line one\nLine two\nLine three');
 });
 
 test('Base64 decoder - with line breaks in base64', async () => {
@@ -80,7 +80,7 @@ IGZvciBlbWFpbCB0cmFuc3BvcnQu`);
     const email = await parser.parse(mail);
 
     assert.strictEqual(
-        email.text.trim(),
+        email.text!.trim(),
         'This is a long message that is broken up into multiple lines for email transport.'
     );
 });
@@ -94,7 +94,7 @@ IUAjJCVeJiooKV8rLT1bXXt9fDs6JywiLjw+Py8=`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), `!@#$%^&*()_+-=[]{}|;:',".<>?/`);
+    assert.strictEqual(email.text!.trim(), `!@#$%^&*()_+-=[]{}|;:',".<>?/`);
 });
 
 test('Base64 decoder - binary data (attachment)', async () => {
@@ -119,7 +119,7 @@ AQIDBA==
     assert.strictEqual(email.attachments.length, 1);
     assert.strictEqual(email.attachments[0].filename, 'test.bin');
 
-    const bytes = new Uint8Array(email.attachments[0].content);
+    const bytes = new Uint8Array(email.attachments[0].content as ArrayBuffer);
     assert.strictEqual(bytes.length, 4);
     assert.strictEqual(bytes[0], 1);
     assert.strictEqual(bytes[1], 2);
@@ -136,7 +136,7 @@ SGVsbG8h`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Hello!');
+    assert.strictEqual(email.text!.trim(), 'Hello!');
 });
 
 test('Base64 decoder - double padding characters', async () => {
@@ -148,7 +148,7 @@ SGk=`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Hi');
+    assert.strictEqual(email.text!.trim(), 'Hi');
 });
 
 test('Base64 decoder - no padding', async () => {
@@ -160,7 +160,7 @@ SGVsbG8`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Hello');
+    assert.strictEqual(email.text!.trim(), 'Hello');
 });
 
 test('Base64 decoder - empty content', async () => {
@@ -184,7 +184,7 @@ QQ==`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'A');
+    assert.strictEqual(email.text!.trim(), 'A');
 });
 
 test('Base64 decoder - all printable ASCII', async () => {
@@ -197,7 +197,7 @@ NTY3ODk=`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789');
+    assert.strictEqual(email.text!.trim(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789');
 });
 
 test('Base64 decoder - numbers', async () => {
@@ -209,7 +209,7 @@ MTIzNDU2Nzg5MA==`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), '1234567890');
+    assert.strictEqual(email.text!.trim(), '1234567890');
 });
 
 test('Base64 decoder - whitespace in base64 (should be stripped)', async () => {
@@ -221,7 +221,7 @@ SGVs  bG8g  V29y  bGQ=`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Hello World');
+    assert.strictEqual(email.text!.trim(), 'Hello World');
 });
 
 test('Base64 decoder - tabs in base64 (should be stripped)', async () => {
@@ -233,7 +233,7 @@ SGVs\tbG8g\tV29y\tbGQ=`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Hello World');
+    assert.strictEqual(email.text!.trim(), 'Hello World');
 });
 
 test('Base64 decoder - CRLF in base64 (should be stripped)', async () => {
@@ -245,7 +245,7 @@ SGVs\r\nbG8g\r\nV29y\r\nbGQ=`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Hello World');
+    assert.strictEqual(email.text!.trim(), 'Hello World');
 });
 
 test('Base64 decoder - Chinese characters', async () => {
@@ -257,7 +257,7 @@ Content-Transfer-Encoding: base64
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), '你好世界');
+    assert.strictEqual(email.text!.trim(), '你好世界');
 });
 
 test('Base64 decoder - Japanese characters', async () => {
@@ -269,7 +269,7 @@ Content-Transfer-Encoding: base64
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'こんにちは');
+    assert.strictEqual(email.text!.trim(), 'こんにちは');
 });
 
 test('Base64 decoder - Arabic characters', async () => {
@@ -281,7 +281,7 @@ Content-Transfer-Encoding: base64
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'مرحبا');
+    assert.strictEqual(email.text!.trim(), 'مرحبا');
 });
 
 test('Base64 decoder - Cyrillic characters', async () => {
@@ -293,7 +293,7 @@ Content-Transfer-Encoding: base64
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Привет');
+    assert.strictEqual(email.text!.trim(), 'Привет');
 });
 
 test('Base64 decoder - mixed scripts', async () => {
@@ -305,7 +305,7 @@ SGVsbG8g5L2g5aW9IFdvcmxkINCc0LjRgA==`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Hello 你好 World Мир');
+    assert.strictEqual(email.text!.trim(), 'Hello 你好 World Мир');
 });
 
 test('Base64 decoder - very long line', async () => {
@@ -320,7 +320,7 @@ ${base64}`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), text);
+    assert.strictEqual(email.text!.trim(), text);
 });
 
 test('Base64 decoder - line length exactly 76 chars', async () => {
@@ -333,7 +333,7 @@ YXNlNjQgZm9ybWF0IGFzIHBlciBSRkMgMjA0NS4=`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('exactly 76 characters'));
+    assert.ok(email.text!.includes('exactly 76 characters'));
 });
 
 test('Base64 decoder - zero bytes', async () => {
@@ -347,7 +347,7 @@ AAAAAAAAAA==`);
     const email = await parser.parse(mail);
 
     assert.strictEqual(email.attachments.length, 1);
-    const bytes = new Uint8Array(email.attachments[0].content);
+    const bytes = new Uint8Array(email.attachments[0].content as ArrayBuffer);
     assert.ok(bytes.every(b => b === 0));
 });
 
@@ -362,7 +362,7 @@ Content-Disposition: attachment; filename="high.bin"
     const email = await parser.parse(mail);
 
     assert.strictEqual(email.attachments.length, 1);
-    const bytes = new Uint8Array(email.attachments[0].content);
+    const bytes = new Uint8Array(email.attachments[0].content as ArrayBuffer);
     assert.ok(bytes.some(b => b > 250));
 });
 
@@ -397,8 +397,8 @@ QmFzZTY0IHBhcnQ=
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Plain text part'));
-    assert.ok(email.text.includes('Base64 part'));
+    assert.ok(email.text!.includes('Plain text part'));
+    assert.ok(email.text!.includes('Base64 part'));
 });
 
 test('Base64 decoder - HTML content', async () => {
@@ -410,8 +410,8 @@ PGh0bWw+PGJvZHk+PGgxPkhlbGxvPC9oMT48cD5Xb3JsZDwvcD48L2JvZHk+PC9odG1sPg==`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.html.includes('<h1>Hello</h1>'));
-    assert.ok(email.html.includes('<p>World</p>'));
+    assert.ok(email.html!.includes('<h1>Hello</h1>'));
+    assert.ok(email.html!.includes('<p>World</p>'));
 });
 
 test('Base64 decoder - image attachment', async () => {
@@ -447,7 +447,7 @@ SGVsbG8gV29ybGQ=`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Hello World');
+    assert.strictEqual(email.text!.trim(), 'Hello World');
 });
 
 test('Base64 decoder - multiple attachments', async () => {
@@ -489,8 +489,8 @@ SGVsbG8JV29ybGQgIFRlc3Q=`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('\t'));
-    assert.ok(email.text.includes('  '));
+    assert.ok(email.text!.includes('\t'));
+    assert.ok(email.text!.includes('  '));
 });
 
 test('Base64 decoder - with BOM (byte order mark)', async () => {
@@ -502,7 +502,7 @@ Content-Transfer-Encoding: base64
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Hello World'));
+    assert.ok(email.text!.includes('Hello World'));
 });
 
 test('Base64 decoder - content with equals signs in original text', async () => {
@@ -514,7 +514,7 @@ eDN5IGFuZCBhPWI=`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'x3y and a=b');
+    assert.strictEqual(email.text!.trim(), 'x3y and a=b');
 });
 
 test('Base64 decoder - only padding', async () => {
@@ -540,7 +540,7 @@ Content-Disposition: attachment; filename="max.bin"
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    const bytes = new Uint8Array(email.attachments[0].content);
+    const bytes = new Uint8Array(email.attachments[0].content as ArrayBuffer);
     assert.strictEqual(bytes[0], 255);
 });
 
@@ -558,7 +558,7 @@ ${base64}`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    const bytes = new Uint8Array(email.attachments[0].content);
+    const bytes = new Uint8Array(email.attachments[0].content as ArrayBuffer);
     assert.strictEqual(bytes.length, 256);
 
     // Verify all byte values are present
@@ -576,7 +576,7 @@ QUFBQUFBQUFBQQ==`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'AAAAAAAAAA');
+    assert.strictEqual(email.text!.trim(), 'AAAAAAAAAA');
 });
 
 test('Base64 decoder - alternating byte pattern', async () => {
@@ -589,7 +589,7 @@ VVVVVVU=`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    const bytes = new Uint8Array(email.attachments[0].content);
+    const bytes = new Uint8Array(email.attachments[0].content as ArrayBuffer);
     assert.ok(bytes.every(b => b === 0x55));
 });
 
@@ -606,7 +606,7 @@ test('Base64 decoder - large input triggers chunk flush', async () => {
     );
     const parser = new PostalMime();
     const email = await parser.parse(mail);
-    const bytes = new Uint8Array(email.attachments[0].content);
+    const bytes = new Uint8Array(email.attachments[0].content as ArrayBuffer);
     assert.strictEqual(bytes.length, 80 * 1024);
     assert.ok(bytes.every(b => b === 0x41));
 });

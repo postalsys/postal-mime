@@ -1,5 +1,49 @@
 import { decodeWords, isEncodedWordsOnly } from './decode-strings.js';
 
+/**
+ * A single email address with an optional display name
+ */
+export interface Mailbox {
+    /** Decoded display name, or an empty string if not set */
+    name: string;
+    /** Email address */
+    address: string;
+    group?: undefined;
+}
+
+/**
+ * An RFC 5322 address group, eg. `Team: a@example.com, b@example.com;`
+ */
+export interface AddressGroup {
+    /** Decoded group name */
+    name: string;
+    address?: undefined;
+    /** Members of the group */
+    group: Mailbox[];
+}
+
+export type Address = Mailbox | AddressGroup;
+
+export interface AddressParserOptions {
+    /** If true, address groups are unwrapped and a flat list of mailboxes is returned */
+    flatten?: boolean | undefined;
+}
+
+interface Token {
+    type: 'operator' | 'text';
+    value: string;
+    /** the next character is not a separator, so the following token joins this one */
+    noBreak?: boolean | undefined;
+}
+
+type AddressState = 'text' | 'address' | 'comment' | 'group';
+
+interface AddressMatch {
+    index: number;
+    length: number;
+    value: string;
+}
+
 const WORD_CHAR_REGEX = /\w/;
 const NON_SPACE_TOKEN_REGEX = /[^\s]+/g;
 
@@ -15,13 +59,13 @@ const NON_SPACE_TOKEN_REGEX = /[^\s]+/g;
  * semantics of the regex: the local part has to open on a word character and the domain
  * has to end on one.
  *
- * @param {String} text Text to search
- * @return {Object|null} `{index, length, value}` of the address, or null if there is none
+ * @param text Text to search
+ * @return `{index, length, value}` of the address, or null if there is none
  */
-function findAddressInText(text) {
+function findAddressInText(text: string): AddressMatch | null {
     NON_SPACE_TOKEN_REGEX.lastIndex = 0;
 
-    let match;
+    let match: RegExpExecArray | null;
     while ((match = NON_SPACE_TOKEN_REGEX.exec(text))) {
         const token = match[0];
         const at = token.indexOf('@');
@@ -57,10 +101,10 @@ function findAddressInText(text) {
  * Same answer as `/<[^<>]+@[^<>]+>/.test(text)`, which backtracks quadratically on a `<`
  * followed by a long run of '@' and no closing `>`.
  *
- * @param {String} text Text to check
- * @return {Boolean} true if an angle bracket address is present
+ * @param text Text to check
+ * @return true if an angle bracket address is present
  */
-function hasAngleAddress(text) {
+function hasAngleAddress(text: string): boolean {
     // position right after the `<` that opened the current bracket, or -1
     let start = -1;
     // first '@' inside the bracket that has a character before it, or -1
@@ -88,24 +132,23 @@ function hasAngleAddress(text) {
 /**
  * Converts tokens for a single address into an address object
  *
- * @param {Array} tokens Tokens object
- * @param {Number} depth Current recursion depth for nested group protection
- * @return {Object} Address object
+ * @param tokens Tokens object
+ * @param depth Current recursion depth for nested group protection
+ * @return Address objects
  */
-function _handleAddress(tokens, depth) {
+function _handleAddress(tokens: Token[], depth: number): Address[] {
     let isGroup = false;
-    let state = 'text';
-    let address;
-    let addresses = [];
-    let data = {
+    let state: AddressState = 'text';
+    let addresses: Address[] = [];
+    let data: Record<AddressState, string[]> & { textWasQuoted: boolean[] } = {
         address: [],
         comment: [],
         group: [],
         text: [],
         textWasQuoted: [] // Track which text tokens came from inside quotes
     };
-    let i;
-    let len;
+    let i: number;
+    let len: number;
     let insideQuotes = false; // Track if we're currently inside a quoted string
 
     // Filter out <addresses>, (comments) and regular text
@@ -168,12 +211,12 @@ function _handleAddress(tokens, depth) {
 
     if (isGroup) {
         // http://tools.ietf.org/html/rfc2822#appendix-A.1.3
-        data.text = data.text.join(' ');
+        const text = data.text.join(' ');
 
         // Parse group members, but flatten any nested groups (RFC 5322 doesn't allow nesting)
-        let groupMembers = [];
+        let groupMembers: Mailbox[] = [];
         if (data.group.length) {
-            let parsedGroup = addressParser(data.group.join(','), { _depth: depth + 1 });
+            let parsedGroup = parseAddressList(data.group.join(','), depth + 1);
             // Flatten: if any member is itself a group, extract its members into the sequence
             parsedGroup.forEach(member => {
                 if (member.group) {
@@ -188,7 +231,7 @@ function _handleAddress(tokens, depth) {
         }
 
         addresses.push({
-            name: decodeWords(data.text || (address && address.name)),
+            name: decodeWords(text),
             group: groupMembers
         });
     } else {
@@ -242,15 +285,15 @@ function _handleAddress(tokens, depth) {
         }
 
         // Join values with spaces
-        data.text = data.text.join(' ');
-        data.address = data.address.join(' ');
+        const text = data.text.join(' ');
+        const addressValue = data.address.join(' ');
 
         // `^=\?[^=]+?=$` could not match a base64 word whose padding puts an '=' inside it,
         // so whether a bare encoded word was decoded or left to become the address itself
         // came down to whether its payload happened to need padding.
-        if (!data.address && isEncodedWordsOnly(data.text.trim())) {
+        if (!addressValue && isEncodedWordsOnly(text.trim())) {
             // try to extract words from text content
-            const decodedText = decodeWords(data.text);
+            const decodedText = decodeWords(text);
             // Security: only re-parse if decoded text contains angle-bracket addresses.
             // Without this, a bare encoded email (e.g. =?utf-8?B?dGVzdEBldmlsLmNv?=)
             // would be fabricated into an address from attacker-controlled input.
@@ -264,13 +307,13 @@ function _handleAddress(tokens, depth) {
             return [{ address: '', name: decodedText }];
         }
 
-        address = {
-            address: data.address || data.text || '',
-            name: decodeWords(data.text || data.address || '')
+        const address: Mailbox = {
+            address: addressValue || text || '',
+            name: decodeWords(text || addressValue || '')
         };
 
         if (address.address === address.name) {
-            if ((address.address || '').match(/@/)) {
+            if (address.address.match(/@/)) {
                 address.name = '';
             } else {
                 address.address = '';
@@ -284,13 +327,24 @@ function _handleAddress(tokens, depth) {
 }
 
 /**
- * Creates a Tokenizer object for tokenizing address field strings
- *
- * @constructor
- * @param {String} str Address field string
+ * Tokenizer for address field strings
  */
 class Tokenizer {
-    constructor(str) {
+    str: string;
+    operatorCurrent: string;
+    operatorExpecting: string;
+    node: Token | null;
+    escaped: boolean;
+    list: Token[];
+    /**
+     * Operator tokens and which tokens are expected to end the sequence
+     */
+    operators: Record<string, string>;
+
+    /**
+     * @param str Address field string
+     */
+    constructor(str: string) {
         this.str = (str || '').toString();
         this.operatorCurrent = '';
         this.operatorExpecting = '';
@@ -298,9 +352,7 @@ class Tokenizer {
         this.escaped = false;
 
         this.list = [];
-        /**
-         * Operator tokens and which tokens are expected to end the sequence
-         */
+
         this.operators = {
             '"': '"',
             '(': ')',
@@ -320,10 +372,10 @@ class Tokenizer {
     /**
      * Tokenizes the original input string
      *
-     * @return {Array} An array of operator|text tokens
+     * @return An array of operator|text tokens
      */
-    tokenize() {
-        let list = [];
+    tokenize(): Token[] {
+        let list: Token[] = [];
 
         for (let i = 0, len = this.str.length; i < len; i++) {
             let chr = this.str.charAt(i);
@@ -344,9 +396,10 @@ class Tokenizer {
     /**
      * Checks if a character is an operator or text and acts accordingly
      *
-     * @param {String} chr Character from the address field
+     * @param chr Character from the address field
+     * @param nextChr The character that follows, or null at the end of the field
      */
-    checkChar(chr, nextChr) {
+    checkChar(chr: string, nextChr: string | null): void {
         if (this.escaped) {
             // ignore next condition blocks
         } else if (chr === this.operatorExpecting) {
@@ -411,25 +464,15 @@ class Tokenizer {
 const MAX_NESTED_GROUP_DEPTH = 50;
 
 /**
- * Parses structured e-mail addresses from an address field
+ * Parses an address list, recursing into groups. The depth is threaded through the
+ * calls rather than taken from an option, so a caller supplied options object can not
+ * seed it and lift the recursion limit.
  *
- * Example:
- *
- *    'Name <address@domain>'
- *
- * will be converted to
- *
- *     [{name: 'Name', address: 'address@domain'}]
- *
- * @param {String} str Address field
- * @param {Object} options Optional options object
- * @param {Number} options._depth Internal recursion depth counter (do not set manually)
- * @return {Array} An array of address objects
+ * @param str Address field
+ * @param depth Current recursion depth for nested group protection
+ * @return An array of address objects
  */
-function addressParser(str, options) {
-    options = options || {};
-    let depth = options._depth || 0;
-
+function parseAddressList(str: string, depth: number): Address[] {
     // Prevent stack overflow from deeply nested groups (DoS protection)
     if (depth > MAX_NESTED_GROUP_DEPTH) {
         return [];
@@ -438,9 +481,9 @@ function addressParser(str, options) {
     let tokenizer = new Tokenizer(str);
     let tokens = tokenizer.tokenize();
 
-    let addresses = [];
-    let address = [];
-    const parsedAddresses = [];
+    let addresses: Token[][] = [];
+    let address: Token[] = [];
+    const parsedAddresses: Address[] = [];
 
     tokens.forEach(token => {
         if (token.type === 'operator' && (token.value === ',' || token.value === ';')) {
@@ -465,9 +508,30 @@ function addressParser(str, options) {
         }
     }
 
-    if (options.flatten) {
-        let addresses = [];
-        let walkAddressList = list => {
+    return parsedAddresses;
+}
+
+/**
+ * Parses structured e-mail addresses from an address field
+ *
+ * Example:
+ *
+ *    'Name <address@domain>'
+ *
+ * will be converted to
+ *
+ *     [{name: 'Name', address: 'address@domain'}]
+ *
+ * @param str Address field
+ * @param options Optional options object
+ * @return An array of address objects
+ */
+function addressParser(str: string, options?: AddressParserOptions): Address[] {
+    const parsedAddresses = parseAddressList(str, 0);
+
+    if (options && options.flatten) {
+        let addresses: Mailbox[] = [];
+        let walkAddressList = (list: Address[]): void => {
             list.forEach(address => {
                 if (address.group) {
                     return walkAddressList(address.group);

@@ -15,7 +15,7 @@ test('Text content - HTML only message returns HTML', async () => {
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.html.includes('<p>Hello World</p>'));
+    assert.ok(email.html!.includes('<p>Hello World</p>'));
     // postal-mime does not auto-generate text from HTML
     assert.strictEqual(email.text, undefined);
 });
@@ -29,7 +29,7 @@ Second line`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Hello World'));
+    assert.ok(email.text!.includes('Hello World'));
     // postal-mime does not auto-generate HTML from text
     assert.strictEqual(email.html, undefined);
 });
@@ -50,8 +50,8 @@ Content-Type: text/html
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Plain text version'));
-    assert.ok(email.html.includes('<p>HTML version</p>'));
+    assert.ok(email.text!.includes('Plain text version'));
+    assert.ok(email.html!.includes('<p>HTML version</p>'));
 });
 
 test('Text content - multipart/alternative HTML only returns HTML', async () => {
@@ -66,7 +66,7 @@ Content-Type: text/html
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.html.includes('<p>HTML only alternative</p>'));
+    assert.ok(email.html!.includes('<p>HTML only alternative</p>'));
 });
 
 test('Text content - multipart/mixed with text and HTML', async () => {
@@ -85,8 +85,8 @@ Content-Type: text/html
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Plain text'));
-    assert.ok(email.html.includes('<p>HTML part</p>'));
+    assert.ok(email.text!.includes('Plain text'));
+    assert.ok(email.html!.includes('<p>HTML part</p>'));
 });
 
 test('Text content - HTML with entities preserved', async () => {
@@ -98,7 +98,7 @@ test('Text content - HTML with entities preserved', async () => {
     const email = await parser.parse(mail);
 
     // HTML entities are preserved in the HTML
-    assert.ok(email.html.includes('&copy;') || email.html.includes('Copyright'));
+    assert.ok(email.html!.includes('&copy;') || email.html!.includes('Copyright'));
 });
 
 test('Text content - complex alternative structure', async () => {
@@ -117,8 +117,8 @@ Content-Type: text/html; charset=utf-8
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Simple text');
-    assert.ok(email.html.includes('Rich HTML'));
+    assert.strictEqual(email.text!.trim(), 'Simple text');
+    assert.ok(email.html!.includes('Rich HTML'));
 });
 
 // ============================================================================
@@ -128,7 +128,7 @@ Content-Type: text/html; charset=utf-8
 test('PostalMime.parse - static method with string input', async () => {
     const email = await PostalMime.parse('Subject: Test\n\nBody content');
     assert.strictEqual(email.subject, 'Test');
-    assert.ok(email.text.includes('Body content'));
+    assert.ok(email.text!.includes('Body content'));
 });
 
 test('PostalMime.parse - static method with Buffer input', async () => {
@@ -196,7 +196,7 @@ Text file content`);
 
     assert.strictEqual(typeof email.attachments[0].content, 'string');
     assert.strictEqual(email.attachments[0].encoding, 'utf8');
-    assert.ok(email.attachments[0].content.includes('Text file content'));
+    assert.ok((email.attachments[0].content as string).includes('Text file content'));
 });
 
 test('Attachment encoding - multiple attachments with same encoding', async () => {
@@ -237,7 +237,7 @@ test('Blob input - simple email blob', async () => {
     const email = await parser.parse(blob);
 
     assert.strictEqual(email.subject, 'Test');
-    assert.ok(email.text.includes('Body content'));
+    assert.ok(email.text!.includes('Body content'));
 });
 
 test('Blob input - multipart email blob', async () => {
@@ -259,7 +259,7 @@ PDF data
     const parser = new PostalMime();
     const email = await parser.parse(blob);
 
-    assert.ok(email.text.includes('Hello World'));
+    assert.ok(email.text!.includes('Hello World'));
     assert.strictEqual(email.attachments.length, 1);
 });
 
@@ -296,7 +296,7 @@ PNG binary data here
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.html.includes('cid:img123@example.com'));
+    assert.ok(email.html!.includes('cid:img123@example.com'));
     assert.strictEqual(email.attachments.length, 1);
     assert.strictEqual(email.attachments[0].contentId, '<img123@example.com>');
     assert.strictEqual(email.attachments[0].related, true);
@@ -356,8 +356,8 @@ Logo PNG
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Plain text'));
-    assert.ok(email.html.includes('cid:logo@x'));
+    assert.ok(email.text!.includes('Plain text'));
+    assert.ok(email.html!.includes('cid:logo@x'));
     assert.strictEqual(email.attachments.length, 1);
     assert.strictEqual(email.attachments[0].related, true);
 });
@@ -460,7 +460,7 @@ END:VCALENDAR
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('meeting invitation'));
+    assert.ok(email.text!.includes('meeting invitation'));
     assert.strictEqual(email.attachments.length, 1);
     assert.strictEqual(email.attachments[0].mimeType, 'text/calendar');
 });
@@ -477,8 +477,8 @@ Body`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.from.name, 'John Doe');
-    assert.strictEqual(email.from.address, 'john@example.com');
+    assert.strictEqual(email.from!.name, 'John Doe');
+    assert.strictEqual(email.from!.address, 'john@example.com');
 });
 
 test('Header parsing - comments in Content-Type', async () => {
@@ -501,7 +501,7 @@ Body`);
     const email = await parser.parse(mail);
 
     // Should handle nested comments gracefully
-    assert.ok(email.from.address);
+    assert.ok(email.from!.address);
 });
 
 test('Header parsing - escaped characters in comments', async () => {
@@ -512,7 +512,7 @@ Body`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.from.address, 'john@example.com');
+    assert.strictEqual(email.from!.address, 'john@example.com');
 });
 
 test('Header parsing - comment only in header', async () => {
@@ -567,8 +567,8 @@ PDF data`);
     const email = await parser.parse(mail);
 
     assert.strictEqual(email.attachments.length, 1);
-    assert.ok(email.attachments[0].filename.includes('this_is_a_very_long'));
-    assert.ok(email.attachments[0].filename.includes('.pdf'));
+    assert.ok(email.attachments[0].filename!.includes('this_is_a_very_long'));
+    assert.ok(email.attachments[0].filename!.includes('.pdf'));
 });
 
 test('Edge case - mixed multipart with digest', async () => {
@@ -641,8 +641,8 @@ Thread message`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.references.includes('<first@example.com>'));
-    assert.ok(email.references.includes('<second@example.com>'));
+    assert.ok(email.references!.includes('<first@example.com>'));
+    assert.ok(email.references!.includes('<second@example.com>'));
 });
 
 test('Edge case - Reply-To header', async () => {
@@ -667,8 +667,8 @@ Body`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.from.address, 'author@example.com');
-    assert.strictEqual(email.sender.address, 'secretary@example.com');
+    assert.strictEqual(email.from!.address, 'author@example.com');
+    assert.strictEqual(email.sender!.address, 'secretary@example.com');
 });
 
 test('Edge case - headerLines output format', async () => {
@@ -701,8 +701,8 @@ Signature line`);
     const email = await parser.parse(mail);
 
     // Signature separator should be preserved
-    assert.ok(email.text.includes('--'));
-    assert.ok(email.text.includes('Signature'));
+    assert.ok(email.text!.includes('--'));
+    assert.ok(email.text!.includes('Signature'));
 });
 
 test('Edge case - flowed text with delsp=yes', async () => {

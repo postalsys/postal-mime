@@ -13,7 +13,7 @@ Hello World`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Hello World');
+    assert.strictEqual(email.text!.trim(), 'Hello World');
 });
 
 test('QP decoder - encoded characters', async () => {
@@ -25,7 +25,7 @@ Content-Transfer-Encoding: quoted-printable
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Hello World');
+    assert.strictEqual(email.text!.trim(), 'Hello World');
 });
 
 test('QP decoder - mixed encoded and plain text', async () => {
@@ -37,7 +37,7 @@ Hello =57orld with =73ome encoded`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Hello World with some encoded');
+    assert.strictEqual(email.text!.trim(), 'Hello World with some encoded');
 });
 
 test('QP decoder - UTF-8 multi-byte characters', async () => {
@@ -49,7 +49,7 @@ Caf=C3=A9 na=C3=AFve r=C3=A9sum=C3=A9`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Café naïve résumé');
+    assert.strictEqual(email.text!.trim(), 'Café naïve résumé');
 });
 
 test('QP decoder - soft line breaks', async () => {
@@ -64,7 +64,7 @@ for readability.`);
     const email = await parser.parse(mail);
 
     assert.strictEqual(
-        email.text.trim(),
+        email.text!.trim(),
         'This is a very long line that has been broken up using soft line breaks for readability.'
     );
 });
@@ -78,7 +78,7 @@ Line one=\r\nLine two`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Line oneLine two');
+    assert.strictEqual(email.text!.trim(), 'Line oneLine two');
 });
 
 test('QP decoder - hard line breaks', async () => {
@@ -92,7 +92,7 @@ Line three`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Line one\nLine two\nLine three');
+    assert.strictEqual(email.text!.trim(), 'Line one\nLine two\nLine three');
 });
 
 test('QP decoder - tabs and spaces', async () => {
@@ -104,7 +104,7 @@ Hello\tWorld  with  spaces`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Hello\tWorld  with  spaces');
+    assert.strictEqual(email.text!.trim(), 'Hello\tWorld  with  spaces');
 });
 
 test('QP decoder - encoded tabs and spaces', async () => {
@@ -116,7 +116,7 @@ Hello=09World=20test`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Hello\tWorld test');
+    assert.strictEqual(email.text!.trim(), 'Hello\tWorld test');
 });
 
 test('QP decoder - trailing whitespace with soft break', async () => {
@@ -129,7 +129,7 @@ World`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Hello   World');
+    assert.strictEqual(email.text!.trim(), 'Hello   World');
 });
 
 test('QP decoder - empty lines', async () => {
@@ -143,7 +143,7 @@ Line three`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Line one\n\nLine three');
+    assert.strictEqual(email.text!.trim(), 'Line one\n\nLine three');
 });
 
 test('QP decoder - only encoded content', async () => {
@@ -155,7 +155,7 @@ Content-Transfer-Encoding: quoted-printable
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), '©®™');
+    assert.strictEqual(email.text!.trim(), '©®™');
 });
 
 test('QP decoder - emoji encoded', async () => {
@@ -167,7 +167,7 @@ Hello =F0=9F=98=80 World =F0=9F=8E=89`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Hello 😀 World 🎉');
+    assert.strictEqual(email.text!.trim(), 'Hello 😀 World 🎉');
 });
 
 test('QP decoder - special characters preserved', async () => {
@@ -179,7 +179,7 @@ Content-Transfer-Encoding: quoted-printable
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), "!@#$%^&*()_+-=[]{}|;:',.<>?/");
+    assert.strictEqual(email.text!.trim(), "!@#$%^&*()_+-=[]{}|;:',.<>?/");
 });
 
 test('QP decoder - consecutive encoded characters', async () => {
@@ -191,7 +191,7 @@ Content-Transfer-Encoding: quoted-printable
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'éèêë');
+    assert.strictEqual(email.text!.trim(), 'éèêë');
 });
 
 test('QP decoder - long line with multiple encoded chars', async () => {
@@ -203,7 +203,7 @@ This line has m=C3=A1ny =C3=A9nc=C3=B3d=C3=A9d characters thr=C3=B3ugh=C3=B3ut`)
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'This line has mány éncódéd characters thróughóut');
+    assert.strictEqual(email.text!.trim(), 'This line has mány éncódéd characters thróughóut');
 });
 
 test('QP decoder - literal equals sign', async () => {
@@ -215,7 +215,7 @@ x=y and a=b`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'x=y and a=b');
+    assert.strictEqual(email.text!.trim(), 'x=y and a=b');
 });
 
 test('QP decoder - equals at end of line (soft break)', async () => {
@@ -228,7 +228,7 @@ continuation`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Linecontinuation');
+    assert.strictEqual(email.text!.trim(), 'Linecontinuation');
 });
 
 test('QP decoder - encoded newline characters', async () => {
@@ -240,7 +240,7 @@ Line one=0ALine two`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Line one\nLine two');
+    assert.strictEqual(email.text!.trim(), 'Line one\nLine two');
 });
 
 test('QP decoder - encoded carriage return and newline', async () => {
@@ -252,7 +252,7 @@ Line one=0D=0ALine two`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Line one\r\nLine two');
+    assert.strictEqual(email.text!.trim(), 'Line one\r\nLine two');
 });
 
 test('QP decoder - mixed case hex digits', async () => {
@@ -264,7 +264,7 @@ Content-Transfer-Encoding: quoted-printable
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'é é é é');
+    assert.strictEqual(email.text!.trim(), 'é é é é');
 });
 
 test('QP decoder - zero byte encoded', async () => {
@@ -276,8 +276,8 @@ Before=00After`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Before'));
-    assert.ok(email.text.includes('After'));
+    assert.ok(email.text!.includes('Before'));
+    assert.ok(email.text!.includes('After'));
 });
 
 test('QP decoder - all printable ASCII', async () => {
@@ -291,7 +291,7 @@ abcdefghijklmnopqrstuvwxyz
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz\n0123456789');
+    assert.strictEqual(email.text!.trim(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz\n0123456789');
 });
 
 // Edge cases
@@ -329,7 +329,7 @@ Content-Transfer-Encoding: quoted-printable
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'A');
+    assert.strictEqual(email.text!.trim(), 'A');
 });
 
 test('QP decoder - very long soft-wrapped line', async () => {
@@ -344,7 +344,7 @@ ntable encoding specification.`);
     const email = await parser.parse(mail);
 
     assert.strictEqual(
-        email.text.trim(),
+        email.text!.trim(),
         'This is a very long line that exceeds the typical 76 character limit and needs to be wrapped using soft line breaks to comply with the quoted-printable encoding specification.'
     );
 });
@@ -361,7 +361,7 @@ B`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'AB');
+    assert.strictEqual(email.text!.trim(), 'AB');
 });
 
 test('QP decoder - soft break at very end', async () => {
@@ -373,7 +373,7 @@ Text=`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Text');
+    assert.strictEqual(email.text!.trim(), 'Text');
 });
 
 test('QP decoder - underscore preserved', async () => {
@@ -385,7 +385,7 @@ hello_world_test`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'hello_world_test');
+    assert.strictEqual(email.text!.trim(), 'hello_world_test');
 });
 
 test('QP decoder - encoded underscore', async () => {
@@ -397,7 +397,7 @@ hello=5Fworld`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'hello_world');
+    assert.strictEqual(email.text!.trim(), 'hello_world');
 });
 
 test('QP decoder - boundary-like sequences preserved', async () => {
@@ -409,7 +409,7 @@ Content-Transfer-Encoding: quoted-printable
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), '--boundary-like-text--');
+    assert.strictEqual(email.text!.trim(), '--boundary-like-text--');
 });
 
 test('QP decoder - mixed encoded and soft breaks', async () => {
@@ -422,7 +422,7 @@ nice place`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Café is a nice place');
+    assert.strictEqual(email.text!.trim(), 'Café is a nice place');
 });
 
 test('QP decoder - high byte values', async () => {
@@ -435,7 +435,7 @@ Content-Transfer-Encoding: quoted-printable
     const email = await parser.parse(mail);
 
     // High bytes should be decoded
-    assert.ok(email.text.length > 0);
+    assert.ok(email.text!.length > 0);
 });
 
 test('QP decoder - encoded space at line end', async () => {
@@ -448,8 +448,8 @@ World`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Hello '));
-    assert.ok(email.text.includes('World'));
+    assert.ok(email.text!.includes('Hello '));
+    assert.ok(email.text!.includes('World'));
 });
 
 test('QP decoder - encoded tab at line end', async () => {
@@ -462,8 +462,8 @@ World`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Hello\t'));
-    assert.ok(email.text.includes('World'));
+    assert.ok(email.text!.includes('Hello\t'));
+    assert.ok(email.text!.includes('World'));
 });
 
 test('QP decoder - multiple consecutive soft breaks with whitespace', async () => {
@@ -479,8 +479,8 @@ end`);
     const email = await parser.parse(mail);
 
     // Soft breaks should be removed
-    assert.ok(email.text.includes('Line'));
-    assert.ok(email.text.includes('end'));
+    assert.ok(email.text!.includes('Line'));
+    assert.ok(email.text!.includes('end'));
 });
 
 test('QP decoder - numbers in text vs hex', async () => {
@@ -493,7 +493,7 @@ Content-Transfer-Encoding: quoted-printable
     const email = await parser.parse(mail);
 
     // =34=35=36 should decode to "456"
-    assert.strictEqual(email.text.trim(), '123456 789');
+    assert.strictEqual(email.text!.trim(), '123456 789');
 });
 
 test('QP decoder - Chinese characters', async () => {
@@ -505,7 +505,7 @@ Content-Transfer-Encoding: quoted-printable
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), '你好世界');
+    assert.strictEqual(email.text!.trim(), '你好世界');
 });
 
 test('QP decoder - Japanese characters', async () => {
@@ -517,7 +517,7 @@ Content-Transfer-Encoding: quoted-printable
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'こんにちは');
+    assert.strictEqual(email.text!.trim(), 'こんにちは');
 });
 
 test('QP decoder - Arabic characters', async () => {
@@ -529,7 +529,7 @@ Content-Transfer-Encoding: quoted-printable
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'مرحبا');
+    assert.strictEqual(email.text!.trim(), 'مرحبا');
 });
 
 test('QP decoder - Cyrillic characters', async () => {
@@ -541,7 +541,7 @@ Content-Transfer-Encoding: quoted-printable
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Привет');
+    assert.strictEqual(email.text!.trim(), 'Привет');
 });
 
 test('QP decoder - mixed scripts', async () => {
@@ -553,7 +553,7 @@ Hello =E4=BD=A0=E5=A5=BD World =D0=9C=D0=B8=D1=80`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Hello 你好 World Мир');
+    assert.strictEqual(email.text!.trim(), 'Hello 你好 World Мир');
 });
 
 test('QP decoder - format=flowed with delsp', async () => {
@@ -569,9 +569,9 @@ Test`);
 
     // format=flowed with delsp removes trailing spaces before soft breaks
     // The actual behavior joins with spaces preserved
-    assert.ok(email.text.includes('Hello'));
-    assert.ok(email.text.includes('World'));
-    assert.ok(email.text.includes('Test'));
+    assert.ok(email.text!.includes('Hello'));
+    assert.ok(email.text!.includes('World'));
+    assert.ok(email.text!.includes('Test'));
 });
 
 // Coverage gap tests
@@ -584,7 +584,7 @@ test('QP decoder - invalid hex char in sequence', async () => {
     const parser = new PostalMime();
     const email = await parser.parse(mail);
     // =2G is invalid QP, should be preserved as-is
-    assert.ok(email.text.includes('=2G'));
+    assert.ok(email.text!.includes('=2G'));
 });
 
 test('QP decoder - consecutive soft breaks mixed line endings', async () => {
@@ -598,7 +598,7 @@ test('QP decoder - consecutive soft breaks mixed line endings', async () => {
     const parser = new PostalMime();
     const email = await parser.parse(mail);
     // Soft breaks removed, lines concatenated
-    assert.ok(email.text.includes('Lineonetwo'));
+    assert.ok(email.text!.includes('Lineonetwo'));
 });
 
 test('QP decoder - complete QP sequences decode correctly', async () => {
@@ -611,5 +611,5 @@ test('QP decoder - complete QP sequences decode correctly', async () => {
     );
     const parser = new PostalMime();
     const email = await parser.parse(mail);
-    assert.ok(email.text.includes('Hello World'));
+    assert.ok(email.text!.includes('Hello World'));
 });

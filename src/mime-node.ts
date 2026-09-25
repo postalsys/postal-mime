@@ -1,7 +1,21 @@
 import { getDecoder, decodeParameterValueContinuations, textEncoder } from './decode-strings.js';
+import type { StructuredHeader } from './decode-strings.js';
 import PassThroughDecoder from './pass-through-decoder.js';
 import Base64Decoder from './base64-decoder.js';
 import QPDecoder from './qp-decoder.js';
+import type PostalMime from './postal-mime.js';
+import type { Email, Header, HeaderLine } from './postal-mime.js';
+
+export interface MimeNodeOptions {
+    postalMime: PostalMime;
+    parentNode?: MimeNode | undefined;
+    /** multipart subtype of the parent, decides the default content type of this part */
+    parentMultipartType?: string | false | undefined;
+    maxNestingDepth: number;
+    maxHeadersSize: number;
+}
+
+type ContentDecoder = PassThroughDecoder | Base64Decoder | QPDecoder;
 
 // Header lines are decoded with ignoreBOM so that a U+FEFF at the start of a line is
 // kept as a character instead of being swallowed. A stripped BOM turns a line a strict
@@ -11,7 +25,7 @@ const headerDecoder = new TextDecoder('utf-8', { ignoreBOM: true });
 
 // Trims only the whitespace RFC 5322 allows around a field name. String.prototype.trim
 // also strips U+00A0, U+FEFF, U+2028 and the rest of the Unicode spaces, which turns a
-// line that a strict parser rejects into a canonical field name: ` From:` became a
+// line that a strict parser rejects into a canonical field name: ` From:` became a
 // `from` header, and since the first occurrence of a header wins it outranked the real
 // sender. Leaving the character in the key keeps the line visible without letting it
 // collide with a genuine header.
@@ -19,8 +33,8 @@ const headerDecoder = new TextDecoder('utf-8', { ignoreBOM: true });
 // An index scan rather than `/^[ \t]+|[ \t]+$/g`, which retries the trailing branch at
 // every position of a blank run that is followed by other text, so a single header with
 // a long run of spaces in the middle took seconds to trim.
-const isWsp = c => c === 0x20 || c === 0x09;
-const trimWsp = str => {
+const isWsp = (c: number): boolean => c === 0x20 || c === 0x09;
+const trimWsp = (str: string): string => {
     let start = 0;
     let end = str.length;
     while (start < end && isWsp(str.charCodeAt(start))) {
@@ -42,10 +56,31 @@ const CONTENT_HEADERS = new Set([
 ]);
 
 export default class MimeNode {
-    constructor(options) {
-        this.options = options || {};
+    options: MimeNodeOptions;
+    postalMime: PostalMime;
+    childNodes: MimeNode[];
+    finalizedChildCount: number;
+    parentNode?: MimeNode | undefined;
+    depth: number;
+    state: 'header' | 'body' | 'finished';
+    headerLines: string[];
+    contentType: { value: string; parsed: StructuredHeader; multipart: string | false };
+    contentTransferEncoding: { value: string; encoding: string };
+    contentDisposition: { value: string; parsed: StructuredHeader };
+    contentId?: string | undefined;
+    contentDescription?: string | undefined;
+    headers: Header[];
+    rawHeaderLines: HeaderLine[];
+    contentDecoder: ContentDecoder | null;
+    /** decoded body, set by finalize() */
+    content: ArrayBuffer | null;
+    /** parsed inline message/rfc822 content, set by the parser */
+    subMessage?: Email | undefined;
 
-        this.postalMime = this.options.postalMime;
+    constructor(options: MimeNodeOptions) {
+        this.options = options;
+
+        this.postalMime = options.postalMime;
 
         this.childNodes = [];
         // Cursor into childNodes for finalizeChildNodes. Every new part of a multipart
@@ -53,15 +88,15 @@ export default class MimeNode {
         // quadratic in the number of parts.
         this.finalizedChildCount = 0;
 
-        if (this.options.parentNode) {
-            this.parentNode = this.options.parentNode;
+        if (options.parentNode) {
+            this.parentNode = options.parentNode;
 
             this.depth = this.parentNode.depth + 1;
-            if (this.depth > this.options.maxNestingDepth) {
-                throw new Error(`Maximum MIME nesting depth of ${this.options.maxNestingDepth} levels exceeded`);
+            if (this.depth > options.maxNestingDepth) {
+                throw new Error(`Maximum MIME nesting depth of ${options.maxNestingDepth} levels exceeded`);
             }
 
-            this.options.parentNode.childNodes.push(this);
+            options.parentNode.childNodes.push(this);
         } else {
             this.depth = 0;
         }
@@ -71,29 +106,35 @@ export default class MimeNode {
         this.headerLines = [];
 
         // RFC 2046 Section 5.1.5: multipart/digest defaults to message/rfc822
-        const parentMultipartType = this.options.parentMultipartType || null;
+        const parentMultipartType = options.parentMultipartType || null;
         const defaultContentType = parentMultipartType === 'digest' ? 'message/rfc822' : 'text/plain';
 
-        // Replaced by the first matching header, see the CONTENT_HEADERS pass in
-        // processHeaders
+        // The value is replaced by the first matching header and the rest is derived
+        // from it, see the CONTENT_HEADERS pass in processHeaders
         this.contentType = {
-            value: defaultContentType
+            value: defaultContentType,
+            parsed: { value: defaultContentType, params: {} },
+            multipart: false
         };
 
         this.contentTransferEncoding = {
-            value: '8bit'
+            value: '8bit',
+            encoding: ''
         };
 
         this.contentDisposition = {
-            value: ''
+            value: '',
+            parsed: { value: '', params: {} }
         };
 
         this.headers = [];
+        this.rawHeaderLines = [];
 
-        this.contentDecoder = false;
+        this.contentDecoder = null;
+        this.content = null;
     }
 
-    setupContentDecoder(transferEncoding) {
+    setupContentDecoder(transferEncoding: string): void {
         if (/base64/i.test(transferEncoding)) {
             this.contentDecoder = new Base64Decoder();
         } else if (/quoted-printable/i.test(transferEncoding)) {
@@ -103,7 +144,7 @@ export default class MimeNode {
         }
     }
 
-    async finalize() {
+    async finalize(): Promise<void> {
         if (this.state === 'finished') {
             return;
         }
@@ -129,12 +170,12 @@ export default class MimeNode {
         // The decoder buffers every body line it received, so keeping it around
         // retains a second copy of the content for the lifetime of the node.
         // Nothing reads it once the node is finished, so release it here.
-        this.contentDecoder = false;
+        this.contentDecoder = null;
 
         this.state = 'finished';
     }
 
-    async finalizeChildNodes() {
+    async finalizeChildNodes(): Promise<void> {
         // Children are only ever appended, so everything before the cursor is already
         // finished and re-visiting it only costs time.
         while (this.finalizedChildCount < this.childNodes.length) {
@@ -147,7 +188,7 @@ export default class MimeNode {
     // Inside an unquoted parameter value a parenthesis that continues the current token is
     // content, because `filename=Invoice(1).pdf` is a filename and not a token followed by
     // a comment, and deleting the parens silently renames the attachment.
-    stripComments(str) {
+    stripComments(str: string): string {
         let result = '';
         let depth = 0;
         let escaped = false;
@@ -161,7 +202,7 @@ export default class MimeNode {
         // testing `/[ \t]$/` against result flattens the whole string on each `(` and is
         // quadratic in the length of the header.
         let endsWithWsp = false;
-        const append = c => {
+        const append = (c: string): void => {
             result += c;
             endsWithWsp = c === ' ' || c === '\t';
         };
@@ -169,7 +210,7 @@ export default class MimeNode {
         // A comment may only appear where linear whitespace is allowed, so inside a
         // parameter value the parenthesis has to follow whitespace to open one. Outside
         // one, eg. after the type itself, anything goes.
-        const opensComment = () => !inParameterValue || !result.length || endsWithWsp;
+        const opensComment = (): boolean => !inParameterValue || !result.length || endsWithWsp;
 
         for (let i = 0; i < str.length; i++) {
             const chr = str.charAt(i);
@@ -232,18 +273,18 @@ export default class MimeNode {
         return str.indexOf(';', commentStart) < 0 ? result : str;
     }
 
-    parseStructuredHeader(str) {
+    parseStructuredHeader(str: string): StructuredHeader {
         // Strip RFC 822 comments before parsing
         str = this.stripComments(str);
 
-        let response = {
-            value: false,
+        let response: StructuredHeader = {
+            value: '',
             params: {}
         };
 
-        let key = false;
+        let key: string | false = false;
         let value = '';
-        let stage = 'value';
+        let stage: 'key' | 'value' = 'value';
 
         // Whitespace seen outside a quoted string is held back until a significant
         // character follows it, so surrounding whitespace can be dropped without
@@ -253,11 +294,11 @@ export default class MimeNode {
         let pendingSpace = '';
         let quoteClosed = false;
 
-        let quote = false;
+        let quote: string | false = false;
         let escaped = false;
-        let chr;
+        let chr: string;
 
-        const addChr = c => {
+        const addChr = (c: string): void => {
             if (value.length) {
                 value += pendingSpace;
             }
@@ -265,7 +306,7 @@ export default class MimeNode {
             value += c;
         };
 
-        const takeValue = () => {
+        const takeValue = (): string => {
             const result = value;
             value = '';
             pendingSpace = '';
@@ -278,13 +319,13 @@ export default class MimeNode {
         // registers a boundary that no delimiter in the message matches, which drops the
         // body without an error. hasOwnProperty, because a parameter may be named
         // `constructor` or `toString`.
-        const storeParam = (name, result) => {
+        const storeParam = (name: string, result: string): void => {
             if (!Object.prototype.hasOwnProperty.call(response.params, name)) {
                 response.params[name] = result;
             }
         };
 
-        const storeValue = () => {
+        const storeValue = (): void => {
             const result = takeValue();
             if (key === false) {
                 response.value = result;
@@ -296,7 +337,7 @@ export default class MimeNode {
         // A parameter name with no `=` is a valueless parameter, not the start of the
         // next one. Without this the name would keep growing across the `;` and swallow
         // whatever followed, which is how `x=1; flag; boundary="AAA"` loses its boundary.
-        const storeEmptyKey = () => {
+        const storeEmptyKey = (): void => {
             const name = takeValue().trim();
             if (name) {
                 storeParam(name.toLowerCase(), '');
@@ -374,13 +415,13 @@ export default class MimeNode {
         return response;
     }
 
-    decodeFlowedText(str, delSp) {
+    decodeFlowedText(str: string, delSp: boolean): string {
         // Pieces of the result, joined once at the end. Growing a single string and
         // calling endsWith() on it for every line flattens the whole paragraph again on
         // each line, which is quadratic in the length of a paragraph.
         // Empty pieces are never stored, so the last piece always holds the last
         // character of the result.
-        const parts = [];
+        const parts: string[] = [];
         // The unfolded line being built, ie. everything after the last hard line break,
         // starts at this index of parts and is this many characters long
         let lineStart = 0;
@@ -432,7 +473,7 @@ export default class MimeNode {
         return parts.join('');
     }
 
-    getTextContent() {
+    getTextContent(): string {
         if (!this.content) {
             return '';
         }
@@ -446,7 +487,7 @@ export default class MimeNode {
         return str;
     }
 
-    processHeaders() {
+    processHeaders(): void {
         // First pass: group folded continuation lines with the header they belong to.
         //
         // Only SP and HTAB continue a header (RFC 5322 3.2.2 WSP). JS `\s` also matches
@@ -458,7 +499,7 @@ export default class MimeNode {
         // previous string in a backward pass re-scans the joined value on every line,
         // which is quadratic in the number of folds and lets a message that fits inside
         // maxHeadersSize burn seconds of CPU.
-        let foldedLines = [];
+        let foldedLines: string[][] = [];
         for (let line of this.headerLines) {
             if (foldedLines.length && /^[ \t]/.test(line)) {
                 foldedLines[foldedLines.length - 1].push(line);
@@ -467,10 +508,7 @@ export default class MimeNode {
             }
         }
 
-        // Initialize rawHeaderLines to store unmodified lines
-        this.rawHeaderLines = [];
-
-        let seenContentHeaders = new Set();
+        let seenContentHeaders = new Set<string>();
 
         // Second pass: process headers in document order
         for (let parts of foldedLines) {
@@ -509,13 +547,13 @@ export default class MimeNode {
 
                 switch (lowerKey) {
                     case 'content-type':
-                        this.contentType = { value, parsed: {} };
+                        this.contentType.value = value;
                         break;
                     case 'content-transfer-encoding':
-                        this.contentTransferEncoding = { value, parsed: {} };
+                        this.contentTransferEncoding.value = value;
                         break;
                     case 'content-disposition':
-                        this.contentDisposition = { value, parsed: {} };
+                        this.contentDisposition.value = value;
                         break;
                     case 'content-id':
                         this.contentId = value;
@@ -553,12 +591,13 @@ export default class MimeNode {
         this.setupContentDecoder(this.contentTransferEncoding.encoding);
     }
 
-    feed(line) {
+    feed(line: Uint8Array<ArrayBuffer>): void {
         switch (this.state) {
             case 'header':
                 if (!line.length) {
                     this.state = 'body';
-                    return this.processHeaders();
+                    this.processHeaders();
+                    return;
                 }
 
                 // Counted across the whole message, not per part. A per-node budget lets a
@@ -573,10 +612,14 @@ export default class MimeNode {
 
                 this.headerLines.push(headerDecoder.decode(line));
                 break;
-            case 'body': {
-                // add line to body
-                this.contentDecoder.update(line);
-            }
+            case 'body':
+                // add line to body. processHeaders installs a decoder before the state
+                // becomes body, and the only time the decoder is released is finalize,
+                // which moves the state on to finished, so the guard only narrows the type
+                if (this.contentDecoder) {
+                    this.contentDecoder.update(line);
+                }
+                break;
         }
     }
 }

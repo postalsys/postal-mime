@@ -2,25 +2,26 @@ import { Buffer } from 'node:buffer';
 import test from 'node:test';
 import assert from 'node:assert';
 import PostalMime from '../src/postal-mime.js';
+import type { Address, AddressGroup, Attachment, Email, Header, Mailbox } from '../src/postal-mime.js';
 
 /**
  * Runtime type validation - verifies actual output matches type definitions
  */
 
-function validateHeader(header, context = 'Header') {
+function validateHeader(header: Header, context = 'Header') {
     assert.strictEqual(typeof header, 'object', `${context} must be object`);
     assert.strictEqual(typeof header.key, 'string', `${context}.key must be string`);
     assert.strictEqual(typeof header.value, 'string', `${context}.value must be string`);
 }
 
-function validateMailbox(mailbox, context = 'Mailbox') {
+function validateMailbox(mailbox: Mailbox, context = 'Mailbox') {
     assert.strictEqual(typeof mailbox, 'object', `${context} must be object`);
     assert.strictEqual(typeof mailbox.name, 'string', `${context}.name must be string`);
     assert.strictEqual(typeof mailbox.address, 'string', `${context}.address must be string`);
     assert.strictEqual(mailbox.group, undefined, `${context}.group must be undefined`);
 }
 
-function validateAddressGroup(group, context = 'AddressGroup') {
+function validateAddressGroup(group: AddressGroup, context = 'AddressGroup') {
     assert.strictEqual(typeof group, 'object', `${context} must be object`);
     assert.strictEqual(typeof group.name, 'string', `${context}.name must be string`);
     assert.strictEqual(group.address, undefined, `${context}.address must be undefined`);
@@ -28,7 +29,7 @@ function validateAddressGroup(group, context = 'AddressGroup') {
     group.group.forEach((m, i) => validateMailbox(m, `${context}.group[${i}]`));
 }
 
-function validateAddress(addr, context = 'Address') {
+function validateAddress(addr: Address, context = 'Address') {
     assert.strictEqual(typeof addr, 'object', `${context} must be object`);
     if (addr.group !== undefined) {
         validateAddressGroup(addr, context);
@@ -37,7 +38,7 @@ function validateAddress(addr, context = 'Address') {
     }
 }
 
-function validateAttachment(att, context = 'Attachment') {
+function validateAttachment(att: Attachment, context = 'Attachment') {
     assert.strictEqual(typeof att, 'object', `${context} must be object`);
     assert.ok(typeof att.filename === 'string' || att.filename === null, `${context}.filename must be string or null`);
     assert.strictEqual(typeof att.mimeType, 'string', `${context}.mimeType must be string`);
@@ -70,7 +71,7 @@ function validateAttachment(att, context = 'Attachment') {
     }
 }
 
-function validateEmail(email) {
+function validateEmail(email: Email) {
     assert.strictEqual(typeof email, 'object', 'Email must be object');
 
     // Required fields

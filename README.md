@@ -8,11 +8,12 @@
 ## Features
 
 -   **Browser & Node.js compatible** - Works in browsers, Web Workers, Node.js, and serverless environments
--   **TypeScript support** - Fully typed with comprehensive type definitions
+-   **Written in TypeScript** - Type declarations are generated from the source and shipped for both module formats
+-   **Dual package** - Published as ES modules and as CommonJS, compiled from the same source
 -   **Zero dependencies** - No external dependencies
 -   **RFC compliant** - Follows RFC 2822/5322 email standards
 -   **Handles complex MIME structures** - Multipart messages, nested parts, attachments
--   **Security limits** - Built-in protection against deeply nested messages and oversized headers
+-   **Security limits** - Built-in protection against deeply nested messages, oversized headers and runaway nested message parsing
 
 > [!NOTE]
 > Full documentation is available at [postal-mime.postalsys.com](https://postal-mime.postalsys.com/).
@@ -25,6 +26,7 @@
 -   [Usage](#usage)
     -   [Browser](#browser)
     -   [Node.js](#nodejs)
+    -   [CommonJS](#commonjs)
     -   [Cloudflare Email Workers](#cloudflare-email-workers)
 -   [TypeScript Support](#typescript-support)
 -   [API](#api)
@@ -32,6 +34,7 @@
     -   [Utility Functions](#utility-functions)
         -   [addressParser()](#addressparser)
         -   [decodeWords()](#decodewords)
+-   [Development](#development)
 -   [License](#license)
 
 ---
@@ -52,16 +55,24 @@ Install the module from npm:
 npm install postal-mime
 ```
 
+The package needs a runtime with the `TextDecoder`, `Blob` and `ReadableStream` globals, which means Node.js 18 or newer, any modern browser, Deno, Bun or Cloudflare Workers.
+
 ## Usage
 
 You can import the `PostalMime` class differently depending on your environment:
 
 ### Browser
 
-To use PostalMime in the browser (including Web Workers), import it from the `src` folder:
+With a bundler such as Vite, webpack or esbuild, import the package by name and the bundler picks up the ES module build:
 
 ```js
-import PostalMime from './node_modules/postal-mime/src/postal-mime.js';
+import PostalMime from 'postal-mime';
+```
+
+To load PostalMime in the browser without a bundler (including in Web Workers), import the ES module build directly:
+
+```js
+import PostalMime from './node_modules/postal-mime/dist/esm/postal-mime.js';
 
 const email = await PostalMime.parse(`Subject: My awesome email 🤓
 Content-Type: text/html; charset=utf-8
@@ -75,7 +86,7 @@ console.log(email.subject); // "My awesome email 🤓"
 <summary><strong>TypeScript</strong></summary>
 
 ```typescript
-import PostalMime from './node_modules/postal-mime/src/postal-mime.js';
+import PostalMime from 'postal-mime';
 import type { Email } from 'postal-mime';
 
 const email: Email = await PostalMime.parse(`Subject: My awesome email 🤓
@@ -130,7 +141,7 @@ console.log(util.inspect(email, false, 22, true));
 
 ### CommonJS
 
-For projects using CommonJS (with `require()`), postal-mime automatically provides the CommonJS build:
+For projects using CommonJS (with `require()`), postal-mime resolves to its CommonJS build:
 
 ```js
 const PostalMime = require('postal-mime');
@@ -145,7 +156,7 @@ console.log(email.subject); // "My awesome email 🤓"
 ```
 
 > [!NOTE]
-> The CommonJS build is automatically generated from the ESM source code during the build process. The package supports dual module format, so both `import` and `require()` work seamlessly.
+> The ES module build in `dist/esm/` and the CommonJS build in `dist/cjs/` are compiled from the same TypeScript source, and each ships its own type declarations. `require('postal-mime')` returns the `PostalMime` class itself, with `addressParser` and `decodeWords` attached as properties.
 
 ### Cloudflare Email Workers
 
@@ -189,7 +200,7 @@ export default {
 
 ## TypeScript Support
 
-PostalMime includes comprehensive TypeScript type definitions. All types are exported and can be imported from the main package:
+PostalMime is written in TypeScript. The type declarations are generated from the source during the build and are resolved through the package `exports` map, so no separate `@types` package is needed. All types can be imported from the main package:
 
 ```typescript
 import PostalMime, { addressParser, decodeWords } from 'postal-mime';
@@ -197,27 +208,32 @@ import type {
     Email,
     Address,
     Mailbox,
+    AddressGroup,
     Header,
+    HeaderLine,
     Attachment,
+    AttachmentEncoding,
     PostalMimeOptions,
     AddressParserOptions,
     RawEmail
 } from 'postal-mime';
 ```
 
-> [!NOTE]
-> PostalMime is written in JavaScript but provides comprehensive TypeScript type definitions. All types are validated through both compile-time type checking and runtime type validation tests to ensure accuracy.
-
 ### Available Types
 
 -   **`Email`** - The main parsed email object returned by `PostalMime.parse()`
--   **`Address`** - Union type representing either a `Mailbox` or an address group
+-   **`Address`** - Union type representing either a `Mailbox` or an `AddressGroup`
 -   **`Mailbox`** - Individual email address with name and address fields
--   **`Header`** - Email header with key and value
+-   **`AddressGroup`** - RFC 5322 address group with a name and a list of `Mailbox` members
+-   **`Header`** - Email header with key, original key and value
+-   **`HeaderLine`** - Raw header line with key and the complete line as it appeared in the message
 -   **`Attachment`** - Email attachment with metadata and content
+-   **`AttachmentEncoding`** - The accepted values of the `attachmentEncoding` option
 -   **`PostalMimeOptions`** - Configuration options for parsing
 -   **`AddressParserOptions`** - Configuration options for address parsing
 -   **`RawEmail`** - Union type for all accepted email input formats
+
+Every optional property is declared as `T | undefined`, so the types also work in projects that compile with `exactOptionalPropertyTypes`.
 
 ### Type Narrowing
 
@@ -227,7 +243,7 @@ TypeScript users can use type guards to narrow address types:
 import type { Address, Mailbox } from 'postal-mime';
 
 function isMailbox(addr: Address): addr is Mailbox {
-    return !('group' in addr) || addr.group === undefined;
+    return addr.group === undefined;
 }
 
 // Usage
@@ -246,7 +262,7 @@ if (email.from && isMailbox(email.from)) {
 PostalMime.parse(email, options) -> Promise<Email>
 ```
 
--   **email**: An RFC822 formatted email. This can be a `string`, `ArrayBuffer/Uint8Array`, `Blob`, `Buffer` (Node.js), or a [ReadableStream](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream).
+-   **email**: An RFC822 formatted email. This can be a `string`, an `ArrayBuffer`, a `Uint8Array` or any other `ArrayBufferView` (including a Node.js `Buffer` and a `DataView`), a `Blob`, or a [ReadableStream](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream). A stream is read to completion before parsing starts.
 -   **options**: Optional configuration object:
     -   **rfc822Attachments** (boolean, default: `false`): Treat `message/rfc822` attachments without a Content-Disposition as attachments.
     -   **forceRfc822Attachments** (boolean, default: `false`): Treat _all_ `message/rfc822` parts as attachments.
@@ -281,9 +297,14 @@ All three limit options must be non-negative integers. Any other value, includin
 
 -   **headers**: An array of `Header` objects, each containing:
     -   `key`: Lowercase header name (e.g., `"dkim-signature"`).
+    -   `originalKey`: The header name as written in the message, preserving case.
     -   `value`: Header value as a string, unfolded per RFC 5322 and otherwise unprocessed. Unfolding removes the line break of a folded header and keeps the folding whitespace, so `Subject: Hello\r\n    World` reads as `Hello    World`. Encoded words are not decoded here.
 
     Headers appear in the order they were sent, including duplicates. Where a single value is exposed on its own property, such as `subject` or `from`, the first occurrence of the header wins.
+
+-   **headerLines**: An array of `HeaderLine` objects in the same order as `headers`, each containing:
+    -   `key`: Lowercase header name.
+    -   `line`: The complete raw header line, including the name and the original line breaks of a folded header.
 -   **from**, **sender**: Processed `Address` objects (can be a `Mailbox` or address group):
     -   `name`: Decoded display name, or an empty string if not set.
     -   `address`: Email address.
@@ -299,9 +320,12 @@ All three limit options must be non-negative integers. Any other value, includin
     -   `filename`: String or `null`
     -   `mimeType`: String
     -   `disposition`: `"attachment"`, `"inline"`, or `null`
-    -   `related`: Boolean (optional, `true` if it's an inline image)
+    -   `related`: Boolean (optional, `true` if the part sits in a `multipart/related` tree and has a Content-ID, such as an inline image)
     -   `contentId`: String (optional)
-    -   `content`: `ArrayBuffer` or string, depending on `attachmentEncoding`
+    -   `description`: String (optional, the decoded Content-Description header)
+    -   `method`: String (optional, the uppercased `method` parameter of a calendar part, such as `"REQUEST"`)
+    -   `rfc822DepthExceeded`: Boolean (optional, see the warning above)
+    -   `content`: `ArrayBuffer` or string, depending on `attachmentEncoding`. Calendar parts are normalized to UTF-8 text with LF line endings and returned as a `Uint8Array`
     -   `encoding`: `"base64"` or `"utf8"` (optional)
 
 <details>
@@ -436,6 +460,19 @@ console.log(decoded); // Hello, エポスカード
 ```
 
 </details>
+
+---
+
+## Development
+
+The source lives in `src/` as TypeScript. `npm run build` compiles it twice, into `dist/esm/` as ES modules and into `dist/cjs/` as CommonJS, each with its own type declarations; `dist/` is what gets published. The build runs automatically on `npm install`.
+
+```bash
+npm install          # installs dependencies and builds dist/
+npm test             # builds, then runs the test suite against src/ and the built package
+npm run lint         # ESLint and a full type-check of src/ and test/
+npm run format       # Prettier
+```
 
 ---
 

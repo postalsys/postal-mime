@@ -1,5 +1,5 @@
 // Entity map from https://html.spec.whatwg.org/multipage/named-characters.html#named-character-references
-export const htmlEntities = {
+export const htmlEntities: Record<string, string> = {
     '&AElig': '\u00C6',
     '&AElig;': '\u00C6',
     '&AMP': '\u0026',
@@ -2232,5 +2232,3 @@ export const htmlEntities = {
     '&zwj;': '\u200D',
     '&zwnj;': '\u200C'
 };
-
-export default htmlEntities;

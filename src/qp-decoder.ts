@@ -4,6 +4,11 @@ const CHR_EQUALS = 0x3d;
 const CHR_LF = 0x0a;
 
 export default class QPDecoder {
+    maxChunkSize: number;
+    buffer: Uint8Array<ArrayBuffer>;
+    bufferPos: number;
+    chunks: Uint8Array<ArrayBuffer>[];
+
     constructor() {
         this.maxChunkSize = 100 * 1024;
 
@@ -13,7 +18,7 @@ export default class QPDecoder {
         this.chunks = [];
     }
 
-    writeByte(byte) {
+    writeByte(byte: number): void {
         if (this.bufferPos >= this.buffer.length) {
             this.flushBuffer();
         }
@@ -22,7 +27,7 @@ export default class QPDecoder {
 
     // Literal text is the bulk of a typical body, so it is copied in runs rather than a
     // byte at a time
-    writeBytes(line, start, end) {
+    writeBytes(line: Uint8Array, start: number, end: number): void {
         while (start < end) {
             if (this.bufferPos >= this.buffer.length) {
                 this.flushBuffer();
@@ -34,7 +39,7 @@ export default class QPDecoder {
         }
     }
 
-    flushBuffer() {
+    flushBuffer(): void {
         if (this.bufferPos) {
             this.chunks.push(this.buffer.slice(0, this.bufferPos));
             this.bufferPos = 0;
@@ -45,7 +50,7 @@ export default class QPDecoder {
     // the result is handed on as bytes. Running the body charset over the encoded source
     // instead corrupted every part whose charset was not ASCII compatible: the same
     // content that decoded correctly in base64 came out as mojibake in quoted-printable.
-    update(line) {
+    update(line: Uint8Array): void {
         let len = line.length;
 
         // a line ending in '=' is a soft line break, the newline is not part of the content
@@ -79,7 +84,7 @@ export default class QPDecoder {
         }
     }
 
-    finalize() {
+    finalize(): Promise<ArrayBuffer> {
         this.flushBuffer();
 
         // convert an array of arraybuffers into a blob and then back into a single arraybuffer

@@ -14,8 +14,8 @@ test('Charset - iso-8859-8-i body decodes Hebrew', async () => {
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'שלום עולם');
-    assert.ok(!email.text.includes('�'));
+    assert.strictEqual(email.text!.trim(), 'שלום עולם');
+    assert.ok(!email.text!.includes('�'));
 });
 
 test('Charset - iso-8859-8-e body decodes Hebrew', async () => {
@@ -27,8 +27,8 @@ test('Charset - iso-8859-8-e body decodes Hebrew', async () => {
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'שלום עולם');
-    assert.ok(!email.text.includes('�'));
+    assert.strictEqual(email.text!.trim(), 'שלום עולם');
+    assert.ok(!email.text!.includes('�'));
 });
 
 test('Charset - cp932 body and subject decode Japanese', async () => {
@@ -42,8 +42,8 @@ test('Charset - cp932 body and subject decode Japanese', async () => {
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.subject.trim(), '日本語');
-    assert.strictEqual(email.text.trim(), '日本語');
+    assert.strictEqual(email.subject!.trim(), '日本語');
+    assert.strictEqual(email.text!.trim(), '日本語');
 });
 
 // Boundary Detection Edge Cases
@@ -63,8 +63,8 @@ Another part
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('--boundary'));
-    assert.ok(email.text.includes('Another part'));
+    assert.ok(email.text!.includes('--boundary'));
+    assert.ok(email.text!.includes('Another part'));
 });
 
 test('Edge case - boundary without double dash', async () => {
@@ -83,7 +83,7 @@ Real part
     const email = await parser.parse(mail);
 
     // Single "boundary" text is in preamble and not included in parsed text
-    assert.ok(email.text.includes('Real part'));
+    assert.ok(email.text!.includes('Real part'));
 });
 
 test('Edge case - boundary with extra dashes', async () => {
@@ -100,7 +100,7 @@ Not a terminator
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('----boundary'));
+    assert.ok(email.text!.includes('----boundary'));
 });
 
 test('Edge case - missing boundary terminator', async () => {
@@ -173,7 +173,7 @@ Text with --boundary in middle of line
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('--boundary in middle'));
+    assert.ok(email.text!.includes('--boundary in middle'));
 });
 
 // Malformed MIME Messages
@@ -278,7 +278,7 @@ ${longLine}`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('x'));
+    assert.ok(email.text!.includes('x'));
 });
 
 test('Edge case - line with only spaces', async () => {
@@ -291,8 +291,8 @@ Line 3`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Line 1'));
-    assert.ok(email.text.includes('Line 3'));
+    assert.ok(email.text!.includes('Line 1'));
+    assert.ok(email.text!.includes('Line 3'));
 });
 
 test('Edge case - CRLF and LF mixed', async () => {
@@ -301,9 +301,9 @@ test('Edge case - CRLF and LF mixed', async () => {
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Line 1'));
-    assert.ok(email.text.includes('Line 2'));
-    assert.ok(email.text.includes('Line 3'));
+    assert.ok(email.text!.includes('Line 1'));
+    assert.ok(email.text!.includes('Line 2'));
+    assert.ok(email.text!.includes('Line 3'));
 });
 
 test('Edge case - only CR line endings', async () => {
@@ -358,8 +358,8 @@ World
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Hello'));
-    assert.ok(email.text.includes('World'));
+    assert.ok(email.text!.includes('Hello'));
+    assert.ok(email.text!.includes('World'));
 });
 
 test('Edge case - 7bit encoding', async () => {
@@ -371,7 +371,7 @@ Plain text`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Plain text');
+    assert.strictEqual(email.text!.trim(), 'Plain text');
 });
 
 test('Edge case - 8bit encoding', async () => {
@@ -626,7 +626,7 @@ test('Edge case - reuse parser instance', async () => {
         await parser.parse('Subject: Test 2\n\nBody');
         assert.fail('Should not allow parser reuse');
     } catch (err) {
-        assert.ok(err.message.includes('reuse'));
+        assert.ok((err as Error).message.includes('reuse'));
     }
 });
 

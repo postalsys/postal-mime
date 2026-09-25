@@ -16,7 +16,7 @@ This is plain 7-bit ASCII text.`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Hello World\nThis is plain 7-bit ASCII text.');
+    assert.strictEqual(email.text!.trim(), 'Hello World\nThis is plain 7-bit ASCII text.');
 });
 
 test('PassThroughDecoder - 8bit encoding with high ASCII', async () => {
@@ -28,7 +28,7 @@ Hello World with 8-bit chars`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Hello World'));
+    assert.ok(email.text!.includes('Hello World'));
 });
 
 test('PassThroughDecoder - binary encoding', async () => {
@@ -53,7 +53,7 @@ Plain text without explicit transfer encoding`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Plain text without explicit transfer encoding');
+    assert.strictEqual(email.text!.trim(), 'Plain text without explicit transfer encoding');
 });
 
 test('PassThroughDecoder - empty content', async () => {
@@ -81,9 +81,9 @@ Line 5`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Line 1'));
-    assert.ok(email.text.includes('Line 5'));
-    assert.strictEqual(email.text.split('\n').filter(l => l.startsWith('Line')).length, 5);
+    assert.ok(email.text!.includes('Line 1'));
+    assert.ok(email.text!.includes('Line 5'));
+    assert.strictEqual(email.text!.split('\n').filter(l => l.startsWith('Line')).length, 5);
 });
 
 test('PassThroughDecoder - CRLF line endings', async () => {
@@ -94,9 +94,9 @@ test('PassThroughDecoder - CRLF line endings', async () => {
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Line 1'));
-    assert.ok(email.text.includes('Line 2'));
-    assert.ok(email.text.includes('Line 3'));
+    assert.ok(email.text!.includes('Line 1'));
+    assert.ok(email.text!.includes('Line 2'));
+    assert.ok(email.text!.includes('Line 3'));
 });
 
 test('PassThroughDecoder - LF only line endings', async () => {
@@ -105,9 +105,9 @@ test('PassThroughDecoder - LF only line endings', async () => {
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Line 1'));
-    assert.ok(email.text.includes('Line 2'));
-    assert.ok(email.text.includes('Line 3'));
+    assert.ok(email.text!.includes('Line 1'));
+    assert.ok(email.text!.includes('Line 2'));
+    assert.ok(email.text!.includes('Line 3'));
 });
 
 test('PassThroughDecoder - tabs and spaces preserved', async () => {
@@ -119,8 +119,8 @@ Hello\tWorld  with  multiple  spaces`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('\t'));
-    assert.ok(email.text.includes('  '));
+    assert.ok(email.text!.includes('\t'));
+    assert.ok(email.text!.includes('  '));
 });
 
 test('PassThroughDecoder - special characters', async () => {
@@ -132,8 +132,8 @@ Special: !@#$%^&*()_+-=[]{}|;:',.<>?/~`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('!@#$%^&*()'));
-    assert.ok(email.text.includes('[]{}|'));
+    assert.ok(email.text!.includes('!@#$%^&*()'));
+    assert.ok(email.text!.includes('[]{}|'));
 });
 
 test('PassThroughDecoder - very long line', async () => {
@@ -146,7 +146,7 @@ ${longLine}`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes(longLine));
+    assert.ok(email.text!.includes(longLine));
 });
 
 test('PassThroughDecoder - binary data preserved', async () => {
@@ -165,7 +165,7 @@ Content-Disposition: attachment; filename="binary.bin"
     const email = await parser.parse(mail);
 
     assert.strictEqual(email.attachments.length, 1);
-    const content = new Uint8Array(email.attachments[0].content);
+    const content = new Uint8Array(email.attachments[0].content as ArrayBuffer);
     // Note: newlines may be added by the pass-through decoder
     assert.ok(content.length > 0);
 });
@@ -179,7 +179,7 @@ This has UTF-8: Cafe naieve resume`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Cafe'));
+    assert.ok(email.text!.includes('Cafe'));
 });
 
 test('PassThroughDecoder - mixed content in multipart', async () => {
@@ -200,8 +200,8 @@ Second part with 8bit encoding
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('First part'));
-    assert.ok(email.text.includes('Second part'));
+    assert.ok(email.text!.includes('First part'));
+    assert.ok(email.text!.includes('Second part'));
 });
 
 test('PassThroughDecoder - case insensitive encoding name', async () => {
@@ -213,7 +213,7 @@ Uppercase encoding name`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text.trim(), 'Uppercase encoding name');
+    assert.strictEqual(email.text!.trim(), 'Uppercase encoding name');
 });
 
 test('PassThroughDecoder - encoding with extra parameters', async () => {
@@ -225,7 +225,7 @@ With extra parameter`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('With extra parameter'));
+    assert.ok(email.text!.includes('With extra parameter'));
 });
 
 test('PassThroughDecoder - empty lines in content', async () => {
@@ -241,9 +241,9 @@ Line 5`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Line 1'));
-    assert.ok(email.text.includes('Line 3'));
-    assert.ok(email.text.includes('Line 5'));
+    assert.ok(email.text!.includes('Line 1'));
+    assert.ok(email.text!.includes('Line 3'));
+    assert.ok(email.text!.includes('Line 5'));
 });
 
 test('PassThroughDecoder - HTML content with 7bit', async () => {
@@ -255,7 +255,7 @@ Content-Transfer-Encoding: 7bit
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.html.includes('<p>Hello World</p>'));
+    assert.ok(email.html!.includes('<p>Hello World</p>'));
 });
 
 test('PassThroughDecoder - JSON content type', async () => {
@@ -281,5 +281,5 @@ Content with unknown encoding`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Content with unknown encoding'));
+    assert.ok(email.text!.includes('Content with unknown encoding'));
 });

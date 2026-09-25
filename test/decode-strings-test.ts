@@ -10,6 +10,7 @@ import {
     decodeBase64,
     decodeParameterValueContinuations
 } from '../src/decode-strings.js';
+import type { StructuredHeader } from '../src/decode-strings.js';
 
 // MIME Encoded-Word Decoding Tests (decodeWord)
 test('decodeWord - Q-encoding simple ASCII', () => {
@@ -497,10 +498,10 @@ test('getDecoder - labels the runtime accepts are used as written', () => {
     // are not labels on their own. Which of these a runtime knows varies by version, so
     // only assert about the ones it has.
     for (const label of ['x-user-defined', 'x-mac-cyrillic']) {
-        let native;
+        let native: string;
         try {
             native = new TextDecoder(label).encoding;
-        } catch (err) {
+        } catch {
             continue;
         }
         assert.strictEqual(getDecoder(label).encoding, native, `unexpected result for ${label}`);
@@ -690,7 +691,7 @@ test('decodeBase64 - single character (2 base64 chars)', () => {
 
 // decodeParameterValueContinuations tests
 test('decodeParameterValueContinuations - simple continuation', () => {
-    const header = {
+    const header: StructuredHeader = {
         value: 'attachment',
         params: {
             'filename*0': 'long',
@@ -703,7 +704,7 @@ test('decodeParameterValueContinuations - simple continuation', () => {
 });
 
 test('decodeParameterValueContinuations - encoded with charset', () => {
-    const header = {
+    const header: StructuredHeader = {
         value: 'attachment',
         params: {
             'filename*0*': "utf-8''%C3%A4bc",
@@ -716,7 +717,7 @@ test('decodeParameterValueContinuations - encoded with charset', () => {
 });
 
 test('decodeParameterValueContinuations - single encoded parameter', () => {
-    const header = {
+    const header: StructuredHeader = {
         value: 'attachment',
         params: {
             'filename*': "utf-8''test%20file.txt"
@@ -727,7 +728,7 @@ test('decodeParameterValueContinuations - single encoded parameter', () => {
 });
 
 test('decodeParameterValueContinuations - out of order continuations', () => {
-    const header = {
+    const header: StructuredHeader = {
         value: 'attachment',
         params: {
             'filename*2': 'c',
@@ -740,7 +741,7 @@ test('decodeParameterValueContinuations - out of order continuations', () => {
 });
 
 test('decodeParameterValueContinuations - mixed regular and continuation params', () => {
-    const header = {
+    const header: StructuredHeader = {
         value: 'attachment',
         params: {
             'filename*0': 'test',
@@ -754,7 +755,7 @@ test('decodeParameterValueContinuations - mixed regular and continuation params'
 });
 
 test('decodeParameterValueContinuations - no continuation params', () => {
-    const header = {
+    const header: StructuredHeader = {
         value: 'attachment',
         params: {
             filename: 'test.txt',
@@ -767,7 +768,7 @@ test('decodeParameterValueContinuations - no continuation params', () => {
 });
 
 test('decodeParameterValueContinuations - empty params', () => {
-    const header = {
+    const header: StructuredHeader = {
         value: 'attachment',
         params: {}
     };
@@ -776,7 +777,7 @@ test('decodeParameterValueContinuations - empty params', () => {
 });
 
 test('decodeParameterValueContinuations - single value continuation', () => {
-    const header = {
+    const header: StructuredHeader = {
         value: 'attachment',
         params: {
             'filename*0': 'onlypart.txt'
@@ -787,7 +788,7 @@ test('decodeParameterValueContinuations - single value continuation', () => {
 });
 
 test('decodeParameterValueContinuations - iso-8859-1 charset', () => {
-    const header = {
+    const header: StructuredHeader = {
         value: 'attachment',
         params: {
             'filename*': "iso-8859-1''Caf%E9.txt"
@@ -799,7 +800,7 @@ test('decodeParameterValueContinuations - iso-8859-1 charset', () => {
 });
 
 test('decodeParameterValueContinuations - language tag ignored', () => {
-    const header = {
+    const header: StructuredHeader = {
         value: 'attachment',
         params: {
             'filename*': "utf-8'en-US'test.txt"
@@ -822,7 +823,7 @@ test('decodeWords - three consecutive encoded words joined', () => {
 });
 
 test('decodeParameterValueContinuations - gaps in sequence', () => {
-    const header = {
+    const header: StructuredHeader = {
         value: 'attachment',
         params: {
             'filename*0': 'part1',
@@ -835,7 +836,7 @@ test('decodeParameterValueContinuations - gaps in sequence', () => {
 });
 
 test('decodeParameterValueContinuations - empty charset defaults to utf-8', () => {
-    const header = {
+    const header: StructuredHeader = {
         value: 'attachment',
         params: {
             'filename*0*': "''hello.txt"

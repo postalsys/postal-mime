@@ -1,6 +1,6 @@
 /* globals iFrameResize */
 
-import PostalMime from '../src/postal-mime.js';
+import PostalMime from '../dist/esm/postal-mime.js';
 
 function browseFileContents() {
     let iElm = document.createElement('input');

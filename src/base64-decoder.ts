@@ -1,7 +1,16 @@
 import { decodeBase64, blobToArrayBuffer } from './decode-strings.js';
 
+export interface Base64DecoderOptions {
+    decoder?: TextDecoder | undefined;
+}
+
 export default class Base64Decoder {
-    constructor(opts) {
+    decoder: TextDecoder;
+    maxChunkSize: number;
+    chunks: ArrayBuffer[];
+    remainder: string;
+
+    constructor(opts?: Base64DecoderOptions) {
         opts = opts || {};
 
         this.decoder = opts.decoder || new TextDecoder();
@@ -13,18 +22,18 @@ export default class Base64Decoder {
         this.remainder = '';
     }
 
-    pushChunk(base64Str) {
+    pushChunk(base64Str: string): void {
         if (base64Str.length) {
             this.chunks.push(decodeBase64(base64Str));
         }
     }
 
-    flushRemainder() {
+    flushRemainder(): void {
         this.pushChunk(this.remainder);
         this.remainder = '';
     }
 
-    update(buffer) {
+    update(buffer: Uint8Array<ArrayBuffer>): void {
         let str = this.decoder.decode(buffer).replace(/[^a-zA-Z0-9+/=]+/g, '');
 
         // '=' terminates a base64 unit. Some mailers pad every line, and erasing the
@@ -46,7 +55,7 @@ export default class Base64Decoder {
         }
     }
 
-    finalize() {
+    finalize(): Promise<ArrayBuffer> {
         this.flushRemainder();
 
         return blobToArrayBuffer(new Blob(this.chunks, { type: 'application/octet-stream' }));

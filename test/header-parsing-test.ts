@@ -4,10 +4,10 @@ import assert from 'node:assert';
 import PostalMime, { addressParser, decodeWords } from '../src/postal-mime.js';
 import { decodeBase64 } from '../src/decode-strings.js';
 
-const multipart = (contentType, ...parts) =>
+const multipart = (contentType: string, ...parts: string[][]) =>
     [contentType, '', ...parts.flatMap(part => ['--AAA', ...part]), '--AAA--', ''].join('\r\n');
 
-const bytes = buffer => [...new Uint8Array(buffer)];
+const bytes = (buffer: ArrayBuffer | Uint8Array) => [...new Uint8Array(buffer)];
 
 // Header unfolding, https://github.com/postalsys/postal-mime/issues/92
 
@@ -38,7 +38,7 @@ test('a boundary containing repeated spaces still delimits the message', async (
         .join('--a  b');
 
     const email = await PostalMime.parse(mail);
-    assert.strictEqual(email.text.trim(), 'hello');
+    assert.strictEqual(email.text!.trim(), 'hello');
 });
 
 test('a filename containing repeated spaces is preserved', async () => {
@@ -75,7 +75,7 @@ test('a field name is not made canonical by stripping Unicode whitespace', async
             `Received: from mx.example.com\r\n${chr}From: security@paypal.example\r\n` +
                 `From: attacker@evil.example\r\nSubject: hi\r\n\r\nBody`
         );
-        assert.strictEqual(email.from.address, 'attacker@evil.example', `spoofed via ${JSON.stringify(chr)}`);
+        assert.strictEqual(email.from!.address, 'attacker@evil.example', `spoofed via ${JSON.stringify(chr)}`);
         assert.strictEqual(email.headers.length, 4);
         assert.ok(email.headers.some(h => h.key === `${chr}from`));
         assert.strictEqual(email.headers.filter(h => h.key === 'from').length, 1);
@@ -90,12 +90,12 @@ test('a Content-Type cannot be smuggled in on a Unicode whitespace line', async 
     );
     // the part is plain text, so it must not reach the caller as trusted HTML
     assert.strictEqual(email.html, undefined);
-    assert.strictEqual(email.text.trim(), '<script>alert(1)</script>');
+    assert.strictEqual(email.text!.trim(), '<script>alert(1)</script>');
 });
 
 test('a bare CR does not survive into a header value', async () => {
     const email = await PostalMime.parse('Subject: hello\rBcc: victim@example.com\r\n\r\nBody');
-    assert.ok(!email.subject.includes('\r'));
+    assert.ok(!email.subject!.includes('\r'));
     assert.strictEqual(email.subject, 'hello Bcc: victim@example.com');
     assert.strictEqual(email.bcc, undefined);
 });
@@ -121,7 +121,7 @@ test('a duplicated single value header resolves to the first occurrence', async 
         'From: first@example.com\r\nFrom: second@example.com\r\n' +
             'Subject: first subject\r\nSubject: second subject\r\n\r\nBody'
     );
-    assert.strictEqual(email.from.address, 'first@example.com');
+    assert.strictEqual(email.from!.address, 'first@example.com');
     assert.strictEqual(email.subject, 'first subject');
     // both are still listed, in the order they were sent
     assert.deepStrictEqual(
@@ -132,13 +132,13 @@ test('a duplicated single value header resolves to the first occurrence', async 
 
 test('an empty duplicate does not hide the real sender', async () => {
     const email = await PostalMime.parse('From: real@example.com\r\nFrom:\r\n\r\nBody');
-    assert.strictEqual(email.from.address, 'real@example.com');
+    assert.strictEqual(email.from!.address, 'real@example.com');
 });
 
 test('multi value address headers keep document order', async () => {
     const email = await PostalMime.parse('To: a@example.com\r\nTo: b@example.com\r\n\r\nBody');
     assert.deepStrictEqual(
-        email.to.map(a => a.address),
+        email.to!.map(a => a.address),
         ['a@example.com', 'b@example.com']
     );
 });
@@ -174,7 +174,7 @@ test('an unbalanced parenthesis does not discard the parameters after it', async
             'hello'
         ])
     );
-    assert.strictEqual(email.text.trim(), 'hello');
+    assert.strictEqual(email.text!.trim(), 'hello');
 });
 
 test('parentheses inside an unquoted parameter value are content', async () => {
@@ -191,7 +191,7 @@ test('parentheses inside an unquoted parameter value are content', async () => {
 
 test('a comment is still stripped from a structured header value', async () => {
     const email = await PostalMime.parse('Content-Type: text/plain (plain text); charset=utf-8\r\n\r\nBody');
-    assert.strictEqual(email.text.trim(), 'Body');
+    assert.strictEqual(email.text!.trim(), 'Body');
     assert.ok(!email.html);
 });
 
@@ -214,7 +214,7 @@ test('a valueless parameter does not swallow the one that follows it', async () 
         'Content-Type: multipart/mixed; boundary="AAA"; flag'
     ]) {
         const email = await PostalMime.parse(multipart(contentType, ['Content-Type: text/plain', '', 'hello']));
-        assert.strictEqual(email.text.trim(), 'hello', contentType);
+        assert.strictEqual(email.text!.trim(), 'hello', contentType);
     }
 });
 
@@ -238,7 +238,7 @@ test('a comment after a parameter value is still stripped', async () => {
         Buffer.from([0xe9])
     ]);
     const email = await PostalMime.parse(mail);
-    assert.strictEqual(email.text.trim(), 'Café');
+    assert.strictEqual(email.text!.trim(), 'Café');
 });
 
 test('whitespace between a token and a quoted string is content', async () => {
@@ -261,12 +261,12 @@ test('a duplicated parameter resolves to its first occurrence', async () => {
             'hello'
         ])
     );
-    assert.strictEqual(email.text.trim(), 'hello');
+    assert.strictEqual(email.text!.trim(), 'hello');
 });
 
 test('a parameter named after an Object prototype member is kept', async () => {
     const email = await PostalMime.parse('Content-Type: text/plain; constructor=x; charset=utf-8\r\n\r\nBody');
-    assert.strictEqual(email.text.trim(), 'Body');
+    assert.strictEqual(email.text!.trim(), 'Body');
 });
 
 test('an unterminated comment does not leak into a quoted parameter value', async () => {
@@ -280,7 +280,7 @@ test('an unterminated comment does not leak into a quoted parameter value', asyn
             'hello'
         ])
     );
-    assert.strictEqual(email.text.trim(), 'hello');
+    assert.strictEqual(email.text!.trim(), 'hello');
 });
 
 test('whitespace around an unquoted parameter value is dropped', async () => {
@@ -376,7 +376,7 @@ test('decodeBase64 sizes its output from the payload, not the padding', () => {
 test('a truncated base64 encoded word does not inject NUL bytes', async () => {
     const email = await PostalMime.parse('Subject: =?utf-8?B?SGVsbG8gd?=\r\n\r\nBody');
     assert.strictEqual(email.subject, 'Hello ');
-    assert.ok(!email.subject.includes('\u0000'));
+    assert.ok(!email.subject!.includes('\u0000'));
 });
 
 test('base64 padded on every line decodes as separate units', async () => {
@@ -397,7 +397,7 @@ test('a base64 attachment padded on every line keeps its bytes', async () => {
             'BAUG'
         ])
     );
-    assert.deepStrictEqual(bytes(email.attachments[0].content), [1, 2, 3, 4, 5, 6]);
+    assert.deepStrictEqual(bytes(email.attachments[0].content as ArrayBuffer), [1, 2, 3, 4, 5, 6]);
 });
 
 // Encoded words
@@ -450,7 +450,7 @@ test('quoted-printable is decoded independently of the body charset', async () =
     const email = await PostalMime.parse(mail);
     // the decoder terminates each body line with a single LF byte, which is half a
     // UTF-16 code unit, so only the content itself is compared here
-    assert.ok(email.text.startsWith('Hi'), JSON.stringify(email.text));
+    assert.ok(email.text!.startsWith('Hi'), JSON.stringify(email.text));
 });
 
 // format=flowed
@@ -461,7 +461,7 @@ test('space stuffing is removed before soft line breaks are joined', async () =>
     const email = await PostalMime.parse(
         'Content-Type: text/plain; format=flowed\r\n\r\nline one \r\n stuffed continuation\r\n'
     );
-    assert.strictEqual(email.text.trim(), 'line one stuffed continuation');
+    assert.strictEqual(email.text!.trim(), 'line one stuffed continuation');
 });
 
 // Input types
@@ -470,20 +470,20 @@ test('a DataView is accepted as input', async () => {
     const buffer = new TextEncoder().encode('Subject: hi\r\n\r\nBody');
     const email = await PostalMime.parse(new DataView(buffer.buffer));
     assert.strictEqual(email.subject, 'hi');
-    assert.strictEqual(email.text.trim(), 'Body');
+    assert.strictEqual(email.text!.trim(), 'Body');
 });
 
 test('a typed array view over a larger buffer only reads its own range', async () => {
     const full = new TextEncoder().encode('XXXXSubject: hi\r\n\r\nBodyYYYY');
     const email = await PostalMime.parse(full.subarray(4, full.length - 4));
     assert.strictEqual(email.subject, 'hi');
-    assert.strictEqual(email.text.trim(), 'Body');
+    assert.strictEqual(email.text!.trim(), 'Body');
 });
 
 // Limits
 
 test('maxHeadersSize is counted across the whole message, not per part', async () => {
-    const parts = [];
+    const parts: string[][] = [];
     for (let i = 0; i < 8; i++) {
         parts.push(['Content-Type: text/plain', `X-Pad: ${'a'.repeat(200 * 1024)}`, '', 'x']);
     }
@@ -505,8 +505,8 @@ test('an unparseable Date in a forwarded message does not reject the parse', asy
             'inner body'
         ])
     );
-    assert.ok(email.text.includes('not a real date'));
-    assert.ok(email.text.includes('inner body'));
+    assert.ok(email.text!.includes('not a real date'));
+    assert.ok(email.text!.includes('inner body'));
 });
 
 test('group syntax in a forwarded From does not reject the parse', async () => {
@@ -525,8 +525,8 @@ test('group syntax in a forwarded From does not reject the parse', async () => {
     );
 
     const email = await PostalMime.parse(mail);
-    assert.ok(email.html.includes('Recipients'));
-    assert.ok(email.html.includes('inner'));
+    assert.ok(email.html!.includes('Recipients'));
+    assert.ok(email.html!.includes('inner'));
 });
 
 // Performance. These all used to scale quadratically and are bounded well inside the

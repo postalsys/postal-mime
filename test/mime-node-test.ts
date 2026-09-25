@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import test from 'node:test';
 import assert from 'node:assert';
 import PostalMime from '../src/postal-mime.js';
+import type { PostalMimeOptions } from '../src/postal-mime.js';
 
 // MIME Node Header Parsing Tests
 test('MimeNode - parse simple headers', async () => {
@@ -15,8 +16,8 @@ Body`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.from.address, 'sender@example.com');
-    assert.strictEqual(email.to[0].address, 'recipient@example.com');
+    assert.strictEqual(email.from!.address, 'sender@example.com');
+    assert.strictEqual(email.to![0].address, 'recipient@example.com');
     assert.strictEqual(email.subject, 'Test');
 });
 
@@ -86,8 +87,8 @@ Part 2
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Part 1'));
-    assert.ok(email.text.includes('Part 2'));
+    assert.ok(email.text!.includes('Part 1'));
+    assert.ok(email.text!.includes('Part 2'));
 });
 
 test('MimeNode - parse boundary without quotes', async () => {
@@ -145,7 +146,7 @@ test('MimeNode - max nesting depth', async () => {
         await parser.parse(Buffer.from(mail));
         assert.fail('Should have thrown error for max nesting depth');
     } catch (err) {
-        assert.ok(err.message.includes('nesting depth'));
+        assert.ok((err as Error).message.includes('nesting depth'));
     }
 });
 
@@ -168,7 +169,7 @@ Body
         await parser.parse(mail);
         assert.fail('Should have thrown error for custom nesting depth');
     } catch (err) {
-        assert.ok(err.message.includes('nesting depth'));
+        assert.ok((err as Error).message.includes('nesting depth'));
     }
 });
 
@@ -185,7 +186,7 @@ Body`);
         await parser.parse(mail);
         assert.fail('Should have thrown error for max headers size');
     } catch (err) {
-        assert.ok(err.message.includes('header'));
+        assert.ok((err as Error).message.includes('header'));
     }
 });
 
@@ -200,7 +201,7 @@ Body`);
         await parser.parse(mail);
         assert.fail('Should have thrown error for custom headers size');
     } catch (err) {
-        assert.ok(err.message.includes('header'));
+        assert.ok((err as Error).message.includes('header'));
     }
 });
 
@@ -214,8 +215,8 @@ Body`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.subject.includes('very long'));
-    assert.ok(email.subject.includes('multiple lines'));
+    assert.ok(email.subject!.includes('very long'));
+    assert.ok(email.subject!.includes('multiple lines'));
 });
 
 test('MimeNode - parse header with semicolon in value', async () => {
@@ -226,7 +227,7 @@ Body`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.subject.includes(';'));
+    assert.ok(email.subject!.includes(';'));
 });
 
 test('MimeNode - parse Content-ID header', async () => {
@@ -298,8 +299,8 @@ Inner body
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.ok(email.text.includes('Outer message'));
-    assert.ok(email.text.includes('Inner message'));
+    assert.ok(email.text!.includes('Outer message'));
+    assert.ok(email.text!.includes('Inner message'));
 });
 
 test('MimeNode - parse message/rfc822 as attachment', async () => {
@@ -353,7 +354,7 @@ Body`);
 });
 
 // Build a message/rfc822 chain `levels` deep around a plain text body.
-function nestRfc822(levels, inner = 'Content-Type: text/plain\r\n\r\ninnermost body') {
+function nestRfc822(levels: number, inner = 'Content-Type: text/plain\r\n\r\ninnermost body'): string {
     let mail = inner;
     for (let i = 0; i < levels; i++) {
         mail = `Content-Type: message/rfc822\r\nSubject: level ${i}\r\n\r\n` + mail;
@@ -370,14 +371,14 @@ test('MimeNode - deeply nested message/rfc822 is bounded', async () => {
     assert.strictEqual(email.attachments.length, 1);
     assert.strictEqual(email.attachments[0].mimeType, 'message/rfc822');
     // attachment content is the raw nested message
-    const inner = Buffer.from(email.attachments[0].content).toString();
+    const inner = Buffer.from(email.attachments[0].content as ArrayBuffer).toString();
     assert.ok(inner.startsWith('Content-Type: message/rfc822'));
 });
 
 test('MimeNode - moderate message/rfc822 nesting is still parsed inline', async () => {
     const email = await PostalMime.parse(nestRfc822(5));
 
-    assert.ok(email.text.includes('innermost body'));
+    assert.ok(email.text!.includes('innermost body'));
     assert.strictEqual(email.attachments.length, 0);
 });
 
@@ -385,7 +386,7 @@ test('MimeNode - message/rfc822 nesting at exactly the default limit is parsed i
     // Pins the boundary: 10 levels is the last depth that is still inlined.
     const email = await PostalMime.parse(nestRfc822(10));
 
-    assert.ok(email.text.includes('innermost body'));
+    assert.ok(email.text!.includes('innermost body'));
     assert.strictEqual(email.attachments.length, 0);
 });
 
@@ -394,7 +395,7 @@ test('MimeNode - message/rfc822 nesting one past the default limit is an attachm
 
     assert.strictEqual(email.attachments.length, 1);
     assert.strictEqual(email.attachments[0].mimeType, 'message/rfc822');
-    assert.ok(!email.text.includes('innermost body'));
+    assert.ok(!email.text!.includes('innermost body'));
 });
 
 test('MimeNode - maxRfc822NestingDepth option', async () => {
@@ -407,7 +408,7 @@ test('MimeNode - maxRfc822NestingDepth option', async () => {
 test('MimeNode - maxRfc822NestingDepth boundary for a custom value', async () => {
     const inlined = await PostalMime.parse(nestRfc822(3), { maxRfc822NestingDepth: 3 });
     assert.strictEqual(inlined.attachments.length, 0);
-    assert.ok(inlined.text.includes('innermost body'));
+    assert.ok(inlined.text!.includes('innermost body'));
 
     const capped = await PostalMime.parse(nestRfc822(4), { maxRfc822NestingDepth: 3 });
     assert.strictEqual(capped.attachments.length, 1);
@@ -432,7 +433,7 @@ test('MimeNode - invalid limit options throw a catchable error', async () => {
     for (const option of ['maxNestingDepth', 'maxHeadersSize', 'maxRfc822NestingDepth']) {
         for (const value of invalid) {
             assert.throws(
-                () => new PostalMime({ [option]: value }),
+                () => new PostalMime({ [option]: value } as any),
                 TypeError,
                 `${option} should reject ${String(value)}`
             );
@@ -445,19 +446,24 @@ test('MimeNode - a string maxHeadersSize does not silently disable the limit', a
 
     // a numeric string used to make every `headerSize > limit` comparison false,
     // which disabled the cap instead of enforcing it
-    await assert.rejects(() => PostalMime.parse(mail, { maxHeadersSize: '1000' }), TypeError);
+    await assert.rejects(() => PostalMime.parse(mail, { maxHeadersSize: '1000' as any }), TypeError);
     await assert.rejects(() => PostalMime.parse(mail, { maxHeadersSize: 1000 }), /header size/);
 
     // the static entry point must reject rather than throw synchronously, so that a
     // `.catch()` chain still sees the error
-    await PostalMime.parse(mail, { maxHeadersSize: '1000' }).then(
+    await PostalMime.parse(mail, { maxHeadersSize: '1000' as any }).then(
         () => assert.fail('should have rejected'),
         err => assert.ok(err instanceof TypeError)
     );
 });
 
 test('MimeNode - unset limit options fall back to the defaults', async () => {
-    for (const options of [undefined, {}, { maxRfc822NestingDepth: undefined }, { maxRfc822NestingDepth: null }]) {
+    for (const options of [
+        undefined,
+        {},
+        { maxRfc822NestingDepth: undefined },
+        { maxRfc822NestingDepth: null as any }
+    ]) {
         const parser = new PostalMime(options);
         assert.strictEqual(parser.maxRfc822NestingDepth, 10);
         assert.strictEqual(parser.mimeOptions.maxNestingDepth, 256);
@@ -472,7 +478,7 @@ test('MimeNode - rfc822 nesting depth cannot be seeded through the options', asy
     const email = await PostalMime.parse(nestRfc822(5), {
         maxRfc822NestingDepth: 2,
         _rfc822NestingDepth: -50
-    });
+    } as PostalMimeOptions);
 
     assert.strictEqual(email.attachments.length, 1);
     assert.ok(!(email.text || '').includes('innermost body'));
@@ -512,10 +518,10 @@ test('MimeNode - capped message/rfc822 does not join the related cid map', async
     const image = email.attachments.find(a => a.contentId === '<img1>');
     const sub = email.attachments.find(a => a.contentId === '<sub1>');
 
-    assert.strictEqual(image.related, true);
-    assert.strictEqual(sub.mimeType, 'message/rfc822');
-    assert.notStrictEqual(sub.related, true);
-    assert.strictEqual(sub.rfc822DepthExceeded, true);
+    assert.strictEqual(image!.related, true);
+    assert.strictEqual(sub!.mimeType, 'message/rfc822');
+    assert.notStrictEqual(sub!.related, true);
+    assert.strictEqual(sub!.rfc822DepthExceeded, true);
 });
 
 test('MimeNode - attachments inside an inline message/rfc822 survive every attachmentEncoding', async () => {
@@ -529,24 +535,24 @@ test('MimeNode - attachments inside an inline message/rfc822 survive every attac
         '--B\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename=a.bin\r\n\r\n' +
         'PAYLOAD\r\n--B--\r\n';
 
-    for (const attachmentEncoding of ['arraybuffer', 'base64', 'utf8']) {
+    for (const attachmentEncoding of ['arraybuffer', 'base64', 'utf8'] as const) {
         const email = await PostalMime.parse(mail, { attachmentEncoding });
         const attachment = email.attachments.find(a => a.filename === 'a.bin');
 
         assert.ok(attachment, `missing attachment for ${attachmentEncoding}`);
 
-        let content;
+        let content: string;
         switch (attachmentEncoding) {
             case 'base64':
                 assert.strictEqual(attachment.encoding, 'base64');
-                content = Buffer.from(attachment.content, 'base64').toString();
+                content = Buffer.from(attachment.content as string, 'base64').toString();
                 break;
             case 'utf8':
                 assert.strictEqual(attachment.encoding, 'utf8');
-                content = attachment.content;
+                content = attachment.content as string;
                 break;
             default:
-                content = Buffer.from(attachment.content).toString();
+                content = Buffer.from(attachment.content as ArrayBuffer).toString();
         }
 
         assert.ok(content.includes('PAYLOAD'), `content lost for ${attachmentEncoding}`);
@@ -570,8 +576,8 @@ test('MimeNode - rfc822Attachments does not leak into nested parsers', async () 
 
     // the inner part has no disposition of its own, so it stays inline
     assert.strictEqual(email.attachments.length, 0);
-    assert.ok(email.text.includes('sub body'));
-    assert.ok(email.text.includes('deep body'));
+    assert.ok(email.text!.includes('sub body'));
+    assert.ok(email.text!.includes('deep body'));
 });
 
 test('MimeNode - forceRfc822Attachments does not leak into nested parsers', async () => {
@@ -596,7 +602,7 @@ test('MimeNode - nesting limits apply inside an inline message/rfc822', async ()
     await assert.rejects(() => PostalMime.parse(mail, { maxNestingDepth: 1 }), /nesting depth/);
 
     const email = await PostalMime.parse(mail, { maxNestingDepth: 16 });
-    assert.ok(email.text.includes('sub body'));
+    assert.ok(email.text!.includes('sub body'));
 });
 
 test('MimeNode - parse empty headers', async () => {
@@ -646,7 +652,7 @@ Body`);
     const email = await parser.parse(mail);
 
     const header = email.headers.find(h => h.key === 'x-equation');
-    assert.ok(header.value.includes('E=mc^2'));
+    assert.ok(header!.value.includes('E=mc^2'));
 });
 
 test('MimeNode - parse boundary with special characters', async () => {
@@ -798,14 +804,14 @@ test('MimeNode - parseStructuredHeader with empty param after semicolons', async
     const mail = Buffer.from('Content-Type: text/plain; ;charset=utf-8\r\n\r\nBody');
     const parser = new PostalMime();
     const email = await parser.parse(mail);
-    assert.ok(email.text.includes('Body'));
+    assert.ok(email.text!.includes('Body'));
 });
 
 test('MimeNode - parseStructuredHeader with key without value', async () => {
     const mail = Buffer.from('Content-Type: text/plain; charset\r\n\r\nBody');
     const parser = new PostalMime();
     const email = await parser.parse(mail);
-    assert.ok(email.text.includes('Body'));
+    assert.ok(email.text!.includes('Body'));
 });
 
 test('MimeNode - stripComments with unmatched paren', async () => {

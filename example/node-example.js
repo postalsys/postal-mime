@@ -1,6 +1,4 @@
-import PostalMime from '../src/postal-mime.js';
-
-import addressParser from '../src/address-parser.js';
+import PostalMime, { addressParser } from '../dist/esm/postal-mime.js';
 
 import util from 'node:util';
 import { readFile } from 'node:fs/promises';

@@ -1,7 +1,9 @@
-import htmlEntities from './html-entities.js';
+import { htmlEntities } from './html-entities.js';
+import type { Address, Mailbox } from './address-parser.js';
+import type { Email } from './postal-mime.js';
 
-export function decodeHTMLEntities(str) {
-    return str.replace(/&(#\d+|#x[a-f0-9]+|[a-z]+\d*);?/gi, (match, entity) => {
+export function decodeHTMLEntities(str: string): string {
+    return str.replace(/&(#\d+|#x[a-f0-9]+|[a-z]+\d*);?/gi, (match: string, entity: string) => {
         if (typeof htmlEntities[match] === 'string') {
             return htmlEntities[match];
         }
@@ -11,7 +13,7 @@ export function decodeHTMLEntities(str) {
             return match;
         }
 
-        let codePoint;
+        let codePoint: number;
         if (entity.charAt(1) === 'x') {
             // hex
             codePoint = parseInt(entity.substr(2), 16);
@@ -24,7 +26,7 @@ export function decodeHTMLEntities(str) {
 
         if ((codePoint >= 0xd800 && codePoint <= 0xdfff) || codePoint > 0x10ffff) {
             // Invalid range, return a replacement character instead
-            return '\uFFFD';
+            return '\ufffd';
         }
 
         if (codePoint > 0xffff) {
@@ -39,7 +41,7 @@ export function decodeHTMLEntities(str) {
     });
 }
 
-export function escapeHtml(str) {
+export function escapeHtml(str: string): string {
     return str.trim().replace(/[<>"'?&]/g, c => {
         let hex = c.charCodeAt(0).toString(16);
         if (hex.length < 2) {
@@ -49,7 +51,7 @@ export function escapeHtml(str) {
     });
 }
 
-export function textToHtml(str) {
+export function textToHtml(str: string): string {
     let html = escapeHtml(str).replace(/\n/g, '<br />');
     return '<div>' + html + '</div>';
 }
@@ -64,7 +66,7 @@ export function textToHtml(str) {
 // Characters that `.` does not match, so a `.*` can not run across them
 const LINE_TERMINATOR = /[\n\r\u2028\u2029]/g;
 
-function lastLineTerminator(str) {
+function lastLineTerminator(str: string): number {
     return Math.max(str.lastIndexOf('\n'), str.lastIndexOf('\r'), str.lastIndexOf('\u2028'), str.lastIndexOf('\u2029'));
 }
 
@@ -75,13 +77,13 @@ function lastLineTerminator(str) {
  * until a position passes it, and no match stays the answer for good. That way every part
  * of the string is scanned once, however many times it is asked about.
  *
- * @param {String} str String to search
- * @param {RegExp} regex Global regex to look for
- * @return {Function} `pos => match` of the next match, or null if there is none
+ * @param str String to search
+ * @param regex Global regex to look for
+ * @return `pos => match` of the next match, or null if there is none
  */
-function createFinder(str, regex) {
+function createFinder(str: string, regex: RegExp): (pos: number) => RegExpExecArray | null {
     let searchedFrom = Infinity;
-    let found = null;
+    let found: RegExpExecArray | null = null;
 
     return pos => {
         if (pos < searchedFrom || (found && pos > found.index)) {
@@ -100,12 +102,12 @@ function createFinder(str, regex) {
  * the last `>` can never match and is where every rescan happened. Leaving it out keeps
  * the native replace, and its speed, for everything else.
  *
- * @param {String} str String to process
- * @param {RegExp} pattern Global regex that ends on the first `>` after its start
- * @param {String} replacement Replacement text
- * @return {String} Processed string
+ * @param str String to process
+ * @param pattern Global regex that ends on the first `>` after its start
+ * @param replacement Replacement text
+ * @return Processed string
  */
-function replaceClosedTags(str, pattern, replacement) {
+function replaceClosedTags(str: string, pattern: RegExp, replacement: string): string {
     const end = str.lastIndexOf('>') + 1;
     return str.slice(0, end).replace(pattern, replacement) + str.slice(end);
 }
@@ -118,14 +120,19 @@ function replaceClosedTags(str, pattern, replacement) {
  * either. A candidate that does not match skips every other candidate before the same
  * `>`, since those see the same tag body and fail the same way.
  *
- * @param {String} str String to process
- * @param {RegExp} prefix Global regex for the start of a candidate, which can not contain `>`
- * @param {RegExp} pattern The whole pattern as a sticky regex
- * @param {Function} replacement Function given the match and its groups
- * @return {String} Processed string
+ * @param str String to process
+ * @param prefix Global regex for the start of a candidate, which can not contain `>`
+ * @param pattern The whole pattern as a sticky regex
+ * @param replacement Function given the match and its groups
+ * @return Processed string
  */
-function replaceTags(str, prefix, pattern, replacement) {
-    const parts = [];
+function replaceTags(
+    str: string,
+    prefix: RegExp,
+    pattern: RegExp,
+    replacement: (...match: string[]) => string
+): string {
+    const parts: string[] = [];
     // everything before this index is already in parts
     let copied = 0;
     let searchFrom = 0;
@@ -163,19 +170,26 @@ function replaceTags(str, prefix, pattern, replacement) {
  * continue with `[^>]*>`, and a lazy `.*?` between them. The engine rescans to the end of
  * the line for every opener that is not closed.
  *
- * @param {String} str String to process
- * @param {RegExp} open Global regex for the opener
- * @param {Boolean} openToGt Whether the opener continues with `[^>]*>`
- * @param {RegExp} close Global regex for the closer
- * @param {Boolean} closeToGt Whether the closer continues with `[^>]*>`
- * @param {String} replacement Replacement text
- * @return {String} Processed string
+ * @param str String to process
+ * @param open Global regex for the opener
+ * @param openToGt Whether the opener continues with `[^>]*>`
+ * @param close Global regex for the closer
+ * @param closeToGt Whether the closer continues with `[^>]*>`
+ * @param replacement Replacement text
+ * @return Processed string
  */
-function replaceBlocks(str, open, openToGt, close, closeToGt, replacement) {
+function replaceBlocks(
+    str: string,
+    open: RegExp,
+    openToGt: boolean,
+    close: RegExp,
+    closeToGt: boolean,
+    replacement: string
+): string {
     const nextGt = createFinder(str, />/g);
     const nextClose = createFinder(str, close);
     const nextLineEnd = createFinder(str, LINE_TERMINATOR);
-    const parts = [];
+    const parts: string[] = [];
     let copied = 0;
     let searchFrom = 0;
 
@@ -235,18 +249,18 @@ function replaceBlocks(str, open, openToGt, close, closeToGt, replacement) {
  * `str.replace(pattern, '')` for `^.*<tag\b[^>]*>`, ie. drops everything up to and
  * including the last such tag on the first line.
  *
- * @param {String} str String to process
- * @param {RegExp} prefix Global regex for the start of the tag, which can not contain `>`
- * @return {String} Processed string
+ * @param str String to process
+ * @param prefix Global regex for the start of the tag, which can not contain `>`
+ * @return Processed string
  */
-function stripThroughLastTag(str, prefix) {
+function stripThroughLastTag(str: string, prefix: RegExp): string {
     const lineEnd = str.search(LINE_TERMINATOR);
     // `.*` stops at the first line terminator, and `[^>]*>` needs a `>` after the tag
     const limit = Math.min(lineEnd < 0 ? str.length : lineEnd, str.lastIndexOf('>'));
 
     let last = -1;
     prefix.lastIndex = 0;
-    let match;
+    let match: RegExpExecArray | null;
     while ((match = prefix.exec(str)) && match.index < limit) {
         last = match.index;
     }
@@ -258,11 +272,11 @@ function stripThroughLastTag(str, prefix) {
  * `str.replace(pattern, '')` for `<tag\b[^>]*>.*$`, ie. drops the first such tag whose
  * `>` is on the last line, and everything after it.
  *
- * @param {String} str String to process
- * @param {RegExp} prefix Global regex for the start of the tag, which can not contain `>`
- * @return {String} Processed string
+ * @param str String to process
+ * @param prefix Global regex for the start of the tag, which can not contain `>`
+ * @return Processed string
  */
-function stripFromFirstTag(str, prefix) {
+function stripFromFirstTag(str: string, prefix: RegExp): string {
     // `.*$` has to reach the end of the string without crossing a line terminator, so the
     // tag has to start after the last `>` that comes before the last line terminator
     const lineEnd = lastLineTerminator(str);
@@ -272,7 +286,7 @@ function stripFromFirstTag(str, prefix) {
     return match && match.index < str.lastIndexOf('>') ? str.slice(0, match.index) : str;
 }
 
-export function htmlToText(str) {
+export function htmlToText(str: string): string {
     // we can't process tags on multiple lines so remove newlines first
     str = str.replace(/\r?\n/g, '\u0001');
 
@@ -318,7 +332,7 @@ export function htmlToText(str) {
 // A message date is not always a date. PostalMime keeps the raw header value when it does
 // not parse, and Intl.DateTimeFormat throws a RangeError on that, which used to reject the
 // whole parse of any message carrying a forwarded copy with a broken Date header.
-function formatDate(date) {
+function formatDate(date: string): string {
     if (typeof Intl === 'undefined') {
         return date;
     }
@@ -339,17 +353,14 @@ function formatDate(date) {
     }).format(parsed);
 }
 
-function formatTextAddress(address) {
-    return []
-        .concat(address.name || [])
-        .concat(address.name ? `<${address.address}>` : address.address)
-        .join(' ');
+function formatTextAddress(address: Mailbox): string {
+    return (address.name ? [address.name, `<${address.address}>`] : [address.address]).join(' ');
 }
 
-function formatTextAddresses(addresses) {
-    let parts = [];
+function formatTextAddresses(addresses: Address[]): string {
+    let parts: string[] = [];
 
-    let processAddress = (address, partCounter) => {
+    let processAddress = (address: Address, partCounter: number): void => {
         if (partCounter) {
             parts.push(', ');
         }
@@ -371,14 +382,14 @@ function formatTextAddresses(addresses) {
     return parts.join('');
 }
 
-function formatHtmlAddress(address) {
+function formatHtmlAddress(address: Mailbox): string {
     return `<a href="mailto:${escapeHtml(address.address)}" class="postal-email-address">${escapeHtml(address.name || `<${address.address}>`)}</a>`;
 }
 
-function formatHtmlAddresses(addresses) {
-    let parts = [];
+function formatHtmlAddresses(addresses: Address[]): string {
+    let parts: string[] = [];
 
-    let processAddress = (address, partCounter) => {
+    let processAddress = (address: Address, partCounter: number): void => {
         if (partCounter) {
             parts.push('<span class="postal-email-address-separator">, </span>');
         }
@@ -400,15 +411,15 @@ function formatHtmlAddresses(addresses) {
     return parts.join(' ');
 }
 
-function foldLines(str, lineLength, afterSpace) {
+function foldLines(str: string, lineLength?: number, afterSpace?: boolean): string {
     str = (str || '').toString();
     lineLength = lineLength || 76;
 
     let pos = 0,
         len = str.length,
         result = '',
-        line,
-        match;
+        line: string,
+        match: RegExpMatchArray | null;
 
     while (pos < len) {
         line = str.substr(pos, lineLength);
@@ -440,8 +451,16 @@ function foldLines(str, lineLength, afterSpace) {
     return result;
 }
 
-export function formatTextHeader(message) {
-    let rows = [];
+interface HeaderRow {
+    key: string;
+    val: string;
+}
+
+// The fields of a parsed message that the header formatters read
+export type HeaderFields = Pick<Email, 'from' | 'subject' | 'date' | 'to' | 'cc' | 'bcc'>;
+
+export function formatTextHeader(message: HeaderFields): string {
+    let rows: HeaderRow[] = [];
 
     if (message.from) {
         // through the plural formatter, because `From:` may hold RFC 5322 group syntax
@@ -487,7 +506,7 @@ export function formatTextHeader(message) {
             return cur > acc ? cur : acc;
         }, 0);
 
-    rows = rows.flatMap(row => {
+    const lines = rows.flatMap(row => {
         let sepLen = maxKeyLength - row.key.length;
         let prefix = `${row.key}: ${' '.repeat(sepLen)}`;
         let emptyPrefix = `${' '.repeat(row.key.length + 1)} ${' '.repeat(sepLen)}`;
@@ -499,7 +518,7 @@ export function formatTextHeader(message) {
         return foldedLines.map((line, i) => `${i ? emptyPrefix : prefix}${line}`);
     });
 
-    let maxLineLength = rows
+    let maxLineLength = lines
         .map(r => r.length)
         .reduce((acc, cur) => {
             return cur > acc ? cur : acc;
@@ -509,15 +528,15 @@ export function formatTextHeader(message) {
 
     let template = `
 ${lineMarker}
-${rows.join('\n')}
+${lines.join('\n')}
 ${lineMarker}
 `;
 
     return template;
 }
 
-export function formatHtmlHeader(message) {
-    let rows = [];
+export function formatHtmlHeader(message: HeaderFields): string {
+    let rows: string[] = [];
 
     if (message.from) {
         rows.push(

@@ -12,7 +12,7 @@ import { getDecoder, ENCODING_LABELS } from '../src/decode-strings.js';
 
 const LIMIT_MS = 5000;
 
-const timed = async (fn, label = '') => {
+const timed = async <T>(fn: () => Promise<T>, label = '') => {
     const started = Date.now();
     const result = await fn();
     const elapsed = Date.now() - started;
@@ -62,15 +62,15 @@ test('an address header with many addresses parses in linear time', async () => 
     const count = 150000;
     const email = await timed(() => PostalMime.parse(`To: ${'a@b,'.repeat(count)}\r\n\r\nx`));
 
-    assert.strictEqual(email.to.length, count);
-    assert.deepStrictEqual(email.to[count - 1], { address: 'a@b', name: '' });
+    assert.strictEqual(email.to!.length, count);
+    assert.deepStrictEqual(email.to![count - 1], { address: 'a@b', name: '' });
 });
 
 test('many address headers of one kind are collected in linear time', async () => {
     const count = 160000;
     const email = await timed(() => PostalMime.parse(`${'Cc: a@b\r\n'.repeat(count)}\r\nx`));
 
-    assert.strictEqual(email.cc.length, count);
+    assert.strictEqual(email.cc!.length, count);
 });
 
 test('structured headers with many parentheses in a parameter value parse in linear time', async () => {
@@ -89,7 +89,7 @@ test('structured headers with many parentheses in a parameter value parse in lin
 
     // a parenthesis that continues a parameter value is content, not a comment
     assert.strictEqual(email.attachments[0].filename, `b${parens}`);
-    assert.deepStrictEqual(new Uint8Array(email.attachments[0].content), new Uint8Array([0x78]));
+    assert.deepStrictEqual(new Uint8Array(email.attachments[0].content as ArrayBuffer), new Uint8Array([0x78]));
 });
 
 test('an address after a long whitespace run is extracted in linear time', async () => {
@@ -144,7 +144,7 @@ test('encoded words under unknown charset labels do not construct decoders', asy
         PostalMime.parse(`Content-Type: multipart/mixed; boundary=XX\r\n\r\n${part.repeat(128)}--XX--\r\n`)
     );
 
-    assert.ok(email.text.includes('Subject: \ufffd'));
+    assert.ok(email.text!.includes('Subject: \ufffd'));
 });
 
 test('getDecoder reuses one decoder per label and falls back for labels TextDecoder refuses', () => {
@@ -197,18 +197,18 @@ test('html parts with unclosed tags are converted to text in linear time', async
             name
         );
 
-        assert.ok(email.text.startsWith('plain\n'), name);
+        assert.ok(email.text!.startsWith('plain\n'), name);
     }
 });
 
 test('TextDecoder accepts no charset label that is missing from the WHATWG list', () => {
     assert.strictEqual(ENCODING_LABELS.size, 228);
 
-    const accepts = label => {
+    const accepts = (label: string): boolean => {
         try {
             new TextDecoder(label);
             return true;
-        } catch (err) {
+        } catch {
             return false;
         }
     };

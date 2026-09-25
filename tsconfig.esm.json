@@ -3,8 +3,8 @@
     "compilerOptions": {
         "module": "nodenext",
         "moduleResolution": "nodenext",
-        "types": ["node"],
-        "noEmit": true
+        "rootDir": "src",
+        "outDir": "dist/esm"
     },
-    "include": ["src/**/*.ts", "test/**/*.ts"]
+    "include": ["src/**/*.ts"]
 }

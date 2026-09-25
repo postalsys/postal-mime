@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import { addressParser } from '../src/postal-mime.js';
+import type { Address } from '../src/postal-mime.js';
 
 // Normal flow tests
 test('addressParser - simple email address', () => {
@@ -70,11 +71,11 @@ test('addressParser - group with display names', () => {
     const result = addressParser('Team: Alice <alice@example.com>, Bob <bob@example.com>;');
     assert.strictEqual(result.length, 1);
     assert.strictEqual(result[0].name, 'Team');
-    assert.strictEqual(result[0].group.length, 2);
-    assert.strictEqual(result[0].group[0].name, 'Alice');
-    assert.strictEqual(result[0].group[0].address, 'alice@example.com');
-    assert.strictEqual(result[0].group[1].name, 'Bob');
-    assert.strictEqual(result[0].group[1].address, 'bob@example.com');
+    assert.strictEqual(result[0].group!.length, 2);
+    assert.strictEqual(result[0].group![0].name, 'Alice');
+    assert.strictEqual(result[0].group![0].address, 'alice@example.com');
+    assert.strictEqual(result[0].group![1].name, 'Bob');
+    assert.strictEqual(result[0].group![1].address, 'bob@example.com');
 });
 
 test('addressParser - MIME encoded-word in display name', () => {
@@ -88,7 +89,7 @@ test('addressParser - MIME encoded-word in group name', () => {
     const result = addressParser('=?utf-8?B?44OB44O844Og?=: user@example.com;');
     assert.strictEqual(result.length, 1);
     assert.strictEqual(result[0].name, 'チーム');
-    assert.strictEqual(result[0].group[0].address, 'user@example.com');
+    assert.strictEqual(result[0].group![0].address, 'user@example.com');
 });
 
 // Edge case tests
@@ -255,11 +256,11 @@ test('addressParser - quoted string followed by unquoted email', () => {
 test('addressParser - group with quoted member names containing @', () => {
     const result = addressParser('Team: "admin@sys" <admin@example.com>, "user@dev" <user@example.com>;');
     assert.strictEqual(result.length, 1);
-    assert.strictEqual(result[0].group.length, 2);
-    assert.strictEqual(result[0].group[0].address, 'admin@example.com');
-    assert.strictEqual(result[0].group[0].name, 'admin@sys');
-    assert.strictEqual(result[0].group[1].address, 'user@example.com');
-    assert.strictEqual(result[0].group[1].name, 'user@dev');
+    assert.strictEqual(result[0].group!.length, 2);
+    assert.strictEqual(result[0].group![0].address, 'admin@example.com');
+    assert.strictEqual(result[0].group![0].name, 'admin@sys');
+    assert.strictEqual(result[0].group![1].address, 'user@example.com');
+    assert.strictEqual(result[0].group![1].name, 'user@dev');
 });
 
 test('addressParser - quoted string with special characters and @', () => {
@@ -301,9 +302,9 @@ test('addressParser - complex quoted display name with commas and @', () => {
 test('addressParser - mixed quoted and unquoted in group', () => {
     const result = addressParser('Team: "Dev@Internal" <dev@example.com>, prod@example.com;');
     assert.strictEqual(result.length, 1);
-    assert.strictEqual(result[0].group.length, 2);
-    assert.strictEqual(result[0].group[0].address, 'dev@example.com');
-    assert.strictEqual(result[0].group[1].address, 'prod@example.com');
+    assert.strictEqual(result[0].group!.length, 2);
+    assert.strictEqual(result[0].group![0].address, 'dev@example.com');
+    assert.strictEqual(result[0].group![1].address, 'prod@example.com');
 });
 
 test('addressParser - consecutive quoted strings', () => {
@@ -344,7 +345,7 @@ test('addressParser - deeply nested groups should not cause stack overflow', () 
     // Build a deeply nested group structure that would cause stack overflow without protection
     // e.g., "g0: g1: g2: g3: ... gN: user@example.com;"
     const depth = 3000;
-    let parts = [];
+    let parts: string[] = [];
     for (let i = 0; i < depth; i++) {
         parts.push(`g${i}:`);
     }
@@ -352,7 +353,7 @@ test('addressParser - deeply nested groups should not cause stack overflow', () 
 
     // This should NOT throw "Maximum call stack size exceeded"
     // Instead it should return a result (possibly truncated due to depth limit)
-    let result;
+    let result: Address[] | undefined;
     assert.doesNotThrow(() => {
         result = addressParser(maliciousInput);
     });
@@ -381,13 +382,13 @@ test('addressParser - many colons in malicious input should not crash', () => {
 test('addressParser - mixed nested groups and addresses should not crash', () => {
     // Mix of nested groups with valid addresses
     const depth = 1000;
-    let parts = [];
+    let parts: string[] = [];
     for (let i = 0; i < depth; i++) {
         parts.push(`group${i}:`);
     }
     const maliciousInput = parts.join(' ') + ' victim@example.com; normal@example.com';
 
-    let result;
+    let result: Address[] | undefined;
     assert.doesNotThrow(() => {
         result = addressParser(maliciousInput);
     });
@@ -443,7 +444,7 @@ test('addressParser - control characters do not crash', () => {
     const result = addressParser('user\x00\x01\x02@example.com');
     assert.ok(Array.isArray(result));
     assert.strictEqual(result.length, 1);
-    assert.ok(result[0].address.includes('@example.com'));
+    assert.ok(result[0].address!.includes('@example.com'));
 });
 
 test('addressParser - angle bracket immediately followed by comment', () => {
