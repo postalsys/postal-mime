@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.0.0](https://github.com/postalsys/postal-mime/compare/v3.0.1...v4.0.0) (2026-09-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* the ES module entry point moved from src/postal-mime.js to dist/esm/postal-mime.js, so browser code that imported the file from node_modules directly has to use the new path. Consumers that import `postal-mime` by name are unaffected.
+
+### Features
+
+* convert to TypeScript and ship ES module and CommonJS builds ([2559c82](https://github.com/postalsys/postal-mime/commit/2559c820af2553d9166af586868ec636ea69e820))
+
 ## [3.0.1](https://github.com/postalsys/postal-mime/compare/v3.0.0...v3.0.1) (2026-09-25)
 
 
