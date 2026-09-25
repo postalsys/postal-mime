@@ -30,3 +30,28 @@ test('a header value is trimmed of SP and HTAB only', async () => {
     const email = await PostalMime.parse('Subject: \t \u00a0x\u00a0 \t \r\n\r\nx');
     assert.strictEqual(email.subject, '\u00a0x\u00a0');
 });
+
+test('a long format=flowed paragraph is unfolded in linear time', async () => {
+    const lines = 250000;
+    const email = await timed(() =>
+        PostalMime.parse(`Content-Type: text/plain; format=flowed\r\n\r\n${'ab \r\n'.repeat(lines)}end\r\n`)
+    );
+
+    assert.strictEqual(email.text, 'ab '.repeat(lines) + 'end\n');
+});
+
+test('a long format=flowed delsp=yes paragraph is unfolded in linear time', async () => {
+    const lines = 250000;
+    const email = await timed(() =>
+        PostalMime.parse(`Content-Type: text/plain; format=flowed; delsp=yes\r\n\r\n${'ab \r\n'.repeat(lines)}end\r\n`)
+    );
+
+    assert.strictEqual(email.text, 'ab'.repeat(lines) + 'end\n');
+});
+
+test('format=flowed keeps the signature separator and empty lines', async () => {
+    const email = await PostalMime.parse(
+        'Content-Type: text/plain; format=flowed; delsp=yes\r\n\r\n\r\na \r\nb\r\n-- \r\nsig \r\n \r\nx\r\n'
+    );
+    assert.strictEqual(email.text, '\nab\n-- \nsig\nx\n');
+});

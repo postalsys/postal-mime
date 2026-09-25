@@ -366,30 +366,61 @@ export default class MimeNode {
     }
 
     decodeFlowedText(str, delSp) {
-        return (
-            str
-                .split(/\r?\n/)
-                // remove whitespace stuffing before anything else
-                // http://tools.ietf.org/html/rfc3676#section-4.4
-                // doing it after the join leaves the stuffed space of a continuation line
-                // sitting in the middle of the joined paragraph
-                .map(line => (line.charAt(0) === ' ' ? line.slice(1) : line))
-                // remove soft linebreaks
-                // soft linebreaks are added after space symbols
-                .reduce((previousValue, currentValue) => {
-                    if (previousValue.endsWith(' ') && previousValue !== '-- ' && !previousValue.endsWith('\n-- ')) {
-                        if (delSp) {
-                            // delsp adds space to text to be able to fold it
-                            // these spaces can be removed once the text is unfolded
-                            return previousValue.slice(0, -1) + currentValue;
+        // Pieces of the result, joined once at the end. Growing a single string and
+        // calling endsWith() on it for every line flattens the whole paragraph again on
+        // each line, which is quadratic in the length of a paragraph.
+        // Empty pieces are never stored, so the last piece always holds the last
+        // character of the result.
+        const parts = [];
+        // The unfolded line being built, ie. everything after the last hard line break,
+        // starts at this index of parts and is this many characters long
+        let lineStart = 0;
+        let lineLength = 0;
+
+        const lines = str.split(/\r?\n/);
+        for (let i = 0; i < lines.length; i++) {
+            let line = lines[i];
+
+            // remove whitespace stuffing before anything else
+            // http://tools.ietf.org/html/rfc3676#section-4.4
+            // doing it after the join leaves the stuffed space of a continuation line
+            // sitting in the middle of the joined paragraph
+            if (line.charAt(0) === ' ') {
+                line = line.slice(1);
+            }
+
+            if (i) {
+                const last = parts.length ? parts[parts.length - 1] : '';
+
+                // soft linebreaks are added after space symbols, except for the signature
+                // separator which is a line of its own
+                const isSignature = lineLength === 3 && parts.slice(lineStart).join('') === '-- ';
+
+                if (last.endsWith(' ') && !isSignature) {
+                    if (delSp) {
+                        // delsp adds space to text to be able to fold it
+                        // these spaces can be removed once the text is unfolded
+                        if (last.length > 1) {
+                            parts[parts.length - 1] = last.slice(0, -1);
                         } else {
-                            return previousValue + currentValue;
+                            parts.pop();
                         }
-                    } else {
-                        return previousValue + '\n' + currentValue;
+                        lineLength--;
                     }
-                })
-        );
+                } else {
+                    parts.push('\n');
+                    lineStart = parts.length;
+                    lineLength = 0;
+                }
+            }
+
+            if (line) {
+                parts.push(line);
+                lineLength += line.length;
+            }
+        }
+
+        return parts.join('');
     }
 
     getTextContent() {
