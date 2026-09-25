@@ -70,3 +70,22 @@ test('many address headers of one kind are collected in linear time', async () =
 
     assert.strictEqual(email.cc.length, count);
 });
+
+test('structured headers with many parentheses in a parameter value parse in linear time', async () => {
+    const parens = '('.repeat(256 * 1024);
+    const email = await timed(() =>
+        PostalMime.parse(
+            [
+                `Content-Type: application/octet-stream; a=b${parens}`,
+                `Content-Disposition: attachment; filename=b${parens}`,
+                `Content-Transfer-Encoding: base64; a=b${parens}`,
+                '',
+                'eA=='
+            ].join('\r\n')
+        )
+    );
+
+    // a parenthesis that continues a parameter value is content, not a comment
+    assert.strictEqual(email.attachments[0].filename, `b${parens}`);
+    assert.deepStrictEqual(new Uint8Array(email.attachments[0].content), new Uint8Array([0x78]));
+});

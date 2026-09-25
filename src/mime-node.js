@@ -157,17 +157,26 @@ export default class MimeNode {
         // A parameter value starts at `=` and ends at the `;` that begins the next one
         let inParameterValue = false;
 
+        // Whether result ends in SP or HTAB. Kept up to date on every append, because
+        // testing `/[ \t]$/` against result flattens the whole string on each `(` and is
+        // quadratic in the length of the header.
+        let endsWithWsp = false;
+        const append = c => {
+            result += c;
+            endsWithWsp = c === ' ' || c === '\t';
+        };
+
         // A comment may only appear where linear whitespace is allowed, so inside a
         // parameter value the parenthesis has to follow whitespace to open one. Outside
         // one, eg. after the type itself, anything goes.
-        const opensComment = () => !inParameterValue || !result.length || /[ \t]$/.test(result);
+        const opensComment = () => !inParameterValue || !result.length || endsWithWsp;
 
         for (let i = 0; i < str.length; i++) {
             const chr = str.charAt(i);
 
             if (escaped) {
                 if (depth === 0) {
-                    result += chr;
+                    append(chr);
                 }
                 escaped = false;
                 continue;
@@ -176,14 +185,14 @@ export default class MimeNode {
             if (chr === '\\') {
                 escaped = true;
                 if (depth === 0) {
-                    result += chr;
+                    append(chr);
                 }
                 continue;
             }
 
             if (chr === '"' && depth === 0) {
                 inQuote = !inQuote;
-                result += chr;
+                append(chr);
                 continue;
             }
 
@@ -209,7 +218,7 @@ export default class MimeNode {
             }
 
             if (depth === 0) {
-                result += chr;
+                append(chr);
             }
         }
 
