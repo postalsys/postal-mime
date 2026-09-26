@@ -11,6 +11,7 @@ export type {
     AddressGroup,
     AddressParserOptions,
     Attachment,
+    AttachmentDisposition,
     AttachmentEncoding,
     Email,
     Header,
