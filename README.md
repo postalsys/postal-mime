@@ -23,6 +23,7 @@
 -   [Source](#source)
 -   [Demo](#demo)
 -   [Installation](#installation)
+-   [Upgrading from 3.x](#upgrading-from-3x)
 -   [Usage](#usage)
     -   [Browser](#browser)
     -   [Node.js](#nodejs)
@@ -55,7 +56,18 @@ Install the module from npm:
 npm install postal-mime
 ```
 
-The package needs a runtime with the `TextDecoder`, `Blob` and `ReadableStream` globals, which means Node.js 18 or newer, any modern browser, Deno, Bun or Cloudflare Workers.
+The package needs a runtime with the `TextDecoder`, `Blob` and `ReadableStream` globals, which means Node.js 20 or newer, any modern browser, Deno, Bun or Cloudflare Workers.
+
+## Upgrading from 3.x
+
+Version 4 is the TypeScript rewrite. Code that imports `postal-mime` by name keeps working and the parsed output is unchanged. What did change:
+
+-   **Browser deep imports.** The ES module build moved from `src/postal-mime.js` to `dist/esm/postal-mime.js`. Only code that loaded the file from `node_modules` by its path is affected, see [Browser](#browser).
+-   **Node.js 20 or newer** is required.
+-   **`Attachment.disposition`** is typed as `AttachmentDisposition | null`. The parser has always passed the Content-Disposition token through as it is, so the type now says so instead of claiming that only `attachment` and `inline` occur.
+-   **Stream input** is typed as `ReadableStream<Uint8Array>`. A `ReadableStream<ArrayBuffer>` or `ReadableStream<string>` never parsed correctly and no longer type-checks. Any `ArrayBufferView`, including a `DataView`, is accepted.
+-   **`addressParser`** no longer reads the undocumented `_depth` option.
+-   **CommonJS TypeScript projects** get a declaration that matches what `require()` returns, see [CommonJS](#commonjs). A project that compiles with both `esModuleInterop` and `allowSyntheticDefaultImports` switched off has to use `import PostalMime = require('postal-mime')` instead of a default import.
 
 ## Usage
 
@@ -155,6 +167,22 @@ Content-Type: text/html; charset=utf-8
 console.log(email.subject); // "My awesome email 🤓"
 ```
 
+<details>
+<summary><strong>TypeScript</strong></summary>
+
+The CommonJS declaration exports the class with `export =`, the shape `require()` returns, so both import forms are typed the same way, including under `verbatimModuleSyntax`. The types are available as members of the imported class:
+
+```typescript
+import PostalMime = require('postal-mime');
+// or, with esModuleInterop
+// import PostalMime, { addressParser, decodeWords } from 'postal-mime';
+
+const email: PostalMime.Email = await PostalMime.parse(raw);
+const addresses: PostalMime.Address[] = PostalMime.addressParser('Name <name@example.com>');
+```
+
+</details>
+
 > [!NOTE]
 > The ES module build in `dist/esm/` and the CommonJS build in `dist/cjs/` are compiled from the same TypeScript source, and each ships its own type declarations. `require('postal-mime')` returns the `PostalMime` class itself, with `addressParser` and `decodeWords` attached as properties.
 
@@ -212,6 +240,7 @@ import type {
     Header,
     HeaderLine,
     Attachment,
+    AttachmentDisposition,
     AttachmentEncoding,
     PostalMimeOptions,
     AddressParserOptions,
@@ -228,6 +257,7 @@ import type {
 -   **`Header`** - Email header with key, original key and value
 -   **`HeaderLine`** - Raw header line with key and the complete line as it appeared in the message
 -   **`Attachment`** - Email attachment with metadata and content
+-   **`AttachmentDisposition`** - The lowercased Content-Disposition token of an attachment, `attachment` or `inline` for most parts
 -   **`AttachmentEncoding`** - The accepted values of the `attachmentEncoding` option
 -   **`PostalMimeOptions`** - Configuration options for parsing
 -   **`AddressParserOptions`** - Configuration options for address parsing
@@ -319,7 +349,7 @@ All three limit options must be non-negative integers. Any other value, includin
 -   **attachments**: Array of `Attachment` objects:
     -   `filename`: String or `null`
     -   `mimeType`: String
-    -   `disposition`: `"attachment"`, `"inline"`, or `null`
+    -   `disposition`: The lowercased Content-Disposition token, usually `"attachment"` or `"inline"`, or `null` if the part had no such header. Other tokens a message carries are passed through as they are
     -   `related`: Boolean (optional, `true` if the part sits in a `multipart/related` tree and has a Content-ID, such as an inline image)
     -   `contentId`: String (optional)
     -   `description`: String (optional, the decoded Content-Description header)
@@ -465,7 +495,7 @@ console.log(decoded); // Hello, エポスカード
 
 ## Development
 
-The source lives in `src/` as TypeScript. `npm run build` compiles it twice, into `dist/esm/` as ES modules and into `dist/cjs/` as CommonJS, each with its own type declarations; `dist/` is what gets published. The build runs automatically on `npm install`.
+The source lives in `src/` as TypeScript. `npm run build` compiles it twice, into `dist/esm/` as ES modules and into `dist/cjs/` as CommonJS, each with its own type declarations, source maps and declaration maps. `dist/` and `src/` are published, so stack traces and go-to-definition land in the TypeScript source. The build runs automatically on `npm install`.
 
 ```bash
 npm install          # installs dependencies and builds dist/
