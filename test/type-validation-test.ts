@@ -47,8 +47,8 @@ function validateAttachment(att: Attachment, context = 'Attachment') {
         `${context}.disposition must be "attachment", "inline", or null`
     );
     assert.ok(
-        att.content instanceof ArrayBuffer || typeof att.content === 'string',
-        `${context}.content must be ArrayBuffer or string`
+        att.content instanceof ArrayBuffer || att.content instanceof Uint8Array || typeof att.content === 'string',
+        `${context}.content must be ArrayBuffer, Uint8Array or string`
     );
 
     if (att.related !== undefined) {
@@ -192,6 +192,13 @@ test('Type validation - attachment encoding options', async () => {
     const email3 = await parser3.parse(mail);
     validateEmail(email3);
     assert.ok(email3.attachments[0].content instanceof ArrayBuffer);
+
+    // calendar parts are normalized to text and returned as a Uint8Array
+    const calendar =
+        'Content-Type: text/calendar; method=REQUEST\nContent-Disposition: attachment\n\nBEGIN:VCALENDAR\nEND:VCALENDAR\n';
+    const email4 = await new PostalMime().parse(calendar);
+    validateEmail(email4);
+    assert.ok(email4.attachments[0].content instanceof Uint8Array);
 });
 
 test('Type validation - static parse method', async () => {
