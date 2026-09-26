@@ -16,10 +16,10 @@ export function decodeHTMLEntities(str: string): string {
         let codePoint: number;
         if (entity.charAt(1) === 'x') {
             // hex
-            codePoint = parseInt(entity.substr(2), 16);
+            codePoint = parseInt(entity.slice(2), 16);
         } else {
             // dec
-            codePoint = parseInt(entity.substr(1), 10);
+            codePoint = parseInt(entity.slice(1), 10);
         }
 
         let output = '';
@@ -422,7 +422,7 @@ function foldLines(str: string, lineLength?: number, afterSpace?: boolean): stri
         match: RegExpMatchArray | null;
 
     while (pos < len) {
-        line = str.substr(pos, lineLength);
+        line = str.slice(pos, pos + lineLength);
         if (line.length < lineLength) {
             result += line;
             break;
@@ -436,9 +436,9 @@ function foldLines(str: string, lineLength?: number, afterSpace?: boolean): stri
             (match = line.match(/(\s+)[^\s]*$/)) &&
             match[0].length - (afterSpace ? (match[1] || '').length : 0) < line.length
         ) {
-            line = line.substr(0, line.length - (match[0].length - (afterSpace ? (match[1] || '').length : 0)));
-        } else if ((match = str.substr(pos + line.length).match(/^[^\s]+(\s*)/))) {
-            line = line + match[0].substr(0, match[0].length - (!afterSpace ? (match[1] || '').length : 0));
+            line = line.slice(0, line.length - (match[0].length - (afterSpace ? (match[1] || '').length : 0)));
+        } else if ((match = str.slice(pos + line.length).match(/^[^\s]+(\s*)/))) {
+            line = line + match[0].slice(0, match[0].length - (!afterSpace ? (match[1] || '').length : 0));
         }
 
         result += line;

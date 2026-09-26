@@ -114,10 +114,25 @@ function isBlob(value: unknown): value is Blob {
     return value instanceof Blob || Object.prototype.toString.call(value) === '[object Blob]';
 }
 
+// the inline text parts a message body is assembled from, see isInlineTextNode
+type TextType = 'plain' | 'html';
+
 type TextEntryItem = { type: 'text'; value: string } | { type: 'subMessage'; value: Email };
 
-// text parts of a node keyed by type, `plain` or `html`
-type TextEntry = Record<string, TextEntryItem[]>;
+// text parts of a node keyed by type
+type TextEntry = Partial<Record<TextType, TextEntryItem[]>>;
+
+// Renders one entry of a node as the requested text type. A text part of the other type
+// is converted, and a nested message becomes a header block in that format
+function renderEntry(textEntry: TextEntryItem, textType: TextType, convert: boolean): string {
+    if (textEntry.type === 'subMessage') {
+        return textType === 'html' ? formatHtmlHeader(textEntry.value) : formatTextHeader(textEntry.value);
+    }
+    if (!convert) {
+        return textEntry.value;
+    }
+    return textType === 'html' ? textToHtml(textEntry.value) : htmlToText(textEntry.value);
+}
 
 const MAX_NESTING_DEPTH = 256;
 const MAX_HEADERS_SIZE = 2 * 1024 * 1024;
@@ -341,7 +356,7 @@ export default class PostalMime {
 
         let textContent: Record<string, string[]> = {};
 
-        let textTypes = new Set<string>();
+        let textTypes = new Set<TextType>();
         let textMap = this.textMap;
 
         const textEntryFor = (node: MimeNode): TextEntry => {
@@ -399,11 +414,12 @@ export default class PostalMime {
 
                 // is it text?
                 else if (this.isInlineTextNode(node)) {
-                    let textType = node.contentType.parsed.value.substr(node.contentType.parsed.value.indexOf('/') + 1);
+                    const textType: TextType = node.contentType.parsed.value === 'text/html' ? 'html' : 'plain';
 
-                    let textEntry = textEntryFor(alternative || node);
-                    textEntry[textType] = textEntry[textType] || [];
-                    textEntry[textType].push({ type: 'text', value: node.getTextContent() });
+                    const textEntry = textEntryFor(alternative || node);
+                    const entries = textEntry[textType] || [];
+                    textEntry[textType] = entries;
+                    entries.push({ type: 'text', value: node.getTextContent() });
                     textTypes.add(textType);
                 }
 
@@ -488,69 +504,14 @@ export default class PostalMime {
 
         textMap.forEach(mapEntry => {
             textTypes.forEach(textType => {
-                if (!textContent[textType]) {
-                    textContent[textType] = [];
-                }
+                const output = textContent[textType] || [];
+                textContent[textType] = output;
 
-                if (mapEntry[textType]) {
-                    mapEntry[textType].forEach(textEntry => {
-                        switch (textEntry.type) {
-                            case 'text':
-                                textContent[textType].push(textEntry.value);
-                                break;
-
-                            case 'subMessage':
-                                {
-                                    switch (textType) {
-                                        case 'html':
-                                            textContent[textType].push(formatHtmlHeader(textEntry.value));
-                                            break;
-                                        case 'plain':
-                                            textContent[textType].push(formatTextHeader(textEntry.value));
-                                            break;
-                                    }
-                                }
-                                break;
-                        }
-                    });
-                } else {
-                    let alternativeType: string | undefined;
-                    switch (textType) {
-                        case 'html':
-                            alternativeType = 'plain';
-                            break;
-                        case 'plain':
-                            alternativeType = 'html';
-                            break;
-                    }
-
-                    ((alternativeType && mapEntry[alternativeType]) || []).forEach(textEntry => {
-                        switch (textEntry.type) {
-                            case 'text':
-                                switch (textType) {
-                                    case 'html':
-                                        textContent[textType].push(textToHtml(textEntry.value));
-                                        break;
-                                    case 'plain':
-                                        textContent[textType].push(htmlToText(textEntry.value));
-                                        break;
-                                }
-                                break;
-
-                            case 'subMessage':
-                                {
-                                    switch (textType) {
-                                        case 'html':
-                                            textContent[textType].push(formatHtmlHeader(textEntry.value));
-                                            break;
-                                        case 'plain':
-                                            textContent[textType].push(formatTextHeader(textEntry.value));
-                                            break;
-                                    }
-                                }
-                                break;
-                        }
-                    });
+                // a node without a part of this type is rendered from the other type
+                const ownEntries = mapEntry[textType];
+                const entries = ownEntries || mapEntry[textType === 'html' ? 'plain' : 'html'] || [];
+                for (const textEntry of entries) {
+                    output.push(renderEntry(textEntry, textType, !ownEntries));
                 }
             });
         });

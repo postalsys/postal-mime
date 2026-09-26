@@ -324,7 +324,7 @@ export function decodeWord(charset: string, encoding: string, str: string): stri
     // this implementation silently ignores this tag
     let splitPos = charset.indexOf('*');
     if (splitPos >= 0) {
-        charset = charset.substr(0, splitPos);
+        charset = charset.slice(0, splitPos);
     }
 
     encoding = encoding.toUpperCase();
@@ -524,11 +524,13 @@ export function decodeURIComponentWithCharset(encodedStr: string, charset?: stri
     let encodedBytes: number[] = [];
     for (let i = 0; i < encodedStr.length; i++) {
         let c = encodedStr.charAt(i);
-        if (c === '%' && /^[a-f0-9]{2}/i.test(encodedStr.substr(i + 1, 2))) {
+        // -1 past the end of the string as well, since charCodeAt returns NaN there
+        const high = c === '%' ? hexNibble(encodedStr.charCodeAt(i + 1)) : -1;
+        const low = high >= 0 ? hexNibble(encodedStr.charCodeAt(i + 2)) : -1;
+        if (low >= 0) {
             // encoded sequence
-            let byte = encodedStr.substr(i + 1, 2);
+            encodedBytes.push((high << 4) | low);
             i += 2;
-            encodedBytes.push(parseInt(byte, 16));
         } else if (c.charCodeAt(0) > 126) {
             const bytes = textEncoder.encode(c);
             for (let j = 0; j < bytes.length; j++) {
@@ -583,7 +585,7 @@ export function decodeParameterValueContinuations(header: StructuredHeader): voi
             return;
         }
 
-        let actualKey = key.substr(0, match.index).toLowerCase();
+        let actualKey = key.slice(0, match.index).toLowerCase();
         let nr = Number(match[2]) || 0;
 
         let paramVal = paramKeys.get(actualKey);

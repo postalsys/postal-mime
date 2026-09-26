@@ -25,10 +25,10 @@ const headerDecoder = new TextDecoder('utf-8', { ignoreBOM: true });
 
 // Trims only the whitespace RFC 5322 allows around a field name. String.prototype.trim
 // also strips U+00A0, U+FEFF, U+2028 and the rest of the Unicode spaces, which turns a
-// line that a strict parser rejects into a canonical field name: ` From:` became a
-// `from` header, and since the first occurrence of a header wins it outranked the real
-// sender. Leaving the character in the key keeps the line visible without letting it
-// collide with a genuine header.
+// line that a strict parser rejects into a canonical field name: a `From:` line with a
+// leading U+00A0 became a `from` header, and since the first occurrence of a header wins
+// it outranked the real sender. Leaving the character in the key keeps the line visible
+// without letting it collide with a genuine header.
 //
 // An index scan rather than `/^[ \t]+|[ \t]+$/g`, which retries the trailing branch at
 // every position of a blank run that is followed by other text, so a single header with
@@ -516,7 +516,7 @@ export default class MimeNode {
 
             // Extract key from raw line for rawHeaderLines
             let sep = rawLine.indexOf(':');
-            let rawKey = trimWsp(sep < 0 ? rawLine : rawLine.substr(0, sep));
+            let rawKey = trimWsp(sep < 0 ? rawLine : rawLine.slice(0, sep));
 
             // Store raw line with lowercase key
             this.rawHeaderLines.push({
@@ -530,11 +530,11 @@ export default class MimeNode {
             // replaced the non-ASCII spaces that raw UTF-8 headers (RFC 6532) may carry.
             let unfoldedLine = parts.join('');
             sep = unfoldedLine.indexOf(':');
-            let key = trimWsp(sep < 0 ? unfoldedLine : unfoldedLine.substr(0, sep));
+            let key = trimWsp(sep < 0 ? unfoldedLine : unfoldedLine.slice(0, sep));
             // A bare CR is not legal in a field body. It used to be folded into a space by
             // the whitespace collapse, and passing it through would hand consumers that
             // write the value back out a line of their own.
-            let value = sep < 0 ? '' : trimWsp(unfoldedLine.substr(sep + 1).replace(/[\r\n]+/g, ' '));
+            let value = sep < 0 ? '' : trimWsp(unfoldedLine.slice(sep + 1).replace(/[\r\n]+/g, ' '));
             this.headers.push({ key: key.toLowerCase(), originalKey: key, value });
 
             // A header that decides how the body is read must resolve the same way every
@@ -567,7 +567,7 @@ export default class MimeNode {
 
         this.contentType.parsed = this.parseStructuredHeader(this.contentType.value);
         this.contentType.multipart = /^multipart\//i.test(this.contentType.parsed.value)
-            ? this.contentType.parsed.value.substr(this.contentType.parsed.value.indexOf('/') + 1)
+            ? this.contentType.parsed.value.slice(this.contentType.parsed.value.indexOf('/') + 1)
             : false;
 
         if (this.contentType.multipart && this.contentType.parsed.params.boundary) {
