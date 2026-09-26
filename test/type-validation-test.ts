@@ -43,8 +43,9 @@ function validateAttachment(att: Attachment, context = 'Attachment') {
     assert.ok(typeof att.filename === 'string' || att.filename === null, `${context}.filename must be string or null`);
     assert.strictEqual(typeof att.mimeType, 'string', `${context}.mimeType must be string`);
     assert.ok(
-        att.disposition === 'attachment' || att.disposition === 'inline' || att.disposition === null,
-        `${context}.disposition must be "attachment", "inline", or null`
+        att.disposition === null ||
+            (typeof att.disposition === 'string' && att.disposition === att.disposition.toLowerCase()),
+        `${context}.disposition must be a lowercased token or null`
     );
     assert.ok(
         att.content instanceof ArrayBuffer || att.content instanceof Uint8Array || typeof att.content === 'string',
@@ -199,6 +200,32 @@ test('Type validation - attachment encoding options', async () => {
     const email4 = await new PostalMime().parse(calendar);
     validateEmail(email4);
     assert.ok(email4.attachments[0].content instanceof Uint8Array);
+});
+
+test('Type validation - attachment disposition is passed through as a lowercased token', async () => {
+    const parser = new PostalMime();
+    const email = await parser.parse(`Content-Type: multipart/mixed; boundary="b"
+
+--b
+Content-Type: application/octet-stream
+Content-Disposition: Form-Data; filename="a.bin"
+
+A
+--b
+Content-Type: application/octet-stream
+Content-Disposition: INLINE
+
+B
+--b
+Content-Type: application/octet-stream
+
+C
+--b--`);
+    validateEmail(email);
+    assert.deepStrictEqual(
+        email.attachments.map(att => att.disposition),
+        ['form-data', 'inline', null]
+    );
 });
 
 test('Type validation - static parse method', async () => {

@@ -55,13 +55,20 @@ export type HeaderLine = {
     line: string;
 };
 
+/**
+ * Lowercased value of a Content-Disposition header. RFC 2183 defines `attachment` and
+ * `inline`, but the token a message carries is passed through as it is, so other values
+ * such as `form-data` occur as well. The two known values are spelled out for completion
+ */
+export type AttachmentDisposition = 'attachment' | 'inline' | (string & {});
+
 export type Attachment = {
     /** Decoded file name, or null if the part did not name one */
     filename: string | null;
     /** Lowercase MIME type of the part */
     mimeType: string;
     /** Value of the Content-Disposition header, or null if the part did not have one */
-    disposition: 'attachment' | 'inline' | null;
+    disposition: AttachmentDisposition | null;
     /** Set when the part is referenced from the HTML by its Content-ID, eg. an inline image */
     related?: boolean | undefined;
     /** Decoded Content-Description header */
