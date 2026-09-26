@@ -3,31 +3,31 @@ import { decodeWords, isEncodedWordsOnly } from './decode-strings.js';
 /**
  * A single email address with an optional display name
  */
-export interface Mailbox {
+export type Mailbox = {
     /** Decoded display name, or an empty string if not set */
     name: string;
     /** Email address */
     address: string;
     group?: undefined;
-}
+};
 
 /**
  * An RFC 5322 address group, eg. `Team: a@example.com, b@example.com;`
  */
-export interface AddressGroup {
+export type AddressGroup = {
     /** Decoded group name */
     name: string;
     address?: undefined;
     /** Members of the group */
     group: Mailbox[];
-}
+};
 
 export type Address = Mailbox | AddressGroup;
 
-export interface AddressParserOptions {
+export type AddressParserOptions = {
     /** If true, address groups are unwrapped and a flat list of mailboxes is returned */
     flatten?: boolean | undefined;
-}
+};
 
 interface Token {
     type: 'operator' | 'text';

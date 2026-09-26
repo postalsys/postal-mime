@@ -14,23 +14,23 @@ export type { Address, AddressGroup, AddressParserOptions, Mailbox } from './add
  */
 export type RawEmail = string | ArrayBuffer | ArrayBufferView | Blob | ReadableStream<Uint8Array>;
 
-export interface Header {
+export type Header = {
     /** Lowercase header name */
     key: string;
     /** Original header name preserving case */
     originalKey: string;
     /** Header value, unfolded per RFC 5322 but otherwise unprocessed */
     value: string;
-}
+};
 
-export interface HeaderLine {
+export type HeaderLine = {
     /** Lowercase header name */
     key: string;
     /** Complete raw header line including key and value (with folded lines merged) */
     line: string;
-}
+};
 
-export interface Attachment {
+export type Attachment = {
     /** Decoded file name, or null if the part did not name one */
     filename: string | null;
     /** Lowercase MIME type of the part */
@@ -55,9 +55,9 @@ export interface Attachment {
     content: ArrayBuffer | Uint8Array | string;
     /** Set to the encoding of `content` when it is a string */
     encoding?: 'base64' | 'utf8' | undefined;
-}
+};
 
-export interface Email {
+export type Email = {
     /** Every header of the message, in document order, duplicates included */
     headers: Header[];
     /** Raw header lines in the same order as `headers` */
@@ -79,11 +79,11 @@ export interface Email {
     html?: string | undefined;
     text?: string | undefined;
     attachments: Attachment[];
-}
+};
 
 export type AttachmentEncoding = 'base64' | 'utf8' | 'arraybuffer';
 
-export interface PostalMimeOptions {
+export type PostalMimeOptions = {
     /** Treat `message/rfc822` parts without a Content-Disposition as attachments */
     rfc822Attachments?: boolean | undefined;
     /** Treat every `message/rfc822` part as an attachment */
@@ -99,7 +99,7 @@ export interface PostalMimeOptions {
      * become attachments flagged with `rfc822DepthExceeded`, and 0 disables inline parsing
      */
     maxRfc822NestingDepth?: number | undefined;
-}
+};
 
 interface Boundary {
     value: Uint8Array;

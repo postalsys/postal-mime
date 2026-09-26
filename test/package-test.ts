@@ -202,13 +202,20 @@ export async function run(raw: RawEmail): Promise<string[]> {
 }
 `;
 
+// Type-level checks of the declaration shapes.
+//
 // Every optional property is declared as `T | undefined` so that an explicit undefined is
 // still accepted under exactOptionalPropertyTypes. OptionalKeys picks the keys that may be
 // left out, and MissingUndefined keeps the ones that do not accept undefined, so that one
-// added without \`| undefined\` fails here rather than in a consumer project
+// added without \`| undefined\` fails here rather than in a consumer project.
+//
+// Every object type is a type alias rather than an interface, so that it keeps the
+// implicit index signature the hand-written 3.0.1 declarations had and stays assignable
+// to \`Record<string, unknown>\`, which is how consumers hand a parsed message to loggers
+// and storage helpers. Indexable fails for an interface
 const exactOptionalConsumer = `
 import PostalMime, { addressParser } from 'postal-mime';
-import type { AddressGroup, AddressParserOptions, Attachment, AttachmentEncoding, Email, Mailbox, PostalMimeOptions } from 'postal-mime';
+import type { AddressGroup, AddressParserOptions, Attachment, AttachmentEncoding, Email, Header, HeaderLine, Mailbox, PostalMimeOptions } from 'postal-mime';
 
 declare const maybeNumber: number | undefined;
 declare const maybeBoolean: boolean | undefined;
@@ -220,6 +227,7 @@ void addressParser('', { flatten: maybeBoolean });
 type OptionalKeys<T> = Extract<{ [K in keyof T]-?: object extends Pick<T, K> ? K : never }[keyof T], string>;
 type MissingUndefined<T> = { [K in OptionalKeys<T>]-?: { [P in K]: undefined } extends Pick<T, K> ? never : K }[OptionalKeys<T>];
 type NoneMissing<T extends never> = T;
+type Indexable<T extends Record<string, unknown>> = T;
 
 export type Checks = [
     NoneMissing<MissingUndefined<PostalMimeOptions>>,
@@ -227,7 +235,15 @@ export type Checks = [
     NoneMissing<MissingUndefined<Email>>,
     NoneMissing<MissingUndefined<Attachment>>,
     NoneMissing<MissingUndefined<Mailbox>>,
-    NoneMissing<MissingUndefined<AddressGroup>>
+    NoneMissing<MissingUndefined<AddressGroup>>,
+    Indexable<Email>,
+    Indexable<Header>,
+    Indexable<HeaderLine>,
+    Indexable<Attachment>,
+    Indexable<Mailbox>,
+    Indexable<AddressGroup>,
+    Indexable<PostalMimeOptions>,
+    Indexable<AddressParserOptions>
 ];
 `;
 
