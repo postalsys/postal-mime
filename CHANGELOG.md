@@ -1,5 +1,30 @@
 # Changelog
 
+## [4.0.0](https://github.com/postalsys/postal-mime/compare/v3.0.1...v4.0.0) (2026-09-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* Node.js 20 or newer is required.
+* `Attachment.disposition` is typed as `AttachmentDisposition | null`, which accepts any Content-Disposition token, instead of `'attachment' | 'inline' | null`. The parsed output is unchanged, but code that assigns the value to the narrower type has to widen it.
+* the ES module entry point moved from src/postal-mime.js to dist/esm/postal-mime.js, so browser code that imported the file from node_modules directly has to use the new path. Consumers that import `postal-mime` by name are unaffected.
+
+### Features
+
+* convert to TypeScript and ship ES module and CommonJS builds ([2559c82](https://github.com/postalsys/postal-mime/commit/2559c820af2553d9166af586868ec636ea69e820))
+* declare the CommonJS entry point with export = and ship source maps ([84d1159](https://github.com/postalsys/postal-mime/commit/84d11596d8fcf667de7805c1e46a98d7734786b1))
+* type the attachment disposition as the token the message carries ([4bb2796](https://github.com/postalsys/postal-mime/commit/4bb27965cb1c39981d1571c082b353085288df6c))
+
+
+### Bug Fixes
+
+* keep the public object types assignable to an index signature ([3363039](https://github.com/postalsys/postal-mime/commit/336303952f3862f4397f58abf7f586de659f93d3))
+
+
+### Miscellaneous Chores
+
+* require Node.js 20 or newer ([21eaae6](https://github.com/postalsys/postal-mime/commit/21eaae6553102e955c7de01f74a0deb7022d5990))
+
 ## [3.0.1](https://github.com/postalsys/postal-mime/compare/v3.0.0...v3.0.1) (2026-09-25)
 
 
