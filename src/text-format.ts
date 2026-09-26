@@ -1,6 +1,5 @@
 import { htmlEntities } from './html-entities.js';
-import type { Address, Mailbox } from './address-parser.js';
-import type { Email } from './postal-mime.js';
+import type { Address, Email, Mailbox } from './types.js';
 
 export function decodeHTMLEntities(str: string): string {
     return str.replace(/&(#\d+|#x[a-f0-9]+|[a-z]+\d*);?/gi, (match: string, entity: string) => {

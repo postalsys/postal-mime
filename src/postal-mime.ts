@@ -1,105 +1,24 @@
 import MimeNode from './mime-node.js';
 import { textToHtml, htmlToText, formatTextHeader, formatHtmlHeader } from './text-format.js';
 import addressParser from './address-parser.js';
-import type { Address } from './address-parser.js';
 import { decodeWords, textEncoder, blobToArrayBuffer } from './decode-strings.js';
 import { base64ArrayBuffer } from './base64-encoder.js';
+import type { Address, Attachment, Email, PostalMimeOptions, RawEmail } from './types.js';
 
 export { addressParser, decodeWords };
-export type { Address, AddressGroup, AddressParserOptions, Mailbox } from './address-parser.js';
-
-/**
- * Raw email input accepted by the parser. A Node.js `Buffer` is a `Uint8Array`, so it is
- * covered by `ArrayBufferView` together with every other typed array and `DataView`.
- */
-export type RawEmail = string | ArrayBuffer | ArrayBufferView | Blob | ReadableStream<Uint8Array>;
-
-export type Header = {
-    /** Lowercase header name */
-    key: string;
-    /** Original header name preserving case */
-    originalKey: string;
-    /** Header value, unfolded per RFC 5322 but otherwise unprocessed */
-    value: string;
-};
-
-export type HeaderLine = {
-    /** Lowercase header name */
-    key: string;
-    /** Complete raw header line including key and value (with folded lines merged) */
-    line: string;
-};
-
-export type Attachment = {
-    /** Decoded file name, or null if the part did not name one */
-    filename: string | null;
-    /** Lowercase MIME type of the part */
-    mimeType: string;
-    /** Value of the Content-Disposition header, or null if the part did not have one */
-    disposition: 'attachment' | 'inline' | null;
-    /** Set when the part is referenced from the HTML by its Content-ID, eg. an inline image */
-    related?: boolean | undefined;
-    /** Decoded Content-Description header */
-    description?: string | undefined;
-    /** Content-ID header, angle brackets included */
-    contentId?: string | undefined;
-    /** Uppercased `method` parameter of a calendar part, eg. `REQUEST` */
-    method?: string | undefined;
-    /**
-     * Set when a `message/rfc822` part hit `maxRfc822NestingDepth` and was emitted as an
-     * attachment instead of being parsed. Its own parts are not reflected in `text`,
-     * `html` or `attachments`.
-     */
-    rfc822DepthExceeded?: boolean | undefined;
-    /** Attachment content, a string when `attachmentEncoding` is `base64` or `utf8` */
-    content: ArrayBuffer | Uint8Array | string;
-    /** Set to the encoding of `content` when it is a string */
-    encoding?: 'base64' | 'utf8' | undefined;
-};
-
-export type Email = {
-    /** Every header of the message, in document order, duplicates included */
-    headers: Header[];
-    /** Raw header lines in the same order as `headers` */
-    headerLines: HeaderLine[];
-    from?: Address | undefined;
-    sender?: Address | undefined;
-    replyTo?: Address[] | undefined;
-    deliveredTo?: string | undefined;
-    returnPath?: string | undefined;
-    to?: Address[] | undefined;
-    cc?: Address[] | undefined;
-    bcc?: Address[] | undefined;
-    subject?: string | undefined;
-    messageId?: string | undefined;
-    inReplyTo?: string | undefined;
-    references?: string | undefined;
-    /** Sending time as an ISO 8601 string, or the raw header value if it does not parse as a date */
-    date?: string | undefined;
-    html?: string | undefined;
-    text?: string | undefined;
-    attachments: Attachment[];
-};
-
-export type AttachmentEncoding = 'base64' | 'utf8' | 'arraybuffer';
-
-export type PostalMimeOptions = {
-    /** Treat `message/rfc822` parts without a Content-Disposition as attachments */
-    rfc822Attachments?: boolean | undefined;
-    /** Treat every `message/rfc822` part as an attachment */
-    forceRfc822Attachments?: boolean | undefined;
-    /** How attachment content is returned, `arraybuffer` by default */
-    attachmentEncoding?: AttachmentEncoding | undefined;
-    /** Maximum MIME part nesting depth, 256 by default. Exceeding it rejects the parse */
-    maxNestingDepth?: number | undefined;
-    /** Maximum total header size in bytes across every part, 2 MiB by default. Exceeding it rejects the parse */
-    maxHeadersSize?: number | undefined;
-    /**
-     * Maximum depth of inline `message/rfc822` parsing, 10 by default. Deeper messages
-     * become attachments flagged with `rfc822DepthExceeded`, and 0 disables inline parsing
-     */
-    maxRfc822NestingDepth?: number | undefined;
-};
+export type {
+    Address,
+    AddressGroup,
+    AddressParserOptions,
+    Attachment,
+    AttachmentEncoding,
+    Email,
+    Header,
+    HeaderLine,
+    Mailbox,
+    PostalMimeOptions,
+    RawEmail
+} from './types.js';
 
 interface Boundary {
     value: Uint8Array;
@@ -170,8 +89,11 @@ export default class PostalMime {
     /** @internal */ headerSize: number;
     /** @internal */ textContent: Record<string, string>;
     /** @internal */ textMap: Map<MimeNode, TextEntry>;
+    /** @internal */ textTypes: Set<TextType>;
     /** @internal */ attachments: Attachment[];
     /** @internal */ attachmentEncoding: string;
+    // whether message/rfc822 parts are kept as attachments, decided once the tree is parsed
+    /** @internal */ forceRfc822Attachments: boolean;
     /** @internal */ started: boolean;
     // the message being parsed, set by parse()
     /** @internal */ buf!: ArrayBuffer;
@@ -207,7 +129,7 @@ export default class PostalMime {
             'maxRfc822NestingDepth'
         );
 
-        // Internal state that a nested parser receives from its parent, see processNodeTree.
+        // Internal state that a nested parser receives from its parent, see collectSubMessage.
         // It is deliberately not an option, so that forwarding a caller supplied options
         // object can not seed it and switch the recursion limit off.
         this.rfc822NestingDepth = 0;
@@ -223,7 +145,9 @@ export default class PostalMime {
 
         this.textContent = {};
         this.textMap = new Map();
+        this.textTypes = new Set();
         this.attachments = [];
+        this.forceRfc822Attachments = false;
 
         this.attachmentEncoding =
             (this.options.attachmentEncoding || '')
@@ -350,160 +274,151 @@ export default class PostalMime {
         };
     }
 
+    // Records a text part or a nested message under the node that selects it
     /** @internal */
-    async processNodeTree(): Promise<void> {
-        // get text nodes
+    addTextEntry(selector: MimeNode, textType: TextType, item: TextEntryItem): void {
+        let textEntry = this.textMap.get(selector);
+        if (!textEntry) {
+            textEntry = {};
+            this.textMap.set(selector, textEntry);
+        }
+        const entries = textEntry[textType] || [];
+        textEntry[textType] = entries;
+        entries.push(item);
+        this.textTypes.add(textType);
+    }
 
-        let textContent: Record<string, string[]> = {};
+    // Sorts every leaf of the tree into text content, nested messages and attachments.
+    // `alternative` is the closest enclosing multipart/alternative, if any: its text parts
+    // are collected under the alternative itself, so that the body is assembled from one
+    // representation of it rather than from every one. `related` tells whether the part
+    // sits inside a multipart/related, where a Content-ID makes it an inline resource
+    /** @internal */
+    async collectNode(node: MimeNode, alternative: MimeNode | false, related: boolean): Promise<void> {
+        if (!node.contentType.multipart) {
+            const inlineRfc822 = this.isInlineMessageRfc822(node);
+            const rfc822DepthExceeded = inlineRfc822 && this.rfc822NestingDepth >= this.maxRfc822NestingDepth;
 
-        let textTypes = new Set<TextType>();
-        let textMap = this.textMap;
-
-        const textEntryFor = (node: MimeNode): TextEntry => {
-            let textEntry = textMap.get(node);
-            if (!textEntry) {
-                textEntry = {};
-                textMap.set(node, textEntry);
+            if (inlineRfc822 && !rfc822DepthExceeded) {
+                await this.collectSubMessage(node);
+            } else if (this.isInlineTextNode(node)) {
+                const textType: TextType = node.contentType.parsed.value === 'text/html' ? 'html' : 'plain';
+                this.addTextEntry(alternative || node, textType, { type: 'text', value: node.getTextContent() });
+            } else if (node.content) {
+                this.collectAttachment(node, node.content, related, rfc822DepthExceeded);
             }
-            return textEntry;
-        };
+        } else if (node.contentType.multipart === 'alternative') {
+            alternative = node;
+        } else if (node.contentType.multipart === 'related') {
+            related = true;
+        }
 
-        let forceRfc822Attachments = this.forceRfc822Attachments();
+        for (let childNode of node.childNodes) {
+            await this.collectNode(childNode, alternative, related);
+        }
+    }
 
-        let walk = async (node: MimeNode, alternative: MimeNode | false, related: MimeNode | false): Promise<void> => {
-            if (!node.contentType.multipart) {
-                const inlineRfc822 = this.isInlineMessageRfc822(node) && !forceRfc822Attachments;
-                const rfc822DepthExceeded = inlineRfc822 && this.rfc822NestingDepth >= this.maxRfc822NestingDepth;
+    // Parses an inline message/rfc822 part with a nested parser and takes over its text
+    // parts and attachments
+    /** @internal */
+    async collectSubMessage(node: MimeNode): Promise<void> {
+        const subParser = new PostalMime({
+            // Only the limits are inherited. Options that decide how a part
+            // is classified stay with the parser that was configured.
+            ...this.mimeOptions,
+            maxRfc822NestingDepth: this.maxRfc822NestingDepth,
+            // attachments are encoded by the parent parser, keep raw buffers here
+            attachmentEncoding: 'arraybuffer'
+        });
+        subParser.rfc822NestingDepth = this.rfc822NestingDepth + 1;
+        const subMessage = (node.subMessage = await subParser.parse(node.content || new ArrayBuffer(0)));
 
-                // is it inline message/rfc822
-                if (inlineRfc822 && !rfc822DepthExceeded) {
-                    const subParser = new PostalMime({
-                        // Only the limits are inherited. Options that decide how a part
-                        // is classified stay with the parser that was configured.
-                        ...this.mimeOptions,
-                        maxRfc822NestingDepth: this.maxRfc822NestingDepth,
-                        // attachments are encoded by the parent parser, keep raw buffers here
-                        attachmentEncoding: 'arraybuffer'
-                    });
-                    subParser.rfc822NestingDepth = this.rfc822NestingDepth + 1;
-                    const subMessage = (node.subMessage = await subParser.parse(node.content || new ArrayBuffer(0)));
+        // default to text if there is no content
+        if (subMessage.text || !subMessage.html) {
+            this.addTextEntry(node, 'plain', { type: 'subMessage', value: subMessage });
+        }
 
-                    let textEntry = textEntryFor(node);
+        if (subMessage.html) {
+            this.addTextEntry(node, 'html', { type: 'subMessage', value: subMessage });
+        }
 
-                    // default to text if there is no content
-                    if (subMessage.text || !subMessage.html) {
-                        textEntry.plain = textEntry.plain || [];
-                        textEntry.plain.push({ type: 'subMessage', value: subMessage });
-                        textTypes.add('plain');
-                    }
+        subParser.textMap.forEach((subTextEntry, subTextNode) => {
+            this.textMap.set(subTextNode, subTextEntry);
+        });
 
-                    if (subMessage.html) {
-                        textEntry.html = textEntry.html || [];
-                        textEntry.html.push({ type: 'subMessage', value: subMessage });
-                        textTypes.add('html');
-                    }
+        for (let attachment of subMessage.attachments) {
+            this.attachments.push(attachment);
+        }
+    }
 
-                    subParser.textMap.forEach((subTextEntry, subTextNode) => {
-                        textMap.set(subTextNode, subTextEntry);
-                    });
+    /** @internal */
+    collectAttachment(node: MimeNode, content: ArrayBuffer, related: boolean, rfc822DepthExceeded: boolean): void {
+        const filename = node.contentDisposition.parsed.params.filename || node.contentType.parsed.params.name || null;
+        // `content` is filled in below once the part type is known, hence the cast
+        const attachment = {
+            filename: filename ? decodeWords(filename) : null,
+            mimeType: node.contentType.parsed.value,
+            disposition: node.contentDisposition.parsed.value || null
+        } as Attachment;
 
-                    for (let attachment of subMessage.attachments || []) {
-                        this.attachments.push(attachment);
-                    }
+        // A nested message that was not parsed is not a renderable inline
+        // resource, so it must not join the cid map behind an <img src>.
+        if (related && node.contentId && !rfc822DepthExceeded) {
+            attachment.related = true;
+        }
+
+        if (rfc822DepthExceeded) {
+            // Tell the caller this part would have been parsed inline but hit
+            // maxRfc822NestingDepth, so anything inside it is not reflected in
+            // email.text, email.html or email.attachments.
+            attachment.rfc822DepthExceeded = true;
+        }
+
+        if (node.contentDescription) {
+            // decoded like filename, it is an unstructured header that may
+            // carry encoded words
+            attachment.description = decodeWords(node.contentDescription);
+        }
+
+        if (node.contentId) {
+            attachment.contentId = node.contentId;
+        }
+
+        switch (node.contentType.parsed.value) {
+            // Special handling for calendar events
+            case 'text/calendar':
+            case 'application/ics': {
+                if (node.contentType.parsed.params.method) {
+                    attachment.method = node.contentType.parsed.params.method.toString().toUpperCase().trim();
                 }
 
-                // is it text?
-                else if (this.isInlineTextNode(node)) {
-                    const textType: TextType = node.contentType.parsed.value === 'text/html' ? 'html' : 'plain';
-
-                    const textEntry = textEntryFor(alternative || node);
-                    const entries = textEntry[textType] || [];
-                    textEntry[textType] = entries;
-                    entries.push({ type: 'text', value: node.getTextContent() });
-                    textTypes.add(textType);
+                // Enforce into unicode, ending in exactly one newline. The trailing
+                // newlines are counted rather than replaced with `/\n*$/`, which
+                // retries at every newline of a run that does not end the text.
+                const decodedText = node.getTextContent().replace(/\r?\n/g, '\n');
+                let end = decodedText.length;
+                while (end > 0 && decodedText.charCodeAt(end - 1) === 0x0a) {
+                    end--;
                 }
-
-                // is it an attachment
-                else if (node.content) {
-                    const filename =
-                        node.contentDisposition.parsed.params.filename || node.contentType.parsed.params.name || null;
-                    // `content` is filled in below once the part type is known, hence the
-                    // cast. The declared disposition type names the two RFC 2183 values,
-                    // but any token a message carries is passed through as it is
-                    const attachment = {
-                        filename: filename ? decodeWords(filename) : null,
-                        mimeType: node.contentType.parsed.value,
-                        disposition: node.contentDisposition.parsed.value || null
-                    } as Attachment;
-
-                    // A nested message that was not parsed is not a renderable inline
-                    // resource, so it must not join the cid map behind an <img src>.
-                    if (related && node.contentId && !rfc822DepthExceeded) {
-                        attachment.related = true;
-                    }
-
-                    if (rfc822DepthExceeded) {
-                        // Tell the caller this part would have been parsed inline but hit
-                        // maxRfc822NestingDepth, so anything inside it is not reflected in
-                        // email.text, email.html or email.attachments.
-                        attachment.rfc822DepthExceeded = true;
-                    }
-
-                    if (node.contentDescription) {
-                        // decoded like filename, it is an unstructured header that may
-                        // carry encoded words
-                        attachment.description = decodeWords(node.contentDescription);
-                    }
-
-                    if (node.contentId) {
-                        attachment.contentId = node.contentId;
-                    }
-
-                    switch (node.contentType.parsed.value) {
-                        // Special handling for calendar events
-                        case 'text/calendar':
-                        case 'application/ics': {
-                            if (node.contentType.parsed.params.method) {
-                                attachment.method = node.contentType.parsed.params.method
-                                    .toString()
-                                    .toUpperCase()
-                                    .trim();
-                            }
-
-                            // Enforce into unicode, ending in exactly one newline. The trailing
-                            // newlines are counted rather than replaced with `/\n*$/`, which
-                            // retries at every newline of a run that does not end the text.
-                            const decodedText = node.getTextContent().replace(/\r?\n/g, '\n');
-                            let end = decodedText.length;
-                            while (end > 0 && decodedText.charCodeAt(end - 1) === 0x0a) {
-                                end--;
-                            }
-                            attachment.content = textEncoder.encode(decodedText.slice(0, end) + '\n');
-                            break;
-                        }
-
-                        // Regular attachments
-                        default:
-                            attachment.content = node.content;
-                    }
-
-                    this.attachments.push(attachment);
-                }
-            } else if (node.contentType.multipart === 'alternative') {
-                alternative = node;
-            } else if (node.contentType.multipart === 'related') {
-                related = node;
+                attachment.content = textEncoder.encode(decodedText.slice(0, end) + '\n');
+                break;
             }
 
-            for (let childNode of node.childNodes) {
-                await walk(childNode, alternative, related);
-            }
-        };
+            // Regular attachments
+            default:
+                attachment.content = content;
+        }
 
-        await walk(this.root, false, false);
+        this.attachments.push(attachment);
+    }
 
-        textMap.forEach(mapEntry => {
-            textTypes.forEach(textType => {
+    // Joins the collected text parts into the plain and html bodies
+    /** @internal */
+    renderTextContent(): void {
+        const textContent: Record<string, string[]> = {};
+
+        this.textMap.forEach(mapEntry => {
+            this.textTypes.forEach(textType => {
                 const output = textContent[textType] || [];
                 textContent[textType] = output;
 
@@ -542,7 +457,7 @@ export default class PostalMime {
 
     /** @internal */
     isInlineMessageRfc822(node: MimeNode): boolean {
-        if (node.contentType.parsed.value !== 'message/rfc822') {
+        if (this.forceRfc822Attachments || node.contentType.parsed.value !== 'message/rfc822') {
             return false;
         }
         let disposition =
@@ -550,18 +465,15 @@ export default class PostalMime {
         return disposition === 'inline';
     }
 
-    // Check if this is a specially crafted report email where message/rfc822 content should not be inlined
+    // A delivery status or feedback report carries the offending message as a part. It is
+    // evidence rather than content, so it is not inlined into the body of the report
     /** @internal */
-    forceRfc822Attachments(): boolean {
-        if (this.options.forceRfc822Attachments) {
-            return true;
-        }
-
-        let forceRfc822Attachments = false;
+    hasReportParts(): boolean {
+        let found = false;
         let walk = (node: MimeNode): void => {
             if (!node.contentType.multipart) {
                 if (['message/delivery-status', 'message/feedback-report'].includes(node.contentType.parsed.value)) {
-                    forceRfc822Attachments = true;
+                    found = true;
                 }
             }
 
@@ -570,7 +482,7 @@ export default class PostalMime {
             }
         };
         walk(this.root);
-        return forceRfc822Attachments;
+        return found;
     }
 
     /** @internal */
@@ -598,18 +510,8 @@ export default class PostalMime {
         return result;
     }
 
-    /**
-     * Parses a raw email message. A parser instance can be used once
-     *
-     * @param buf Raw email message
-     * @returns The parsed email
-     */
-    async parse(buf: RawEmail): Promise<Email> {
-        if (this.started) {
-            throw new Error('Can not reuse parser, create a new PostalMime object');
-        }
-        this.started = true;
-
+    /** @internal */
+    async resolveInput(buf: RawEmail): Promise<ArrayBuffer> {
         let input: RawEmail = buf;
 
         // Check if the input is a readable stream and resolve it into an ArrayBuffer
@@ -635,26 +537,20 @@ export default class PostalMime {
         // empty buffer and the message parsed to nothing without an error. Slicing off
         // byteOffset also keeps views over a larger buffer from reading their neighbours.
         if (ArrayBuffer.isView(input)) {
-            input = input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength) as ArrayBuffer;
+            return input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength) as ArrayBuffer;
         }
 
-        this.buf = input;
+        return input;
+    }
 
-        this.av = new Uint8Array(this.buf);
-        this.readPos = 0;
+    // Properties are added in the order the output has always had them, so the required
+    // ones are filled in below rather than in the literal
+    /** @internal */
+    buildMessage(): Email {
+        const headers = this.root.headers;
 
-        while (this.readPos < this.av.length) {
-            const line = this.readLine();
-
-            await this.processLine(line.bytes, line.done);
-        }
-
-        await this.processNodeTree();
-
-        // Properties are added in the order the output has always had them, so the
-        // required ones are filled in below rather than in the literal
         const message = {
-            headers: this.root.headers.map(entry => ({
+            headers: headers.map(entry => ({
                 key: entry.key,
                 originalKey: entry.originalKey,
                 value: entry.value
@@ -662,7 +558,7 @@ export default class PostalMime {
         } as Email;
 
         for (const key of ['from', 'sender'] as const) {
-            const addressHeader = this.root.headers.find(line => line.key === key);
+            const addressHeader = headers.find(line => line.key === key);
             if (addressHeader && addressHeader.value) {
                 const addresses = addressParser(addressHeader.value);
                 if (addresses && addresses.length) {
@@ -675,7 +571,7 @@ export default class PostalMime {
             ['delivered-to', 'deliveredTo'],
             ['return-path', 'returnPath']
         ] as const) {
-            const addressHeader = this.root.headers.find(line => line.key === key);
+            const addressHeader = headers.find(line => line.key === key);
             if (addressHeader && addressHeader.value) {
                 const addresses = addressParser(addressHeader.value);
                 if (addresses && addresses.length && addresses[0].address) {
@@ -692,7 +588,7 @@ export default class PostalMime {
         ] as const) {
             // Appended in place, concat() copies the whole list for every header
             const addresses: Address[] = [];
-            for (const entry of this.root.headers) {
+            for (const entry of headers) {
                 if (entry.key === key && entry.value) {
                     for (const address of addressParser(entry.value)) {
                         addresses.push(address);
@@ -711,13 +607,13 @@ export default class PostalMime {
             ['in-reply-to', 'inReplyTo'],
             ['references', 'references']
         ] as const) {
-            const header = this.root.headers.find(line => line.key === key);
+            const header = headers.find(line => line.key === key);
             if (header && header.value) {
                 message[camelKey] = decodeWords(header.value);
             }
         }
 
-        let dateHeader = this.root.headers.find(line => line.key === 'date');
+        let dateHeader = headers.find(line => line.key === 'date');
         if (dateHeader) {
             let date = new Date(dateHeader.value);
             // enforce ISO format if seems to be a valid date
@@ -737,15 +633,20 @@ export default class PostalMime {
         // Expose raw header lines, in the same order as the headers array
         message.headerLines = this.root.rawHeaderLines.slice();
 
-        // Every attachment holds binary content at this point, since nested parsers
-        // are created with the arraybuffer encoding. The string check narrows the
-        // public content type rather than handling a reachable case
+        return message;
+    }
+
+    // Every attachment holds binary content at this point, since nested parsers are
+    // created with the arraybuffer encoding. The string check narrows the public content
+    // type rather than handling a reachable case
+    /** @internal */
+    encodeAttachments(): void {
         switch (this.attachmentEncoding) {
             case 'arraybuffer':
                 break;
 
             case 'base64':
-                for (let attachment of message.attachments) {
+                for (let attachment of this.attachments) {
                     if (attachment.content && typeof attachment.content !== 'string') {
                         attachment.content = base64ArrayBuffer(attachment.content);
                         attachment.encoding = 'base64';
@@ -755,7 +656,7 @@ export default class PostalMime {
 
             case 'utf8': {
                 let attachmentDecoder = new TextDecoder('utf8');
-                for (let attachment of message.attachments) {
+                for (let attachment of this.attachments) {
                     if (attachment.content && typeof attachment.content !== 'string') {
                         attachment.content = attachmentDecoder.decode(attachment.content);
                         attachment.encoding = 'utf8';
@@ -767,6 +668,36 @@ export default class PostalMime {
             default:
                 throw new Error('Unknown attachment encoding');
         }
+    }
+
+    /**
+     * Parses a raw email message. A parser instance can be used once
+     *
+     * @param buf Raw email message
+     * @returns The parsed email
+     */
+    async parse(buf: RawEmail): Promise<Email> {
+        if (this.started) {
+            throw new Error('Can not reuse parser, create a new PostalMime object');
+        }
+        this.started = true;
+
+        this.buf = await this.resolveInput(buf);
+        this.av = new Uint8Array(this.buf);
+        this.readPos = 0;
+
+        while (this.readPos < this.av.length) {
+            const line = this.readLine();
+
+            await this.processLine(line.bytes, line.done);
+        }
+
+        this.forceRfc822Attachments = Boolean(this.options.forceRfc822Attachments) || this.hasReportParts();
+        await this.collectNode(this.root, false, false);
+        this.renderTextContent();
+
+        const message = this.buildMessage();
+        this.encodeAttachments();
 
         return message;
     }

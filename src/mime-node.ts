@@ -4,7 +4,7 @@ import PassThroughDecoder from './pass-through-decoder.js';
 import Base64Decoder from './base64-decoder.js';
 import QPDecoder from './qp-decoder.js';
 import type PostalMime from './postal-mime.js';
-import type { Email, Header, HeaderLine } from './postal-mime.js';
+import type { Email, Header, HeaderLine } from './types.js';
 
 export interface MimeNodeOptions {
     postalMime: PostalMime;
