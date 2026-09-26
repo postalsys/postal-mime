@@ -15,6 +15,7 @@
     },
     "files": [
         "dist",
+        "src",
         "CHANGELOG.md",
         "LICENSE.txt"
     ],
