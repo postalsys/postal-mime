@@ -20,7 +20,8 @@ jobs:
               uses: actions/setup-node@v5
               with:
                   node-version: ${{ matrix.node }}
-            - run: npm install
+                  cache: npm
+            - run: npm ci
             - run: npm run lint
             - run: npm run format:check
             - run: npm test
