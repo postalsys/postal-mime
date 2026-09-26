@@ -31,6 +31,9 @@
         "prepare": "npm run build",
         "update": "rm -rf node_modules package-lock.json && ncu -u && npm install"
     },
+    "engines": {
+        "node": ">=20"
+    },
     "keywords": [
         "mime",
         "email"
