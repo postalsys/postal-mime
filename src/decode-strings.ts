@@ -306,10 +306,6 @@ export function hexNibble(c: number): number {
     return -1;
 }
 
-export function getHex(c: number): string | false {
-    return hexNibble(c) < 0 ? false : String.fromCharCode(c);
-}
-
 /**
  * Decode a complete mime word encoded string
  *

@@ -5,7 +5,6 @@ import {
     decodeWords,
     decodeURIComponentWithCharset,
     getDecoder,
-    getHex,
     blobToArrayBuffer,
     decodeBase64,
     decodeParameterValueContinuations
@@ -537,78 +536,6 @@ test('getDecoder - charset with language tag', () => {
     const bytes = new TextEncoder().encode('Cafe');
     const result = decoder.decode(bytes);
     assert.strictEqual(result, 'Cafe');
-});
-
-// getHex function tests
-test('getHex - valid digit 0-9', () => {
-    for (let i = 0x30; i <= 0x39; i++) {
-        const result = getHex(i);
-        assert.strictEqual(result, String.fromCharCode(i));
-    }
-});
-
-test('getHex - valid lowercase a-f', () => {
-    for (let i = 0x61; i <= 0x66; i++) {
-        const result = getHex(i);
-        assert.strictEqual(result, String.fromCharCode(i));
-    }
-});
-
-test('getHex - valid uppercase A-F', () => {
-    for (let i = 0x41; i <= 0x46; i++) {
-        const result = getHex(i);
-        assert.strictEqual(result, String.fromCharCode(i));
-    }
-});
-
-test('getHex - invalid character G', () => {
-    const result = getHex(0x47); // 'G'
-    assert.strictEqual(result, false);
-});
-
-test('getHex - invalid character Z', () => {
-    const result = getHex(0x5a); // 'Z'
-    assert.strictEqual(result, false);
-});
-
-test('getHex - invalid character space', () => {
-    const result = getHex(0x20); // space
-    assert.strictEqual(result, false);
-});
-
-test('getHex - invalid character null', () => {
-    const result = getHex(0x00);
-    assert.strictEqual(result, false);
-});
-
-test('getHex - boundary check: character before 0', () => {
-    const result = getHex(0x2f); // '/'
-    assert.strictEqual(result, false);
-});
-
-test('getHex - boundary check: character after 9', () => {
-    const result = getHex(0x3a); // ':'
-    assert.strictEqual(result, false);
-});
-
-test('getHex - boundary check: character before A', () => {
-    const result = getHex(0x40); // '@'
-    assert.strictEqual(result, false);
-});
-
-test('getHex - boundary check: character after F', () => {
-    const result = getHex(0x47); // 'G'
-    assert.strictEqual(result, false);
-});
-
-test('getHex - boundary check: character before a', () => {
-    const result = getHex(0x60); // '`'
-    assert.strictEqual(result, false);
-});
-
-test('getHex - boundary check: character after f', () => {
-    const result = getHex(0x67); // 'g'
-    assert.strictEqual(result, false);
 });
 
 // blobToArrayBuffer function tests
