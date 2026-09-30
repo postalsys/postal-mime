@@ -537,3 +537,23 @@ test('addressParser - quoted encoded word is never re-parsed into an address', (
     // an unquoted one still is, as before
     assert.deepStrictEqual(addressParser('=?utf-8?B?PGFAZXZpbC5jb20+?='), [{ address: 'a@evil.com', name: '' }]);
 });
+
+test('addressParser - a "[" outside an addr-spec does not hide operators', () => {
+    // Only a "[" right after the '@' opens a domain-literal. Anywhere else it would hide the
+    // comment, quoted string or angle-addr after it and pick a different mailbox
+    const cases: [string, string][] = [
+        ['[ ( ] <victim@good.com> ) <evil@evil.com>', 'evil@evil.com'],
+        ['x [(<victim@good.com>)] evil@evil.com', 'evil@evil.com'],
+        ['["] <victim@good.com> ["] <evil@evil.com>', 'evil@evil.com'],
+        ['Name[x<evil@evil.com>]<victim@good.com>', 'evil@evil.com']
+    ];
+    for (const [input, address] of cases) {
+        const result = addressParser(input);
+        assert.strictEqual(result.length, 1, input);
+        assert.strictEqual(result[0].address, address, input);
+    }
+    assert.deepStrictEqual(addressParser('user@[IPv6:2001:db8::1]'), [
+        { address: 'user@[IPv6:2001:db8::1]', name: '' }
+    ]);
+    assert.deepStrictEqual(addressParser('user(c)@[IPv6:::1]'), [{ address: 'user@[IPv6:::1]', name: 'c' }]);
+});

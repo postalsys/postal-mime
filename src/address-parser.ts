@@ -667,6 +667,8 @@ class Tokenizer {
     node: Token | null;
     escaped: boolean;
     inDomainLiteral: boolean;
+    /** last non-whitespace character of the current text node, or '' */
+    lastTextChar: string;
     list: Token[];
     /**
      * Operator tokens and which tokens are expected to end the sequence
@@ -683,6 +685,7 @@ class Tokenizer {
         this.node = null;
         this.escaped = false;
         this.inDomainLiteral = false;
+        this.lastTextChar = '';
 
         this.list = [];
 
@@ -738,9 +741,12 @@ class Tokenizer {
         // read as the group delimiter while inside the brackets. Quoted strings and comments
         // are handled via operatorExpecting, so this state is only entered when no operator
         // is open. The list separators "," and ";" always end the literal, so that an
-        // unclosed "[" can not swallow later recipients.
+        // unclosed "[" can not swallow later recipients. A domain-literal only ever follows
+        // the '@' of an addr-spec, so a "[" anywhere else, eg. in a display name, stays plain
+        // text. Otherwise it would hide the comment, quoted string or angle-addr after it and
+        // let the header pick a different mailbox than the one RFC 5322 reads.
         if (!this.escaped && !this.operatorExpecting) {
-            if (!this.inDomainLiteral && chr === '[') {
+            if (!this.inDomainLiteral && chr === '[' && this.lastTextChar === '@') {
                 this.inDomainLiteral = true;
             } else if (this.inDomainLiteral && (chr === ']' || chr === ',' || chr === ';')) {
                 this.inDomainLiteral = false;
@@ -761,6 +767,7 @@ class Tokenizer {
 
             this.list.push(this.node);
             this.node = null;
+            this.lastTextChar = '';
             this.operatorExpecting = '';
             this.escaped = false;
 
@@ -772,6 +779,7 @@ class Tokenizer {
             };
             this.list.push(this.node);
             this.node = null;
+            this.lastTextChar = '';
             this.operatorExpecting = this.operators[chr];
             this.escaped = false;
             return;
@@ -797,6 +805,9 @@ class Tokenizer {
         if (chr.charCodeAt(0) >= 0x21 || [' ', '\t'].includes(chr)) {
             // skip command bytes
             this.node.value += chr;
+            if (chr !== ' ' && chr !== '\t') {
+                this.lastTextChar = chr;
+            }
         }
 
         this.escaped = false;
