@@ -56,6 +56,6 @@
         "prettier": "3.9.9",
         "tsx": "4.23.15",
         "typescript": "6.0.3",
-        "typescript-eslint": "8.70.1"
+        "typescript-eslint": "8.71.0"
     }
 }
