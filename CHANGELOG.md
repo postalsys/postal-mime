@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.2](https://github.com/postalsys/postal-mime/compare/v4.0.1...v4.0.2) (2026-09-30)
+
+
+### Bug Fixes
+
+* stop a "[" from hiding the operators after it ([2797ee5](https://github.com/postalsys/postal-mime/commit/2797ee506fa9125f1802b455dcc4fb830dc00667))
+
 ## [4.0.1](https://github.com/postalsys/postal-mime/compare/v4.0.0...v4.0.1) (2026-09-30)
 
 
