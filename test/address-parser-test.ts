@@ -227,8 +227,9 @@ test('addressParser - quoted string with @ symbol should not extract as email', 
 test('addressParser - quoted local part with @ symbol (RFC 5321)', () => {
     const result = addressParser('"user@host"@example.com');
     assert.strictEqual(result.length, 1);
-    // The entire quoted part with @ should be preserved in address
-    assert.ok(result[0].address);
+    // The quotes stay on, so there is only one '@' a consumer can split the domain off at
+    assert.strictEqual(result[0].address, '"user@host"@example.com');
+    assert.strictEqual(result[0].name, '');
 });
 
 test('addressParser - display name in quotes containing email-like pattern', () => {
@@ -470,4 +471,54 @@ test('addressParser - bare encoded email is never fabricated into an address', (
     assert.strictEqual(result.length, 1);
     assert.strictEqual(result[0].address, '');
     assert.strictEqual(result[0].name, 'test@evil.co');
+});
+
+test('addressParser - address after a stray @ in free text is still found', () => {
+    // The linear scan only looked at the first '@' of a whitespace delimited run, so a run
+    // that opened with '@' was skipped and the whole text became the address
+    assert.deepStrictEqual(addressParser('text @a@b.com more'), [{ address: 'a@b.com', name: 'text @ more' }]);
+    assert.deepStrictEqual(addressParser('@@foo@bar.com'), [{ address: 'foo@bar.com', name: '@@' }]);
+});
+
+test('addressParser - comment inside angle brackets stays out of the address', () => {
+    assert.deepStrictEqual(addressParser('=?utf-8?Q?J=C3=B6rg?= <j@example.com (work)>'), [
+        { address: 'j@example.com', name: 'Jörg' }
+    ]);
+});
+
+test('addressParser - comment inside angle brackets is decoded when it names the mailbox', () => {
+    assert.deepStrictEqual(addressParser('<j@example.com (=?utf-8?Q?J=C3=B6rg?=)>'), [
+        { address: 'j@example.com', name: 'Jörg' }
+    ]);
+});
+
+test('addressParser - quoted local part keeps its quotes when it holds specials', () => {
+    assert.deepStrictEqual(addressParser('"user@evil.com"@good.com'), [
+        { address: '"user@evil.com"@good.com', name: '' }
+    ]);
+    assert.deepStrictEqual(addressParser('"a,b"@example.com'), [{ address: '"a,b"@example.com', name: '' }]);
+    assert.deepStrictEqual(addressParser('"a b"@example.com'), [{ address: '"a b"@example.com', name: '' }]);
+    assert.deepStrictEqual(addressParser('""@example.com'), [{ address: '""@example.com', name: '' }]);
+});
+
+test('addressParser - quoted encoded word without an address is still decoded as the name', () => {
+    assert.deepStrictEqual(addressParser('"=?utf-8?Q?J=C3=B6rg?="'), [{ address: '', name: 'Jörg' }]);
+});
+
+test('addressParser - angle brackets holding more than a mailbox keep only the mailbox', () => {
+    assert.deepStrictEqual(addressParser('<user@example.com user@example.com>'), [
+        { address: 'user@example.com', name: '' }
+    ]);
+    assert.deepStrictEqual(addressParser('<example.com user@example.com>'), [
+        { address: 'user@example.com', name: 'example.com' }
+    ]);
+    assert.deepStrictEqual(addressParser('<"a b"@example.com trailing junk>'), [
+        { address: '"a b"@example.com', name: 'trailing junk' }
+    ]);
+});
+
+test('addressParser - unquoted display name with a comma is merged back together', () => {
+    assert.deepStrictEqual(addressParser('=?utf-8?Q?J=C3=B6rg?=, PhD <j@example.com>'), [
+        { address: 'j@example.com', name: 'Jörg, PhD' }
+    ]);
 });

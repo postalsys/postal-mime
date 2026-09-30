@@ -673,3 +673,11 @@ Body
 
     assert.ok(email.attachments.length > 0);
 });
+
+test('From header with a quoted local part keeps the quotes in the parsed address', async () => {
+    const mail =
+        'From: "user@evil.com"@good.com\r\nTo: Name <to@example.com(x)evil.com>\r\nSubject: test\r\n\r\nbody\r\n';
+    const email = await PostalMime.parse(mail);
+    assert.deepStrictEqual(email.from, { address: '"user@evil.com"@good.com', name: '' });
+    assert.deepStrictEqual(email.to, [{ address: 'to@example.com', name: 'Name evil.com' }]);
+});
