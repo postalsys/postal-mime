@@ -522,3 +522,11 @@ test('addressParser - unquoted display name with a comma is merged back together
         { address: 'j@example.com', name: 'Jörg, PhD' }
     ]);
 });
+
+test('addressParser - display name mixing an encoded word with text is not kept as the address', () => {
+    assert.deepStrictEqual(addressParser('=?utf-8?Q?J=C3=B6rg?= Doe'), [{ address: '', name: 'Jörg Doe' }]);
+    assert.deepStrictEqual(addressParser('"=?utf-8?Q?J=C3=B6rg?= Doe"'), [{ address: '', name: 'Jörg Doe' }]);
+    assert.deepStrictEqual(addressParser('<=?utf-8?Q?J=C3=B6rg?=>'), [{ address: '', name: 'Jörg' }]);
+    // a name that decodes to the address is still dropped as before
+    assert.deepStrictEqual(addressParser('=?utf-8?Q?a@b.com?= <a@b.com>'), [{ address: 'a@b.com', name: '' }]);
+});

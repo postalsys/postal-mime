@@ -632,12 +632,17 @@ function _handleAddress(tokens: Token[], depth: number): Address[] {
             text = addressComments.join(' ');
         }
 
+        const rawName = text || addressValue || '';
         const address: Mailbox = {
             address: addressValue || text || '',
-            name: decodeWords(text || addressValue || '')
+            name: decodeWords(rawName)
         };
 
-        if (address.address === address.name) {
+        // The raw comparison is the check Nodemailer makes, it holds when a single source
+        // filled both fields. The decoded one is added because postal-mime decodes names,
+        // which also catches a name that decodes to the address itself. Comparing only the
+        // decoded name kept a name that mixes an encoded word with plain text as the address
+        if (address.address === rawName || address.address === address.name) {
             if (address.address.match(/@/)) {
                 address.name = '';
             } else {
