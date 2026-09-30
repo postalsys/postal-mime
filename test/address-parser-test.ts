@@ -530,3 +530,10 @@ test('addressParser - display name mixing an encoded word with text is not kept 
     // a name that decodes to the address is still dropped as before
     assert.deepStrictEqual(addressParser('=?utf-8?Q?a@b.com?= <a@b.com>'), [{ address: 'a@b.com', name: '' }]);
 });
+
+test('addressParser - quoted encoded word is never re-parsed into an address', () => {
+    // =?utf-8?B?PGFAZXZpbC5jb20+?= decodes to "<a@evil.com>"
+    assert.deepStrictEqual(addressParser('"=?utf-8?B?PGFAZXZpbC5jb20+?="'), [{ address: '', name: '<a@evil.com>' }]);
+    // an unquoted one still is, as before
+    assert.deepStrictEqual(addressParser('=?utf-8?B?PGFAZXZpbC5jb20+?='), [{ address: 'a@evil.com', name: '' }]);
+});

@@ -602,8 +602,9 @@ function _handleAddress(tokens: Token[], depth: number): Address[] {
             const decodedText = decodeWords(text);
             // Security: only re-parse if decoded text contains angle-bracket addresses.
             // Without this, a bare encoded email (e.g. =?utf-8?B?dGVzdEBldmlsLmNv?=)
-            // would be fabricated into an address from attacker-controlled input.
-            if (hasAngleAddress(decodedText)) {
+            // would be fabricated into an address from attacker-controlled input. A quoted
+            // encoded word is never re-parsed, addresses are not taken out of quoted strings
+            if (!addressFromQuotedText && hasAngleAddress(decodedText)) {
                 const parsedSubAddresses = parseAddressList(decodedText, depth + 1);
                 if (parsedSubAddresses.length) {
                     return parsedSubAddresses;
