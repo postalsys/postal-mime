@@ -1,5 +1,15 @@
 # Changelog
 
+## [4.0.1](https://github.com/postalsys/postal-mime/compare/v4.0.0...v4.0.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* do not read an address out of a quoted encoded word ([c88eaf5](https://github.com/postalsys/postal-mime/commit/c88eaf5415424d69810b10062a68492c22ffb4a5))
+* keep a display name holding an encoded word out of the address ([ce5ba24](https://github.com/postalsys/postal-mime/commit/ce5ba24c23410493e79f8453783d7e2c1d4c4cc1))
+* open a domain-literal only after the '@' of an address ([776b951](https://github.com/postalsys/postal-mime/commit/776b9517623f5f9afbc5b925c229bd3b020cf65f))
+* port the address parser fixes from Nodemailer ([902bd3f](https://github.com/postalsys/postal-mime/commit/902bd3fa0401154518acd01ae98759a23dbff0ba))
+
 ## [4.0.0](https://github.com/postalsys/postal-mime/compare/v3.0.1...v4.0.0) (2026-09-26)
 
 
