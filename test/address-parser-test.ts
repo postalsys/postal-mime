@@ -538,14 +538,19 @@ test('addressParser - quoted encoded word is never re-parsed into an address', (
     assert.deepStrictEqual(addressParser('=?utf-8?B?PGFAZXZpbC5jb20+?='), [{ address: 'a@evil.com', name: '' }]);
 });
 
-test('addressParser - a "[" outside an addr-spec does not hide operators', () => {
-    // Only a "[" right after the '@' opens a domain-literal. Anywhere else it would hide the
-    // comment, quoted string or angle-addr after it and pick a different mailbox
+test('addressParser - a "[" does not hide the comment, quoted string or angle-addr after it', () => {
+    // A domain-literal only hides the ":" of an IPv6 address-literal. Hiding the other
+    // operators as well picked a different mailbox than the one RFC 5322 reads
     const cases: [string, string][] = [
         ['[ ( ] <victim@good.com> ) <evil@evil.com>', 'evil@evil.com'],
         ['x [(<victim@good.com>)] evil@evil.com', 'evil@evil.com'],
         ['["] <victim@good.com> ["] <evil@evil.com>', 'evil@evil.com'],
-        ['Name[x<evil@evil.com>]<victim@good.com>', 'evil@evil.com']
+        ['Name[x<evil@evil.com>]<victim@good.com>', 'evil@evil.com'],
+        // an "@" in front of the "[" opens a literal, which still must not hide them
+        ['Name @[ ( ] <victim@good.com> ) <evil@evil.com>', 'evil@evil.com'],
+        ['Name a@[ ( ] <victim@good.com> ) <evil@evil.com>', 'evil@evil.com'],
+        ['"x"@[ ( ] <victim@good.com> ) <evil@evil.com>', 'evil@evil.com'],
+        ['Name @[ " ] <victim@good.com> " <evil@evil.com>', 'evil@evil.com']
     ];
     for (const [input, address] of cases) {
         const result = addressParser(input);
@@ -556,4 +561,5 @@ test('addressParser - a "[" outside an addr-spec does not hide operators', () =>
         { address: 'user@[IPv6:2001:db8::1]', name: '' }
     ]);
     assert.deepStrictEqual(addressParser('user(c)@[IPv6:::1]'), [{ address: 'user@[IPv6:::1]', name: 'c' }]);
+    assert.deepStrictEqual(addressParser('user@(c)[IPv6:::1]'), [{ address: 'user@[IPv6:::1]', name: 'c' }]);
 });
