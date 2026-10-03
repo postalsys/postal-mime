@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.0.3](https://github.com/postalsys/postal-mime/compare/v4.0.2...v4.0.3) (2026-10-03)
+
+
+### Bug Fixes
+
+* keep a continuation from overriding the plain parameter of the same name ([6fa92ad](https://github.com/postalsys/postal-mime/commit/6fa92ad2dd4c73901c5c2fa757041b9abad4727a))
+* stop the junk behind a closed quoted string from hiding the whole body ([535fcf8](https://github.com/postalsys/postal-mime/commit/535fcf823fdbb7d32e618cdc2c1f65fef7f8384b))
+
 ## [4.0.2](https://github.com/postalsys/postal-mime/compare/v4.0.1...v4.0.2) (2026-09-30)
 
 
