@@ -283,6 +283,56 @@ test('an unterminated comment does not leak into a quoted parameter value', asyn
     assert.strictEqual(email.text!.trim(), 'hello');
 });
 
+test('junk behind a closed quoted string does not reopen the quoting', async () => {
+    // The junk was dropped by a test at the foot of the branches, so each branch above it
+    // was a way around it. A second `"` reopened quoting, which both carried the whitespace
+    // in front of it into the value and took the `;` that ends the parameter along, so the
+    // boundary registered as `AAA ` and every delimiter in the message stopped matching:
+    // the text and the attachment below both vanished without an error, while a parser that
+    // reads the boundary correctly still saw them.
+    const email = await PostalMime.parse(
+        multipart(
+            'Content-Type: multipart/mixed; boundary="AAA" "; boundary=BBB"',
+            ['Content-Type: text/plain', '', 'hello'],
+            ['Content-Type: text/plain', 'Content-Disposition: attachment; filename="payload.txt"', '', 'x']
+        )
+    );
+
+    assert.strictEqual(email.text!.trim(), 'hello');
+    assert.strictEqual(email.attachments.length, 1);
+    assert.strictEqual(email.attachments[0].filename, 'payload.txt');
+});
+
+test('a second quoted run does not leak whitespace into the value before it', async () => {
+    for (const contentType of [
+        'Content-Type: multipart/mixed; boundary="AAA" "junk"',
+        'Content-Type: multipart/mixed; boundary="AAA" "BBB"'
+    ]) {
+        // eslint-disable-next-line no-await-in-loop
+        const email = await PostalMime.parse(multipart(contentType, ['Content-Type: text/plain', '', 'hello']));
+        assert.strictEqual(email.text!.trim(), 'hello', contentType);
+    }
+});
+
+test('an escape behind a closed quoted string does not append to the value', async () => {
+    const email = await PostalMime.parse(
+        multipart('Content-Type: multipart/mixed; boundary="AAA" "\\j\\u\\n\\k"', [
+            'Content-Type: text/plain',
+            '',
+            'hello'
+        ])
+    );
+    assert.strictEqual(email.text!.trim(), 'hello');
+});
+
+test('a parameter with no name is dropped', async () => {
+    // a name is a token and a token is never empty, so the nameless one names nothing
+    const email = await PostalMime.parse(
+        multipart('Content-Type: multipart/mixed; =v; boundary="AAA"', ['Content-Type: text/plain', '', 'hello'])
+    );
+    assert.strictEqual(email.text!.trim(), 'hello');
+});
+
 test('whitespace around an unquoted parameter value is dropped', async () => {
     const email = await PostalMime.parse(
         multipart('Content-Type: multipart/mixed; boundary="AAA"', [

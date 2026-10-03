@@ -298,11 +298,17 @@ export default class MimeNode {
         let escaped = false;
         let chr: string;
 
-        const addChr = (c: string): void => {
+        // Whitespace ahead of the first character of a value is padding and is dropped, the
+        // whitespace between two characters of it is content
+        const flushSpace = (): void => {
             if (value.length) {
                 value += pendingSpace;
             }
             pendingSpace = '';
+        };
+
+        const addChr = (c: string): void => {
+            flushSpace();
             value += c;
         };
 
@@ -318,9 +324,10 @@ export default class MimeNode {
         // headers are resolved. Letting the last one win means `boundary="b"; boundary="c"`
         // registers a boundary that no delimiter in the message matches, which drops the
         // body without an error. hasOwnProperty, because a parameter may be named
-        // `constructor` or `toString`.
+        // `constructor` or `toString`. A name is a token and a token is never empty, so the
+        // nameless parameter of `text/plain; =v` names nothing and is dropped.
         const storeParam = (name: string, result: string): void => {
-            if (!Object.prototype.hasOwnProperty.call(response.params, name)) {
+            if (name && !Object.prototype.hasOwnProperty.call(response.params, name)) {
                 response.params[name] = result;
             }
         };
@@ -338,10 +345,7 @@ export default class MimeNode {
         // next one. Without this the name would keep growing across the `;` and swallow
         // whatever followed, which is how `x=1; flag; boundary="AAA"` loses its boundary.
         const storeEmptyKey = (): void => {
-            const name = takeValue().trim();
-            if (name) {
-                storeParam(name.toLowerCase(), '');
-            }
+            storeParam(takeValue().trim().toLowerCase(), '');
         };
 
         for (let i = 0, len = str.length; i < len; i++) {
@@ -360,6 +364,22 @@ export default class MimeNode {
                     value += chr;
                     break;
                 case 'value':
+                    if (quoteClosed && chr !== ';') {
+                        // Nothing behind a closed quoted string reaches the value. RFC 2045
+                        // says a parameter value is a token or a quoted string, not both, so
+                        // what follows one is junk and only the `;` that ends the parameter
+                        // still counts. Tested ahead of the branches rather than beside the
+                        // append at the foot of them, where each branch above was a way
+                        // around it. A second `"` reopened quoting, which both carried the
+                        // whitespace in front of it into the value and took the `;` along, so
+                        // `boundary="AAA" "; boundary=BBB"` registered a boundary of `AAA `
+                        // that no delimiter matches and the whole body was dropped without an
+                        // error; the escape branch appended arbitrary characters the same way.
+                        // quoteClosed is only ever set while no quote is open, and this is
+                        // what keeps one from being opened afterwards.
+                        escaped = false;
+                        break;
+                    }
                     if (escaped) {
                         addChr(chr);
                     } else if (quote && chr === '\\') {
@@ -373,24 +393,15 @@ export default class MimeNode {
                         quoteClosed = true;
                     } else if (!quote && chr === '"') {
                         quote = chr;
-                        // whitespace before a quote that opens the value is padding, but
-                        // between a token and a quoted string it is content
-                        if (value.length) {
-                            value += pendingSpace;
-                        }
-                        pendingSpace = '';
+                        flushSpace();
                     } else if (!quote && chr === ';') {
                         storeValue();
                         stage = 'key';
                     } else if (!quote && (chr === ' ' || chr === '\t')) {
                         pendingSpace += chr;
-                    } else if (!quoteClosed) {
+                    } else {
                         addChr(chr);
                     }
-                    // Anything else is trailing junk after a closed quoted string. RFC 2045
-                    // says a parameter value is a token or a quoted string, not both, and
-                    // appending the junk is how `boundary="AAA" (unterminated comment`
-                    // turned into a boundary that no delimiter in the message matches.
                     escaped = false;
                     break;
             }
