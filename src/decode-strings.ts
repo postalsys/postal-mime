@@ -611,6 +611,15 @@ export function decodeParameterValueContinuations(header: StructuredHeader): voi
     });
 
     paramKeys.forEach((paramVal, key) => {
+        if (Object.prototype.hasOwnProperty.call(header.params, key)) {
+            // The same name was also given as a plain parameter, which the starred keys were
+            // just deleted from around, so this write would be the only one here to override a
+            // name already taken. `filename="plain"; filename*0="cont"` resolves to the plain
+            // parameter either way round, so the reading does not come down to which of the
+            // two spellings the sender put first. See storeParam in mime-node.ts
+            return;
+        }
+
         let result = '';
         // Adjacent encoded sections are decoded together, because a single multi byte
         // character may be percent encoded across a section boundary.

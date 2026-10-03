@@ -325,6 +325,27 @@ test('an escape behind a closed quoted string does not append to the value', asy
     assert.strictEqual(email.text!.trim(), 'hello');
 });
 
+test('a continuation does not override the plain parameter of the same name', async () => {
+    // The join writes the key it builds, which is the one write here that could take a name
+    // another parameter already holds. Both orders resolve to the plain parameter, so the
+    // reading does not come down to which spelling the sender put first
+    for (const disposition of [
+        'Content-Disposition: attachment; filename="plain.txt"; filename*0="cont.txt"',
+        'Content-Disposition: attachment; filename*0="cont.txt"; filename="plain.txt"'
+    ]) {
+        // eslint-disable-next-line no-await-in-loop
+        const email = await PostalMime.parse(
+            multipart('Content-Type: multipart/mixed; boundary="AAA"', [
+                'Content-Type: application/pdf',
+                disposition,
+                '',
+                'x'
+            ])
+        );
+        assert.strictEqual(email.attachments[0].filename, 'plain.txt', disposition);
+    }
+});
+
 test('a parameter with no name is dropped', async () => {
     // a name is a token and a token is never empty, so the nameless one names nothing
     const email = await PostalMime.parse(
