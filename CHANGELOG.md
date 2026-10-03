@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.4](https://github.com/postalsys/postal-mime/compare/v4.0.3...v4.0.4) (2026-10-03)
+
+
+### Bug Fixes
+
+* stop decoding the CRLF before a multipart boundary as part content ([004eec7](https://github.com/postalsys/postal-mime/commit/004eec76a5b569cd556b404417abdcf30ee88cad)), closes [#102](https://github.com/postalsys/postal-mime/issues/102)
+
 ## [4.0.3](https://github.com/postalsys/postal-mime/compare/v4.0.2...v4.0.3) (2026-10-03)
 
 
