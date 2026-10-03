@@ -308,7 +308,6 @@ test('a second quoted run does not leak whitespace into the value before it', as
         'Content-Type: multipart/mixed; boundary="AAA" "junk"',
         'Content-Type: multipart/mixed; boundary="AAA" "BBB"'
     ]) {
-        // eslint-disable-next-line no-await-in-loop
         const email = await PostalMime.parse(multipart(contentType, ['Content-Type: text/plain', '', 'hello']));
         assert.strictEqual(email.text!.trim(), 'hello', contentType);
     }
@@ -333,7 +332,6 @@ test('a continuation does not override the plain parameter of the same name', as
         'Content-Disposition: attachment; filename="plain.txt"; filename*0="cont.txt"',
         'Content-Disposition: attachment; filename*0="cont.txt"; filename="plain.txt"'
     ]) {
-        // eslint-disable-next-line no-await-in-loop
         const email = await PostalMime.parse(
             multipart('Content-Type: multipart/mixed; boundary="AAA"', [
                 'Content-Type: application/pdf',
