@@ -8,6 +8,7 @@ export default class QPDecoder {
     buffer: Uint8Array<ArrayBuffer>;
     bufferPos: number;
     chunks: Uint8Array<ArrayBuffer>[];
+    pendingLineBreak: boolean;
 
     constructor() {
         this.maxChunkSize = 100 * 1024;
@@ -16,6 +17,7 @@ export default class QPDecoder {
         this.bufferPos = 0;
 
         this.chunks = [];
+        this.pendingLineBreak = false;
     }
 
     writeByte(byte: number): void {
@@ -50,7 +52,14 @@ export default class QPDecoder {
     // the result is handed on as bytes. Running the body charset over the encoded source
     // instead corrupted every part whose charset was not ASCII compatible: the same
     // content that decoded correctly in base64 came out as mojibake in quoted-printable.
+    //
+    // As in PassThroughDecoder, a hard line break is only written once the next line
+    // arrives, so the CRLF that belongs to a following boundary is not decoded as content.
     update(line: Uint8Array): void {
+        if (this.pendingLineBreak) {
+            this.writeByte(CHR_LF);
+        }
+
         let len = line.length;
 
         // a line ending in '=' is a soft line break, the newline is not part of the content
@@ -79,12 +88,14 @@ export default class QPDecoder {
         }
         this.writeBytes(line, literalStart, len);
 
-        if (!softBreak) {
-            this.writeByte(CHR_LF);
-        }
+        this.pendingLineBreak = !softBreak;
     }
 
-    finalize(): Promise<ArrayBuffer> {
+    // see PassThroughDecoder.finalize
+    finalize(boundaryEnded = false): Promise<ArrayBuffer> {
+        if (!boundaryEnded && this.pendingLineBreak) {
+            this.writeByte(CHR_LF);
+        }
         this.flushBuffer();
 
         // convert an array of arraybuffers into a blob and then back into a single arraybuffer

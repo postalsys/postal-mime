@@ -144,7 +144,9 @@ export default class MimeNode {
         }
     }
 
-    async finalize(): Promise<void> {
+    // `boundaryEnded` tells that the part was ended by a multipart boundary, which owns
+    // the line break after the last line of the part (RFC 2046 5.1.1)
+    async finalize(boundaryEnded = false): Promise<void> {
         if (this.state === 'finished') {
             return;
         }
@@ -163,9 +165,9 @@ export default class MimeNode {
             }
         }
 
-        await this.finalizeChildNodes();
+        await this.finalizeChildNodes(boundaryEnded);
 
-        this.content = this.contentDecoder ? await this.contentDecoder.finalize() : null;
+        this.content = this.contentDecoder ? await this.contentDecoder.finalize(boundaryEnded) : null;
 
         // The decoder buffers every body line it received, so keeping it around
         // retains a second copy of the content for the lifetime of the node.
@@ -175,11 +177,11 @@ export default class MimeNode {
         this.state = 'finished';
     }
 
-    async finalizeChildNodes(): Promise<void> {
+    async finalizeChildNodes(boundaryEnded = false): Promise<void> {
         // Children are only ever appended, so everything before the cursor is already
         // finished and re-visiting it only costs time.
         while (this.finalizedChildCount < this.childNodes.length) {
-            await this.childNodes[this.finalizedChildCount++].finalize();
+            await this.childNodes[this.finalizedChildCount++].finalize(boundaryEnded);
         }
     }
 

@@ -13,11 +13,11 @@ test('Parse mixed non-alternative content', async () => {
 
     assert.strictEqual(
         email.text,
-        '\nThis e-mail message has been scanned for Viruses and Content and cleared\n\n\nGood Morning;\n\n\n'
+        '\nThis e-mail message has been scanned for Viruses and Content and cleared\n\nGood Morning;\n\n'
     );
     assert.strictEqual(
         email.html,
-        '<HTML><HEAD>\n</HEAD><BODY> \n\n<HR>\nThis e-mail message has been scanned for Viruses and Content and cleared\n<HR>\n</BODY></HTML>\n\n\n<div>Good Morning;</div>'
+        '<HTML><HEAD>\n</HEAD><BODY> \n\n<HR>\nThis e-mail message has been scanned for Viruses and Content and cleared\n<HR>\n</BODY></HTML>\n\n<div>Good Morning;</div>'
     );
 });
 

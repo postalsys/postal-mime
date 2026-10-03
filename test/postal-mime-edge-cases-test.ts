@@ -681,3 +681,106 @@ test('From header with a quoted local part keeps the quotes in the parsed addres
     assert.deepStrictEqual(email.from, { address: '"user@evil.com"@good.com', name: '' });
     assert.deepStrictEqual(email.to, [{ address: 'to@example.com', name: 'Name evil.com' }]);
 });
+
+// RFC 2046 5.1.1: the CRLF in front of a boundary belongs to the boundary, not to the part
+// before it. Base64 parts always got this right, other encodings used to keep it as content.
+function boundaryMessage(parts: string[], closing = '--B--\r\n'): string {
+    return (
+        ['From: a@example.com', 'Content-Type: multipart/mixed; boundary="B"', ''].join('\r\n') +
+        '\r\n' +
+        parts.map(part => `--B\r\n${part}\r\n`).join('') +
+        closing
+    );
+}
+
+function attachmentPart(cte: string, body: string): string {
+    return [
+        'Content-Type: text/plain; name="x.txt"',
+        'Content-Disposition: attachment; filename="x.txt"',
+        `Content-Transfer-Encoding: ${cte}`,
+        '',
+        body
+    ].join('\r\n');
+}
+
+async function attachmentText(mail: string, index = 0): Promise<string> {
+    const email = await PostalMime.parse(mail);
+    return new TextDecoder().decode(email.attachments[index].content as ArrayBuffer);
+}
+
+test('Boundary line break - is not content for any transfer encoding', async () => {
+    for (const [cte, body] of [
+        ['7bit', 'abc'],
+        ['8bit', 'abc'],
+        ['binary', 'abc'],
+        ['quoted-printable', 'abc'],
+        ['base64', 'YWJj']
+    ]) {
+        assert.strictEqual(await attachmentText(boundaryMessage([attachmentPart(cte, body)])), 'abc', cte);
+    }
+});
+
+test('Boundary line break - inner and trailing blank lines are kept', async () => {
+    const mail = boundaryMessage([attachmentPart('7bit', 'a\r\n\r\nb\r\n')]);
+    assert.strictEqual(await attachmentText(mail), 'a\n\nb\n');
+
+    const qp = boundaryMessage([attachmentPart('quoted-printable', 'a=3D\r\nb\r\n')]);
+    assert.strictEqual(await attachmentText(qp), 'a=\nb\n');
+});
+
+test('Boundary line break - a part holding one empty line is empty', async () => {
+    assert.strictEqual(await attachmentText(boundaryMessage([attachmentPart('7bit', '')])), '');
+    assert.strictEqual(await attachmentText(boundaryMessage([attachmentPart('quoted-printable', '')])), '');
+});
+
+test('Boundary line break - quoted-printable soft break before the boundary', async () => {
+    const mail = boundaryMessage([attachmentPart('quoted-printable', 'ab=\r\nc=')]);
+    assert.strictEqual(await attachmentText(mail), 'abc');
+});
+
+test('Boundary line break - text parts end where the boundary starts', async () => {
+    const text = await PostalMime.parse(boundaryMessage(['Content-Type: text/plain\r\n\r\nhello']));
+    assert.strictEqual(text.text, 'hello');
+
+    const html = await PostalMime.parse(boundaryMessage(['Content-Type: text/html\r\n\r\n<p>hi</p>']));
+    assert.strictEqual(html.html, '<p>hi</p>');
+});
+
+test('Boundary line break - every part before a boundary, not only the last one', async () => {
+    const mail = boundaryMessage([attachmentPart('7bit', 'one'), attachmentPart('quoted-printable', 'two')]);
+    assert.strictEqual(await attachmentText(mail, 0), 'one');
+    assert.strictEqual(await attachmentText(mail, 1), 'two');
+});
+
+test('Boundary line break - nested multipart closed by the outer boundary', async () => {
+    const inner = [
+        'Content-Type: multipart/mixed; boundary="C"',
+        '',
+        '--C',
+        attachmentPart('7bit', 'inner'),
+        // no closing --C-- here, the outer boundary ends the inner part
+        '--B',
+        attachmentPart('7bit', 'outer')
+    ].join('\r\n');
+    const mail = boundaryMessage([inner]);
+    assert.strictEqual(await attachmentText(mail, 0), 'inner');
+    assert.strictEqual(await attachmentText(mail, 1), 'outer');
+});
+
+test('Boundary line break - a part ended by the end of input keeps its line break', async () => {
+    // no closing boundary, nothing owns the final line break
+    const unclosed = boundaryMessage([attachmentPart('7bit', 'abc')], '');
+    assert.strictEqual(await attachmentText(unclosed), 'abc\n');
+
+    const unclosedQp = boundaryMessage([attachmentPart('quoted-printable', 'abc')], '');
+    assert.strictEqual(await attachmentText(unclosedQp), 'abc\n');
+
+    // single part messages are unchanged
+    const single = await PostalMime.parse('Content-Type: text/plain\r\n\r\nabc\r\n');
+    assert.strictEqual(single.text, 'abc\n');
+
+    const singleQp = await PostalMime.parse(
+        'Content-Type: text/plain\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\nab=\r\nc\r\n'
+    );
+    assert.strictEqual(singleQp.text, 'abc\n');
+});

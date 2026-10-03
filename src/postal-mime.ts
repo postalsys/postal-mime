@@ -219,12 +219,12 @@ export default class PostalMime {
                 }
 
                 if (isTerminator) {
-                    await boundary.node.finalize();
+                    await boundary.node.finalize(true);
 
                     this.currentNode = boundary.node.parentNode || this.root;
                 } else {
                     // finalize any open child nodes (should be just one though)
-                    await boundary.node.finalizeChildNodes();
+                    await boundary.node.finalizeChildNodes(true);
 
                     this.currentNode = new MimeNode({
                         postalMime: this,
