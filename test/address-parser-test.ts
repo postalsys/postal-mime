@@ -563,3 +563,19 @@ test('addressParser - a "[" does not hide the comment, quoted string or angle-ad
     assert.deepStrictEqual(addressParser('user(c)@[IPv6:::1]'), [{ address: 'user@[IPv6:::1]', name: 'c' }]);
     assert.deepStrictEqual(addressParser('user@(c)[IPv6:::1]'), [{ address: 'user@[IPv6:::1]', name: 'c' }]);
 });
+
+test('addressParser - specials inside an unquoted encoded word are read as RFC 5322 structure', () => {
+    // DMARC verifiers (eg. mailauth via Nodemailer's addressparser) pick the author domain
+    // without decoding RFC 2047, so raw specials in a malformed encoded word are structure to
+    // them. The address reported here has to be the one they authenticated. Reading the word
+    // as text instead would let '=?UTF-8?Q?<a@evil.example>?= ceo@company.example' pass DMARC
+    // as evil.example while ceo@company.example is shown as the sender
+    assert.deepStrictEqual(addressParser('=?UTF-8?Q?IT_Support_<helpdesk@company.example>?= <attacker@evil.example>'), [
+        { address: 'helpdesk@company.example', name: 'IT Support  attacker@evil.example' }
+    ]);
+    assert.strictEqual(addressParser('=?UTF-8?Q?<a@evil.example>?= ceo@company.example')[0].address, 'a@evil.example');
+    assert.strictEqual(
+        addressParser('=?UTF-8?Q?John_Smith_(?= <ceo@company.example> =?UTF-8?Q?)?= <a@evil.example>')[0].address,
+        'a@evil.example'
+    );
+});
