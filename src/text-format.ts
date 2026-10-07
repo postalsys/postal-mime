@@ -1,6 +1,40 @@
 import { htmlEntities } from './html-entities.js';
 import type { Address, Email, Mailbox } from './types.js';
 
+// What a numeric character reference to the C1 control range stands for, per the HTML
+// numeric character reference end state: the windows-1252 character at that byte. This is
+// how Outlook and Word write their curly quotes and dashes (`&#146;`, `&#150;`), and the
+// raw control character they decoded to otherwise is invisible in the text.
+const C1_ENTITY_REPLACEMENTS = new Map<number, number>([
+    [0x80, 0x20ac],
+    [0x82, 0x201a],
+    [0x83, 0x0192],
+    [0x84, 0x201e],
+    [0x85, 0x2026],
+    [0x86, 0x2020],
+    [0x87, 0x2021],
+    [0x88, 0x02c6],
+    [0x89, 0x2030],
+    [0x8a, 0x0160],
+    [0x8b, 0x2039],
+    [0x8c, 0x0152],
+    [0x8e, 0x017d],
+    [0x91, 0x2018],
+    [0x92, 0x2019],
+    [0x93, 0x201c],
+    [0x94, 0x201d],
+    [0x95, 0x2022],
+    [0x96, 0x2013],
+    [0x97, 0x2014],
+    [0x98, 0x02dc],
+    [0x99, 0x2122],
+    [0x9a, 0x0161],
+    [0x9b, 0x203a],
+    [0x9c, 0x0153],
+    [0x9e, 0x017e],
+    [0x9f, 0x0178]
+]);
+
 export function decodeHTMLEntities(str: string): string {
     return str.replace(/&(#\d+|#x[a-f0-9]+|[a-z]+\d*);?/gi, (match: string, entity: string) => {
         if (typeof htmlEntities[match] === 'string') {
@@ -13,20 +47,25 @@ export function decodeHTMLEntities(str: string): string {
         }
 
         let codePoint: number;
-        if (entity.charAt(1) === 'x') {
-            // hex
+        // The pattern matches the marker in either case, so the test has to as well. Reading
+        // `&#X41;` as decimal gave NaN, which passes every range check below and comes out
+        // of String.fromCharCode as a NUL character
+        if (entity.charAt(1).toLowerCase() === 'x') {
             codePoint = parseInt(entity.slice(2), 16);
         } else {
-            // dec
             codePoint = parseInt(entity.slice(1), 10);
         }
 
         let output = '';
 
-        if ((codePoint >= 0xd800 && codePoint <= 0xdfff) || codePoint > 0x10ffff) {
-            // Invalid range, return a replacement character instead
+        // A NUL reference, a surrogate or a code point out of range is a replacement
+        // character, like in a browser. A NUL in particular would truncate the text in
+        // whatever reads it next
+        if (codePoint === 0 || (codePoint >= 0xd800 && codePoint <= 0xdfff) || codePoint > 0x10ffff) {
             return '\ufffd';
         }
+
+        codePoint = C1_ENTITY_REPLACEMENTS.get(codePoint) ?? codePoint;
 
         if (codePoint > 0xffff) {
             codePoint -= 0x10000;

@@ -26,6 +26,22 @@ test('decodeHTMLEntities - numeric entities (hex)', () => {
     assert.strictEqual(decodeHTMLEntities('&#xff;'), 'ÿ'); // lowercase x
 });
 
+test('decodeHTMLEntities - hex marker in either case', () => {
+    // `&#X41;` used to be read as decimal, and the NaN that gave came out as a NUL
+    assert.strictEqual(decodeHTMLEntities('&#X41;&#X20AC;'), 'A€');
+});
+
+test('decodeHTMLEntities - NUL reference is a replacement character', () => {
+    assert.strictEqual(decodeHTMLEntities('a&#0;b&#x0;c&#00;d'), 'a�b�c�d');
+});
+
+test('decodeHTMLEntities - C1 references stand for the windows-1252 characters', () => {
+    // how Outlook writes curly quotes and dashes
+    assert.strictEqual(decodeHTMLEntities('&#145;it&#146;s&#146; &#150; &#151; &#128;&#153;'), '‘it’s’ – — €™');
+    // the bytes windows-1252 leaves undefined are kept, like other control characters
+    assert.strictEqual(decodeHTMLEntities('&#129;&#1;'), '\u0081\u0001');
+});
+
 test('decodeHTMLEntities - mixed entities', () => {
     assert.strictEqual(decodeHTMLEntities('&lt;div&#62;Test&#x20;&amp;&nbsp;More'), '<div>Test &\u00A0More');
 });
