@@ -1,5 +1,23 @@
 # Changelog
 
+## [4.0.5](https://github.com/postalsys/postal-mime/compare/v4.0.4...v4.0.5) (2026-10-07)
+
+
+### Bug Fixes
+
+* bound the number of MIME parts with a maxPartCount option ([87eaedd](https://github.com/postalsys/postal-mime/commit/87eaeddace777111e5ceac08a6ede230c30bb602))
+* convert html with many unclosed link tags to text in linear time ([c8e5792](https://github.com/postalsys/postal-mime/commit/c8e57923a34d0398560d58c3dd1bb754d4c0dfa9))
+* decode uppercase hex, NUL and C1 numeric character references like a browser ([ee12306](https://github.com/postalsys/postal-mime/commit/ee12306bd6615ed577830408782a7cef50584a9b))
+* delete the trailing white space of quoted-printable lines ([0639c5e](https://github.com/postalsys/postal-mime/commit/0639c5e5189a01865ebd94ef5fde5a50527affd2))
+* end the headers at a whitespace-only line when no header can follow it ([0639c5e](https://github.com/postalsys/postal-mime/commit/0639c5e5189a01865ebd94ef5fde5a50527affd2))
+* fold line breaks out of decoded encoded words and RFC 2231 filenames ([1f25e26](https://github.com/postalsys/postal-mime/commit/1f25e263126ceac7d4f92381e5b0ff7df04c7f91))
+* hand attachment bytes through as sent and read legacy mail the lax way ([0639c5e](https://github.com/postalsys/postal-mime/commit/0639c5e5189a01865ebd94ef5fde5a50527affd2))
+* keep an escaped parenthesis inside an RFC 5322 comment ([a2a07ce](https://github.com/postalsys/postal-mime/commit/a2a07ce60ee4b1476c2bc3098d527d2bd71759c4))
+* keep the line endings of 7bit, 8bit and binary parts and normalize text to LF ([0639c5e](https://github.com/postalsys/postal-mime/commit/0639c5e5189a01865ebd94ef5fde5a50527affd2))
+* read a multipart without a boundary parameter as plain text ([0639c5e](https://github.com/postalsys/postal-mime/commit/0639c5e5189a01865ebd94ef5fde5a50527affd2))
+* read text without a usable charset as UTF-8 or windows-1252 and honor an html meta charset ([0639c5e](https://github.com/postalsys/postal-mime/commit/0639c5e5189a01865ebd94ef5fde5a50527affd2))
+* unfold format=flowed quoted paragraphs as RFC 3676 reads them ([0639c5e](https://github.com/postalsys/postal-mime/commit/0639c5e5189a01865ebd94ef5fde5a50527affd2))
+
 ## [4.0.4](https://github.com/postalsys/postal-mime/compare/v4.0.3...v4.0.4) (2026-10-03)
 
 
