@@ -180,6 +180,7 @@ test('html parts with unclosed tags are converted to text in linear time', async
     const shapes = {
         'bare <': '<'.repeat(size),
         '<a without href': '<a '.repeat(size / 3) + '>',
+        'unclosed <a href': '<a href="x" '.repeat(size / 3),
         'unclosed comments': '<!--'.repeat(size / 4),
         'unclosed script end tags': '<script>' + '</script'.repeat(size / 8),
         'unclosed body tags': '<body'.repeat(size / 5),

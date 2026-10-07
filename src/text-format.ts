@@ -144,13 +144,19 @@ function replaceTags(
         }
 
         const start = candidate.index;
+
+        // Looked up before the pattern runs. The engine finds out on its own that there is
+        // no `>` to close on, but only after it has retried the tail of the pattern at every
+        // `href` in the rest of the input and rescanned to the end each time, which made an
+        // html part of many unclosed `<a href` tags quadratic to convert
+        const gt = str.indexOf('>', start);
+        if (gt < 0) {
+            break;
+        }
+
         pattern.lastIndex = start;
         const match = pattern.exec(str);
         if (!match) {
-            const gt = str.indexOf('>', start);
-            if (gt < 0) {
-                break;
-            }
             searchFrom = gt + 1;
             continue;
         }
