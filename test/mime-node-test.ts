@@ -430,7 +430,7 @@ test('MimeNode - invalid limit options throw a catchable error', async () => {
     // rejected up front, since callers forward request supplied option objects.
     const invalid = [Infinity, -Infinity, NaN, -1, 2.5, '3', true, {}, []];
 
-    for (const option of ['maxNestingDepth', 'maxHeadersSize', 'maxRfc822NestingDepth']) {
+    for (const option of ['maxNestingDepth', 'maxHeadersSize', 'maxPartCount', 'maxRfc822NestingDepth']) {
         for (const value of invalid) {
             assert.throws(
                 () => new PostalMime({ [option]: value } as any),
@@ -468,7 +468,39 @@ test('MimeNode - unset limit options fall back to the defaults', async () => {
         assert.strictEqual(parser.maxRfc822NestingDepth, 10);
         assert.strictEqual(parser.mimeOptions.maxNestingDepth, 256);
         assert.strictEqual(parser.mimeOptions.maxHeadersSize, 2 * 1024 * 1024);
+        assert.strictEqual(parser.mimeOptions.maxPartCount, 10000);
     }
+});
+
+test('MimeNode - the number of parts is bounded by maxPartCount', async () => {
+    const parts = 20;
+    const mail =
+        'Content-Type: multipart/mixed; boundary=B\r\n\r\n' +
+        '--B\r\nContent-Type: text/plain\r\n\r\npart\r\n'.repeat(parts) +
+        '--B--\r\n';
+
+    // the top-level part counts as well
+    await assert.rejects(() => PostalMime.parse(mail, { maxPartCount: parts }), /part count/);
+
+    const email = await PostalMime.parse(mail, { maxPartCount: parts + 1 });
+    assert.strictEqual(email.text, Array(parts).fill('part').join('\n'));
+});
+
+test('MimeNode - the part count starts over inside an inline message/rfc822', async () => {
+    // Each sub-message is parsed by its own parser, so the limit bounds each sub-message
+    // individually, the same as the other limits
+    const mail =
+        'Content-Type: message/rfc822\r\n\r\n' +
+        'Content-Type: multipart/mixed; boundary=B\r\n\r\n' +
+        '--B\r\nContent-Type: text/plain\r\n\r\none\r\n' +
+        '--B\r\nContent-Type: text/plain\r\n\r\ntwo\r\n' +
+        '--B--\r\n';
+
+    // one part outside the sub-message and three inside it
+    const email = await PostalMime.parse(mail, { maxPartCount: 3 });
+    assert.ok(email.text!.includes('two'));
+
+    await assert.rejects(() => PostalMime.parse(mail, { maxPartCount: 2 }), /part count/);
 });
 
 test('MimeNode - rfc822 nesting depth cannot be seeded through the options', async () => {

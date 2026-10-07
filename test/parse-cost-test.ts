@@ -163,6 +163,18 @@ test('getDecoder reuses one decoder per label and falls back for labels TextDeco
     assert.strictEqual(decoder.decode(new Uint8Array([0xef, 0xbb, 0xbf, 0x61])), 'a');
 });
 
+test('a flat multipart with more parts than maxPartCount is rejected', async () => {
+    // the cheapest part to send and the most expensive to parse, see MAX_PART_COUNT
+    const parts = 10000;
+    const mail = 'Content-Type: multipart/mixed; boundary=b\r\n\r\n' + '--b\r\n\r\n'.repeat(parts) + '--b--\r\n';
+
+    // the top-level part takes the count one over the default
+    await assert.rejects(() => PostalMime.parse(mail), /part count/);
+
+    const email = await timed(() => PostalMime.parse(mail, { maxPartCount: parts + 1 }));
+    assert.strictEqual(email.attachments.length, 0);
+});
+
 test('html parts with unclosed tags are converted to text in linear time', async () => {
     const size = 128 * 1024;
     const shapes = {

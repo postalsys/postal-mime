@@ -599,12 +599,13 @@ test('group syntax in a forwarded From does not reject the parse', async () => {
 });
 
 // Performance. These all used to scale quadratically and are bounded well inside the
-// default limits, so a regression shows up as a timeout rather than a slow test.
+// limits, so a regression shows up as a timeout rather than a slow test.
 
 test('a multipart with many parts parses in linear time', async () => {
     const mail = 'Content-Type: multipart/mixed; boundary=b\r\n\r\n' + '--b\r\n'.repeat(20000);
     const started = Date.now();
-    await PostalMime.parse(mail);
+    // more parts than the default part count allows, the walk is what is under test here
+    await PostalMime.parse(mail, { maxPartCount: 30000 });
     assert.ok(Date.now() - started < 5000, `took ${Date.now() - started}ms`);
 });
 

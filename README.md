@@ -13,7 +13,7 @@
 -   **Zero dependencies** - No external dependencies
 -   **RFC compliant** - Follows RFC 2822/5322 email standards
 -   **Handles complex MIME structures** - Multipart messages, nested parts, attachments
--   **Security limits** - Built-in protection against deeply nested messages, oversized headers and runaway nested message parsing
+-   **Security limits** - Built-in protection against deeply nested or very wide messages, oversized headers and runaway nested message parsing
 
 > [!NOTE]
 > Full documentation is available at [postal-mime.postalsys.com](https://postal-mime.postalsys.com/).
@@ -302,14 +302,15 @@ PostalMime.parse(email, options) -> Promise<Email>
         -   `"arraybuffer"` (no decoding, returns `ArrayBuffer`)
     -   **maxNestingDepth** (number, default: `256`): Maximum allowed MIME part nesting depth. Throws an error if exceeded.
     -   **maxHeadersSize** (number, default: `2097152`): Maximum allowed total header size in bytes (default 2MB). Throws an error if exceeded.
+    -   **maxPartCount** (number, default: `10000`): Maximum allowed number of MIME parts in a message, the top-level part included. Throws an error if exceeded.
     -   **maxRfc822NestingDepth** (number, default: `10`): Maximum allowed recursion depth for inline `message/rfc822` sub-messages. Nested messages deeper than this are treated as regular attachments instead of being parsed inline, and the resulting attachment has `rfc822DepthExceeded: true` set. Use `0` to disable inline parsing entirely.
 
-All three limit options must be non-negative integers. Any other value, including a numeric string, `NaN` or `Infinity`, throws a `TypeError`. Passing `0` means a literal zero, not "use the default".
+The limit options must be non-negative integers. Any other value, including a numeric string, `NaN` or `Infinity`, throws a `TypeError`. Passing `0` means a literal zero, not "use the default".
 
 > [!IMPORTANT]
-> The `maxNestingDepth`, `maxHeadersSize` and `maxRfc822NestingDepth` options provide built-in security against malicious emails with deeply nested MIME structures or oversized headers that could cause performance issues or memory exhaustion. `maxHeadersSize` counts the header bytes of every MIME part of a message together, so a multipart cannot carry the budget again for each part it declares. Each inline `message/rfc822` sub-message is parsed by a new parser instance, so both limits start over for a sub-message. `maxRfc822NestingDepth` bounds how many such sub-parsers can be nested.
+> The `maxNestingDepth`, `maxHeadersSize`, `maxPartCount` and `maxRfc822NestingDepth` options provide built-in security against malicious emails with deeply nested or very wide MIME structures or oversized headers that could cause performance issues or memory exhaustion. `maxHeadersSize` and `maxPartCount` count the header bytes and the parts of every level of a message together, so a multipart cannot carry the budget again for each part it declares. Each inline `message/rfc822` sub-message is parsed by a new parser instance, so these limits start over for a sub-message. `maxRfc822NestingDepth` bounds how many such sub-parsers can be nested.
 >
-> These options limit nesting, not breadth. A single multipart part with a very large number of children is still expensive to parse, so untrusted input should also be bounded by size before it reaches the parser.
+> The whole message is held in memory while it is parsed, so untrusted input should still be bounded by size before it reaches the parser.
 
 > [!WARNING]
 > If you scan messages for malicious content, do not treat `attachments` as complete without checking `rfc822DepthExceeded`. Anything nested below `maxRfc822NestingDepth` stays inside the raw bytes of the flagged attachment and is not reflected in `text`, `html` or `attachments`, so a sender can push a payload past the limit to hide it from a scanner. Re-parse the flagged attachment's `content` if you need to see inside it:

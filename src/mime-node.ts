@@ -13,6 +13,7 @@ export interface MimeNodeOptions {
     parentMultipartType?: string | false | undefined;
     maxNestingDepth: number;
     maxHeadersSize: number;
+    maxPartCount: number;
 }
 
 type ContentDecoder = PassThroughDecoder | Base64Decoder | QPDecoder;
@@ -81,6 +82,13 @@ export default class MimeNode {
         this.options = options;
 
         this.postalMime = options.postalMime;
+
+        // Counted across the whole message like the header size, so that a multipart can
+        // not carry the budget again for every part it declares
+        this.postalMime.partCount++;
+        if (this.postalMime.partCount > options.maxPartCount) {
+            throw new Error(`Maximum MIME part count of ${options.maxPartCount} parts exceeded`);
+        }
 
         this.childNodes = [];
         // Cursor into childNodes for finalizeChildNodes. Every new part of a multipart

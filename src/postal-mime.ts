@@ -56,6 +56,10 @@ function renderEntry(textEntry: TextEntryItem, textType: TextType, convert: bool
 
 const MAX_NESTING_DEPTH = 256;
 const MAX_HEADERS_SIZE = 2 * 1024 * 1024;
+// The depth limit does not bound the size of the tree. An empty part costs six bytes of
+// input (`--b` and a blank line) and over a kilobyte of parser state at its peak, so a
+// flat multipart of a million empty parts took a 7 MB message to 1.4 GB of memory.
+const MAX_PART_COUNT = 10000;
 // Inline message/rfc822 parts are parsed recursively. Without a dedicated limit
 // each nesting level spawns a new parser that retains the full nested message,
 // so a small crafted email can exhaust memory (OOM crash). Cap the recursion and
@@ -81,13 +85,14 @@ function parseLimitOption(value: unknown, defaultValue: number, name: string): n
 
 export default class PostalMime {
     /** @internal */ options: PostalMimeOptions;
-    /** @internal */ mimeOptions: { maxNestingDepth: number; maxHeadersSize: number };
+    /** @internal */ mimeOptions: { maxNestingDepth: number; maxHeadersSize: number; maxPartCount: number };
     /** @internal */ maxRfc822NestingDepth: number;
     /** @internal */ rfc822NestingDepth: number;
     /** @internal */ root: MimeNode;
     /** @internal */ currentNode: MimeNode;
     /** @internal */ boundaries: Boundary[];
     /** @internal */ headerSize: number;
+    /** @internal */ partCount: number;
     /** @internal */ textContent: Record<string, string>;
     /** @internal */ textMap: Map<MimeNode, TextEntry>;
     /** @internal */ textTypes: Set<TextType>;
@@ -119,7 +124,8 @@ export default class PostalMime {
         this.options = options || {};
         this.mimeOptions = {
             maxNestingDepth: parseLimitOption(this.options.maxNestingDepth, MAX_NESTING_DEPTH, 'maxNestingDepth'),
-            maxHeadersSize: parseLimitOption(this.options.maxHeadersSize, MAX_HEADERS_SIZE, 'maxHeadersSize')
+            maxHeadersSize: parseLimitOption(this.options.maxHeadersSize, MAX_HEADERS_SIZE, 'maxHeadersSize'),
+            maxPartCount: parseLimitOption(this.options.maxPartCount, MAX_PART_COUNT, 'maxPartCount')
         };
 
         // A limit of 0 disables inline parsing entirely, so every message/rfc822 part
@@ -135,14 +141,16 @@ export default class PostalMime {
         // object can not seed it and switch the recursion limit off.
         this.rfc822NestingDepth = 0;
 
+        // Header bytes seen across every part of this message, see MimeNode.feed, and the
+        // number of parts created for it, the root included, see the MimeNode constructor
+        this.headerSize = 0;
+        this.partCount = 0;
+
         this.root = this.currentNode = new MimeNode({
             postalMime: this,
             ...this.mimeOptions
         });
         this.boundaries = [];
-
-        // Header bytes seen across every part of this message, see MimeNode.feed
-        this.headerSize = 0;
 
         this.textContent = {};
         this.textMap = new Map();
