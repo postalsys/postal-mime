@@ -1,14 +1,14 @@
-import { blobToArrayBuffer, hexNibble } from './decode-strings.js';
+import { blobToArrayBuffer, hexNibble, isWsp } from './decode-strings.js';
 
 const CHR_EQUALS = 0x3d;
-const CHR_LF = 0x0a;
 
 export default class QPDecoder {
     maxChunkSize: number;
     buffer: Uint8Array<ArrayBuffer>;
     bufferPos: number;
     chunks: Uint8Array<ArrayBuffer>[];
-    pendingLineBreak: boolean;
+    /** the line break of the last line, written once the next line arrives, see update */
+    pendingLineBreak: Uint8Array | null;
 
     constructor() {
         this.maxChunkSize = 100 * 1024;
@@ -17,7 +17,13 @@ export default class QPDecoder {
         this.bufferPos = 0;
 
         this.chunks = [];
-        this.pendingLineBreak = false;
+        this.pendingLineBreak = null;
+    }
+
+    writeLineBreak(): void {
+        if (this.pendingLineBreak) {
+            this.writeBytes(this.pendingLineBreak, 0, this.pendingLineBreak.length);
+        }
     }
 
     writeByte(byte: number): void {
@@ -54,13 +60,19 @@ export default class QPDecoder {
     // content that decoded correctly in base64 came out as mojibake in quoted-printable.
     //
     // As in PassThroughDecoder, a hard line break is only written once the next line
-    // arrives, so the CRLF that belongs to a following boundary is not decoded as content.
-    update(line: Uint8Array): void {
-        if (this.pendingLineBreak) {
-            this.writeByte(CHR_LF);
-        }
+    // arrives, so the CRLF that belongs to a following boundary is not decoded as content,
+    // and the break written is the one the line came with.
+    update(line: Uint8Array, lineBreak: Uint8Array): void {
+        this.writeLineBreak();
 
         let len = line.length;
+
+        // Trailing white space on an encoded line was added in transit and is deleted (RFC
+        // 2045 6.7 rule 3). Before the soft line break is looked for, since the `=` it
+        // consists of may have had white space appended the same way
+        while (len > 0 && isWsp(line[len - 1])) {
+            len--;
+        }
 
         // a line ending in '=' is a soft line break, the newline is not part of the content
         const softBreak = len > 0 && line[len - 1] === CHR_EQUALS;
@@ -88,13 +100,13 @@ export default class QPDecoder {
         }
         this.writeBytes(line, literalStart, len);
 
-        this.pendingLineBreak = !softBreak;
+        this.pendingLineBreak = softBreak ? null : lineBreak;
     }
 
     // see PassThroughDecoder.finalize
     finalize(boundaryEnded = false): Promise<ArrayBuffer> {
-        if (!boundaryEnded && this.pendingLineBreak) {
-            this.writeByte(CHR_LF);
+        if (!boundaryEnded) {
+            this.writeLineBreak();
         }
         this.flushBuffer();
 

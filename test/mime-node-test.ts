@@ -859,3 +859,80 @@ test('MimeNode - getTextContent with no content returns empty', async () => {
     const email = await parser.parse(mail);
     assert.strictEqual(email.text, undefined);
 });
+
+test('MimeNode - a whitespace-only line ends the headers when no header can follow it', async () => {
+    // Legal as folding (RFC 5322 4.2), but broken generators put one where the empty line
+    // belongs, and reading it as a fold turned the whole body into one more header
+    const email = await PostalMime.parse('Subject: s\r\nContent-Type: text/plain\r\n \r\nbody line\r\nmore\r\n');
+    assert.strictEqual(email.subject, 's');
+    assert.strictEqual(email.headers.length, 2);
+    assert.strictEqual(email.text, 'body line\nmore\n');
+});
+
+test('MimeNode - a whitespace-only line stays a fold when a continuation or a header follows', async () => {
+    let email = await PostalMime.parse('Subject: foo\r\n \t\r\n bar\r\n\r\nbody');
+    assert.strictEqual(email.subject, 'foo \t bar');
+    assert.strictEqual(email.headerLines[0].line, 'Subject: foo\n \t\n bar');
+
+    email = await PostalMime.parse('Subject: foo\r\n\t\r\nTo: a@b.c\r\n\r\nbody');
+    assert.strictEqual(email.subject, 'foo');
+    assert.deepStrictEqual(email.to, [{ address: 'a@b.c', name: '' }]);
+    assert.strictEqual(email.text, 'body\n');
+
+    // held back with nothing following it
+    email = await PostalMime.parse('Subject: foo\r\n \r\n');
+    assert.strictEqual(email.subject, 'foo');
+    assert.strictEqual(email.headerLines[0].line, 'Subject: foo\n ');
+});
+
+test('MimeNode - a raw 8-bit header that is not UTF-8 is read as windows-1252', async () => {
+    const email = await PostalMime.parse(
+        Buffer.from('Subject: caf\xe9\r\nFrom: J\xf6rg <a@b.c>\r\nX-Utf8: caf\xc3\xa9\r\n\r\nx', 'latin1')
+    );
+    assert.strictEqual(email.subject, 'café');
+    assert.strictEqual(email.from!.name, 'Jörg');
+    // a line that is UTF-8 is still UTF-8, the fallback is decided line by line
+    assert.strictEqual(email.headers[2].value, 'café');
+});
+
+test('MimeNode - a multipart without a boundary is read as plain text', async () => {
+    // RFC 2046 5.1.1 requires the boundary, RFC 2045 5.2 recommends reading an invalid
+    // Content-Type as plain text. The body used to be dropped without a trace
+    const email = await PostalMime.parse('Content-Type: multipart/mixed\r\n\r\nplain body text\r\n');
+    assert.strictEqual(email.text, 'plain body text\n');
+    assert.deepStrictEqual(email.attachments, []);
+
+    const nested = await PostalMime.parse(
+        'Content-Type: multipart/mixed; boundary=b\r\n\r\n' +
+            '--b\r\nContent-Type: multipart/alternative\r\n\r\ninner text\r\n' +
+            '--b\r\nContent-Type: multipart/related; boundary=\r\n\r\nempty boundary\r\n' +
+            '--b--\r\n'
+    );
+    assert.strictEqual(nested.text, 'inner text\nempty boundary');
+});
+
+test('MimeNode - the line after a whitespace-only line is a header when it looks like one', async () => {
+    // the same reading of "looks like a header" as processHeaders, whitespace before the
+    // colon included, so a line does not switch from header to body because of what preceded it
+    const email = await PostalMime.parse('Subject: s\r\n \r\nX-Foo : bar\r\n\r\nbody');
+    assert.deepStrictEqual(
+        email.headers.map(header => [header.key, header.value]),
+        [
+            ['subject', 's'],
+            ['x-foo', 'bar']
+        ]
+    );
+    assert.strictEqual(email.text, 'body\n');
+});
+
+test('MimeNode - a boundary right after a whitespace-only separator line is still a boundary', async () => {
+    // the part's boundary is only registered once its headers end, which the whitespace
+    // line decides one line late, so the line is read again
+    const email = await PostalMime.parse(
+        'Content-Type: multipart/mixed; boundary=b\r\n \r\n' +
+            '--b\r\nContent-Type: text/plain\r\n\r\nfirst part\r\n' +
+            '--b\r\nContent-Type: text/plain\r\n\r\nsecond part\r\n' +
+            '--b--\r\n'
+    );
+    assert.strictEqual(email.text, 'first part\nsecond part');
+});

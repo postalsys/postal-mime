@@ -721,11 +721,12 @@ test('Boundary line break - is not content for any transfer encoding', async () 
 });
 
 test('Boundary line break - inner and trailing blank lines are kept', async () => {
+    // with the line endings the message used, an attachment is the bytes as sent
     const mail = boundaryMessage([attachmentPart('7bit', 'a\r\n\r\nb\r\n')]);
-    assert.strictEqual(await attachmentText(mail), 'a\n\nb\n');
+    assert.strictEqual(await attachmentText(mail), 'a\r\n\r\nb\r\n');
 
     const qp = boundaryMessage([attachmentPart('quoted-printable', 'a=3D\r\nb\r\n')]);
-    assert.strictEqual(await attachmentText(qp), 'a=\nb\n');
+    assert.strictEqual(await attachmentText(qp), 'a=\r\nb\r\n');
 });
 
 test('Boundary line break - a part holding one empty line is empty', async () => {
@@ -770,10 +771,10 @@ test('Boundary line break - nested multipart closed by the outer boundary', asyn
 test('Boundary line break - a part ended by the end of input keeps its line break', async () => {
     // no closing boundary, nothing owns the final line break
     const unclosed = boundaryMessage([attachmentPart('7bit', 'abc')], '');
-    assert.strictEqual(await attachmentText(unclosed), 'abc\n');
+    assert.strictEqual(await attachmentText(unclosed), 'abc\r\n');
 
     const unclosedQp = boundaryMessage([attachmentPart('quoted-printable', 'abc')], '');
-    assert.strictEqual(await attachmentText(unclosedQp), 'abc\n');
+    assert.strictEqual(await attachmentText(unclosedQp), 'abc\r\n');
 
     // single part messages are unchanged
     const single = await PostalMime.parse('Content-Type: text/plain\r\n\r\nabc\r\n');

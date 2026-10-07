@@ -1,4 +1,11 @@
-import { getDecoder, decodeParameterValueContinuations, foldLineBreaks, textEncoder } from './decode-strings.js';
+import {
+    decodeParameterValueContinuations,
+    decodeText,
+    decodeUtf8OrWindows1252,
+    foldLineBreaks,
+    isWsp,
+    textEncoder
+} from './decode-strings.js';
 import type { StructuredHeader } from './decode-strings.js';
 import PassThroughDecoder from './pass-through-decoder.js';
 import Base64Decoder from './base64-decoder.js';
@@ -22,6 +29,10 @@ type ContentDecoder = PassThroughDecoder | Base64Decoder | QPDecoder;
 // kept as a character instead of being swallowed. A stripped BOM turns a line a strict
 // parser skips into a genuine header, which is how a second `From:` gets smuggled past
 // anything that inspects the raw message.
+//
+// Raw 8-bit header text is UTF-8 (RFC 6532), and a line that is not is legacy mail in a
+// single byte charset, read as windows-1252 rather than as replacement characters, see
+// decodeUtf8OrWindows1252.
 const headerDecoder = new TextDecoder('utf-8', { ignoreBOM: true });
 
 // Trims only the whitespace RFC 5322 allows around a field name. String.prototype.trim
@@ -34,7 +45,6 @@ const headerDecoder = new TextDecoder('utf-8', { ignoreBOM: true });
 // An index scan rather than `/^[ \t]+|[ \t]+$/g`, which retries the trailing branch at
 // every position of a blank run that is followed by other text, so a single header with
 // a long run of spaces in the middle took seconds to trim.
-const isWsp = (c: number): boolean => c === 0x20 || c === 0x09;
 const trimWsp = (str: string): string => {
     let start = 0;
     let end = str.length;
@@ -46,6 +56,14 @@ const trimWsp = (str: string): string => {
     }
     return str.slice(start, end);
 };
+
+// A line of nothing but SP and HTAB, see feed
+const isBlankLine = (line: Uint8Array): boolean => line.every(isWsp);
+
+// The start of a header field: a field name of printable ASCII other than the colon
+// (RFC 5322 3.6.8 ftext) and the colon itself, with the whitespace in between that
+// processHeaders tolerates as well
+const FIELD_START = /^[!-9;-~]+[ \t]*:/;
 
 // Headers that decide how this part's body is read, see processHeaders
 const CONTENT_HEADERS = new Set([
@@ -65,6 +83,8 @@ export default class MimeNode {
     depth: number;
     state: 'header' | 'body' | 'finished';
     headerLines: string[];
+    /** whether the last header line was nothing but whitespace, see feed */
+    lastLineBlank: boolean;
     contentType: { value: string; parsed: StructuredHeader; multipart: string | false };
     contentTransferEncoding: { value: string; encoding: string };
     contentDisposition: { value: string; parsed: StructuredHeader };
@@ -112,6 +132,7 @@ export default class MimeNode {
         this.state = 'header';
 
         this.headerLines = [];
+        this.lastLineBlank = false;
 
         // RFC 2046 Section 5.1.5: multipart/digest defaults to message/rfc822
         const parentMultipartType = options.parentMultipartType || null;
@@ -160,7 +181,7 @@ export default class MimeNode {
         }
 
         if (this.state === 'header') {
-            this.processHeaders();
+            this.endHeaders();
         }
 
         // remove self from boundary listing
@@ -436,59 +457,54 @@ export default class MimeNode {
         return response;
     }
 
+    // Unfolds format=flowed text (RFC 3676 4.1). A line is read as its quote marks, one
+    // space of stuffing and its content, in that order, and a line whose content ends in a
+    // space is flowed: the next line of the same quote depth continues its paragraph. The
+    // paragraph ends at a fixed line, at a change of quote depth and at the signature
+    // separator, which is neither flowed nor fixed. Joining a quoted paragraph used to
+    // leave the quote marks of the continuation lines inside the text, so a quoted reply
+    // read `> one > two` instead of `> one two`.
+    //
+    // The quote marks and stuffing of the first line of a paragraph are kept as they were
+    // written, so a fixed quoted line comes out exactly as it went in. An unquoted stuffed
+    // line loses its stuffing, which is all the stuffing is for.
     decodeFlowedText(str: string, delSp: boolean): string {
-        // Pieces of the result, joined once at the end. Growing a single string and
-        // calling endsWith() on it for every line flattens the whole paragraph again on
-        // each line, which is quadratic in the length of a paragraph.
-        // Empty pieces are never stored, so the last piece always holds the last
-        // character of the result.
+        // Pieces of the result, joined once at the end. Growing a single string instead
+        // flattens the whole paragraph again on each line, which is quadratic in the
+        // length of a paragraph.
         const parts: string[] = [];
-        // The unfolded line being built, ie. everything after the last hard line break,
-        // starts at this index of parts and is this many characters long
-        let lineStart = 0;
-        let lineLength = 0;
+        // whether the previous line was flowed, and the quote depth of its paragraph
+        let flowed = false;
+        let depth = 0;
 
-        const lines = str.split(/\r?\n/);
+        const lines = str.split('\n');
         for (let i = 0; i < lines.length; i++) {
-            let line = lines[i];
+            const line = lines[i];
 
-            // remove whitespace stuffing before anything else
-            // http://tools.ietf.org/html/rfc3676#section-4.4
-            // doing it after the join leaves the stuffed space of a continuation line
-            // sitting in the middle of the joined paragraph
-            if (line.charAt(0) === ' ') {
-                line = line.slice(1);
+            let quoteDepth = 0;
+            while (line.charCodeAt(quoteDepth) === 0x3e /* > */) {
+                quoteDepth++;
             }
+            const contentStart = line.charCodeAt(quoteDepth) === 0x20 ? quoteDepth + 1 : quoteDepth;
+            const content = line.slice(contentStart);
+            const isSignature = content === '-- ';
 
-            if (i) {
-                const last = parts.length ? parts[parts.length - 1] : '';
-
-                // soft linebreaks are added after space symbols, except for the signature
-                // separator which is a line of its own
-                const isSignature = lineLength === 3 && parts.slice(lineStart).join('') === '-- ';
-
-                if (last.endsWith(' ') && !isSignature) {
-                    if (delSp) {
-                        // delsp adds space to text to be able to fold it
-                        // these spaces can be removed once the text is unfolded
-                        if (last.length > 1) {
-                            parts[parts.length - 1] = last.slice(0, -1);
-                        } else {
-                            parts.pop();
-                        }
-                        lineLength--;
-                    }
-                } else {
-                    parts.push('\n');
-                    lineStart = parts.length;
-                    lineLength = 0;
+            if (flowed && quoteDepth === depth && !isSignature) {
+                if (delSp) {
+                    // delsp adds the space to make the text foldable, so it is not content
+                    const last = parts[parts.length - 1];
+                    parts[parts.length - 1] = last.slice(0, -1);
                 }
+                parts.push(content);
+            } else {
+                if (i) {
+                    parts.push('\n');
+                }
+                parts.push(quoteDepth ? line : content);
             }
 
-            if (line) {
-                parts.push(line);
-                lineLength += line.length;
-            }
+            flowed = !isSignature && content.endsWith(' ');
+            depth = quoteDepth;
         }
 
         return parts.join('');
@@ -499,7 +515,14 @@ export default class MimeNode {
             return '';
         }
 
-        let str = getDecoder(this.contentType.parsed.params.charset).decode(this.content);
+        // The bytes keep the line endings the part was sent with, see PassThroughDecoder,
+        // which differ from one transfer encoding to the next. Text is normalized to LF so
+        // that a consumer does not get CRLF from one message and LF from another
+        let str = decodeText(
+            this.content,
+            this.contentType.parsed.params.charset,
+            this.contentType.parsed.value === 'text/html'
+        ).replace(/\r\n/g, '\n');
 
         if (/^flowed$/i.test(this.contentType.parsed.params.format)) {
             str = this.decodeFlowedText(str, /^yes$/i.test(this.contentType.parsed.params.delsp));
@@ -589,7 +612,16 @@ export default class MimeNode {
             ? this.contentType.parsed.value.slice(this.contentType.parsed.value.indexOf('/') + 1)
             : false;
 
-        if (this.contentType.multipart && this.contentType.parsed.params.boundary) {
+        if (this.contentType.multipart && !this.contentType.parsed.params.boundary) {
+            // A multipart without the boundary RFC 2046 5.1.1 requires has no parts to find,
+            // and its body used to be dropped without a trace. RFC 2045 5.2 recommends
+            // reading an invalid Content-Type as plain text, which is also what the body of
+            // such a message usually is
+            this.contentType.parsed.value = 'text/plain';
+            this.contentType.multipart = false;
+        }
+
+        if (this.contentType.multipart) {
             // add self to boundary terminator listing
             this.postalMime.boundaries.push({
                 value: textEncoder.encode(this.contentType.parsed.params.boundary),
@@ -610,13 +642,21 @@ export default class MimeNode {
         this.setupContentDecoder(this.contentTransferEncoding.encoding);
     }
 
-    feed(line: Uint8Array<ArrayBuffer>): void {
+    // Ends the header section and sets up the body
+    endHeaders(): void {
+        this.state = 'body';
+        this.processHeaders();
+    }
+
+    // Returns true when the line was not consumed: the headers ended with the line before
+    // it, and the parser has to read it again, since the boundary this part declares was
+    // not known yet when the line was checked for one
+    feed(line: Uint8Array<ArrayBuffer>, lineBreak: Uint8Array<ArrayBuffer>): boolean {
         switch (this.state) {
-            case 'header':
+            case 'header': {
                 if (!line.length) {
-                    this.state = 'body';
-                    this.processHeaders();
-                    return;
+                    this.endHeaders();
+                    return false;
                 }
 
                 // Counted across the whole message, not per part. A per-node budget lets a
@@ -629,16 +669,36 @@ export default class MimeNode {
                     throw error;
                 }
 
-                this.headerLines.push(headerDecoder.decode(line));
+                const text = decodeUtf8OrWindows1252(line, headerDecoder);
+
+                // A line of nothing but whitespace is legal folding (RFC 5322 4.2, obs-FWS),
+                // but broken generators also put one where the empty line that ends the
+                // headers belongs, and reading it as a fold then turned the whole body into
+                // one more header. So the next line decides what it was: a continuation or
+                // another header keep it a fold, anything else means the headers ended with
+                // it, and it is taken back out of the header lines. Python and Go read such
+                // a line as the end of the headers outright, so the body is where the other
+                // parsers find it.
+                if (this.lastLineBlank && !isWsp(line[0]) && !FIELD_START.test(text)) {
+                    this.headerLines.pop();
+                    this.endHeaders();
+                    return true;
+                }
+
+                this.headerLines.push(text);
+                this.lastLineBlank = isBlankLine(line);
                 break;
+            }
             case 'body':
                 // add line to body. processHeaders installs a decoder before the state
                 // becomes body, and the only time the decoder is released is finalize,
                 // which moves the state on to finished, so the guard only narrows the type
                 if (this.contentDecoder) {
-                    this.contentDecoder.update(line);
+                    this.contentDecoder.update(line, lineBreak);
                 }
                 break;
         }
+
+        return false;
     }
 }

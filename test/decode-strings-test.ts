@@ -1,10 +1,14 @@
+import { Buffer } from 'node:buffer';
 import test from 'node:test';
 import assert from 'node:assert';
 import {
     decodeWord,
     decodeWords,
     decodeURIComponentWithCharset,
+    decodeCharset,
+    decodeText,
     getDecoder,
+    isUtf8,
     blobToArrayBuffer,
     decodeBase64,
     decodeParameterValueContinuations
@@ -791,4 +795,83 @@ test('decodeWords - spaces between encoded words of different encodings removed'
     // Mixed B and Q encoding with same charset - spaces between should be removed
     const result = decodeWords('=?utf-8?B?SGVsbG8=?= =?utf-8?Q?World?=');
     assert.strictEqual(result, 'HelloWorld');
+});
+
+// Text decoding with and without a declared charset. Copied out of the Buffer pool so
+// that the ArrayBuffer holds the bytes and nothing else
+const latin1 = (str: string): ArrayBuffer => Uint8Array.from(Buffer.from(str, 'latin1')).buffer;
+
+test('decodeText - a declared charset is followed even when the bytes are not in it', () => {
+    assert.strictEqual(decodeText(latin1('caf\xe9'), 'utf-8', false), 'caf�');
+    assert.strictEqual(decodeText(latin1('caf\xe9'), 'iso-8859-1', false), 'café');
+});
+
+test('decodeText - without a charset, text that is not UTF-8 is read as windows-1252', () => {
+    assert.strictEqual(decodeText(latin1('caf\xc3\xa9'), undefined, false), 'café');
+    // legacy 8-bit mail, replacement characters would lose every accented letter in it
+    assert.strictEqual(decodeText(latin1('caf\xe9 \x93quoted\x94'), undefined, false), 'café “quoted”');
+});
+
+test('decodeText - an html part without a charset names its own', () => {
+    const httpEquiv =
+        '<html><head><meta http-equiv="Content-Type" content="text/html; charset=windows-1251"></head><body>\xcf\xf0\xe8\xe2\xe5\xf2</body></html>';
+    assert.ok(decodeText(latin1(httpEquiv), undefined, true).includes('<body>Привет</body>'));
+    assert.ok(
+        decodeText(latin1('<meta charset=koi8-r><p>\xf0\xd2\xc9\xd7\xc5\xd4</p>'), undefined, true).includes(
+            '<p>Привет</p>'
+        )
+    );
+    // the transport charset wins over the document's own, as in a browser
+    assert.ok(decodeText(latin1('<meta charset=koi8-r><p>\xd0\x9f</p>'), 'utf-8', true).includes('<p>П</p>'));
+    // a plain text part is never sniffed
+    assert.strictEqual(decodeText(latin1('<meta charset=koi8-r> \xe9'), undefined, false), '<meta charset=koi8-r> é');
+});
+
+test('decodeText - an html part naming a charset nobody knows is read like one naming none', () => {
+    assert.strictEqual(
+        decodeText(latin1('<meta charset=garbage><p>caf\xc3\xa9</p>'), undefined, true),
+        '<meta charset=garbage><p>café</p>'
+    );
+});
+
+test('isUtf8 - tells well formed UTF-8 from anything else', () => {
+    const bytes = (str: string) => Buffer.from(str, 'latin1');
+    assert.strictEqual(isUtf8(bytes('plain ascii')), true);
+    assert.strictEqual(isUtf8(Buffer.from('café 日本 😀')), true);
+    assert.strictEqual(isUtf8(bytes('caf\xe9')), false);
+    // truncated, overlong, surrogate and out of range sequences
+    assert.strictEqual(isUtf8(bytes('\xc3')), false);
+    assert.strictEqual(isUtf8(bytes('\xc0\xaf')), false);
+    assert.strictEqual(isUtf8(bytes('\xe0\x80\xaf')), false);
+    assert.strictEqual(isUtf8(bytes('\xed\xa0\x80')), false);
+    assert.strictEqual(isUtf8(bytes('\xf4\x90\x80\x80')), false);
+    assert.strictEqual(isUtf8(bytes('\xf0\x9f\x98\x80')), true);
+});
+
+test('decodeCharset - an unknown charset label is read like a missing one', () => {
+    // unknown-8bit (RFC 1428) is what gateways stamp on legacy mail, and the bytes behind
+    // it are UTF-8 often enough that windows-1252 outright turned them into mojibake
+    assert.strictEqual(decodeCharset(Buffer.from('café'), 'unknown-8bit'), 'café');
+    assert.strictEqual(decodeCharset(Buffer.from('caf\xe9', 'latin1'), 'x-no-such-charset'), 'café');
+    assert.strictEqual(decodeWords('=?unknown-8bit?Q?caf=C3=A9?='), 'café');
+    assert.strictEqual(decodeWords('=?unknown-8bit?Q?caf=E9?='), 'café');
+});
+
+test('decodeText - a meta tag can not name UTF-16 or x-user-defined, like in the HTML prescan', () => {
+    // A tag the prescan could read as ASCII proves the document is not UTF-16. Decoding it
+    // as UTF-16 anyway turned NUL interleaved bytes a scanner sees as inert into markup
+    const utf16 = Buffer.concat([
+        Buffer.from('<!--', 'utf16le'),
+        Buffer.from('<meta charset=utf-16le> '),
+        Buffer.from('--><script>alert(1)</script>', 'utf16le')
+    ]);
+    const text = decodeText(Uint8Array.from(utf16).buffer, undefined, true);
+    assert.ok(text.includes('<meta charset=utf-16le>'));
+    assert.ok(!text.includes('<script>'));
+    assert.ok(!decodeText(latin1('<meta charset=unicode><p>x</p>'), undefined, true).includes('\u0000'));
+    // x-user-defined maps the high bytes to a private use area, windows-1252 is what is meant
+    assert.strictEqual(
+        decodeText(latin1('<meta charset=x-user-defined>caf\xe9'), undefined, true),
+        '<meta charset=x-user-defined>café'
+    );
 });

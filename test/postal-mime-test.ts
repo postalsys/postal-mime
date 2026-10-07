@@ -4,6 +4,7 @@ import assert from 'node:assert';
 import { readFile } from 'node:fs/promises';
 import PostalMime from '../src/postal-mime.js';
 import Path from 'node:path';
+import { attachmentBytes } from './helpers.js';
 
 test('Parse mixed non-alternative content', async () => {
     const mail = await readFile(Path.join(process.cwd(), 'test', 'fixtures', 'mixed.eml'));
@@ -1086,4 +1087,77 @@ test('Coverage - multiple consecutive flowed text soft breaks', async () => {
     );
     const email = await PostalMime.parse(mail);
     assert.strictEqual(email.text, 'This is a very long sentence.\n');
+});
+
+test('Attachments keep the line endings they were sent with', async () => {
+    // Every 7bit, 8bit and binary part used to be rewritten with LF, so an attached
+    // message lost each of its CR and a binary attachment came out corrupted
+    const inner = 'Subject: inner\r\n\r\nline one\r\nline two\r\n';
+    const mail = Buffer.from(
+        'Content-Type: multipart/mixed; boundary=b\r\n\r\n' +
+            '--b\r\nContent-Type: message/rfc822\r\nContent-Disposition: attachment\r\n\r\n' +
+            inner +
+            '--b\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: binary\r\n\r\n\x01\r\r\n\x02\n\x03\r\n' +
+            '--b\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Disposition: attachment; filename=a.txt\r\n\r\ncrlf\r\nlf\n' +
+            '--b--\r\n',
+        'latin1'
+    );
+    const email = await PostalMime.parse(mail);
+    const bytes = (i: number) => attachmentBytes(email.attachments[i]).toString('latin1');
+    // the line break in front of a boundary belongs to the boundary, every other one is
+    // kept as it was, a run of CR included
+    assert.strictEqual(bytes(0), inner.slice(0, -2));
+    assert.strictEqual(bytes(1), '\x01\r\r\n\x02\n\x03');
+    assert.strictEqual(bytes(2), 'crlf\r\nlf');
+});
+
+test('Text and html line endings are normalized to LF whatever the transfer encoding', async () => {
+    const mail = Buffer.from(
+        'Content-Type: multipart/alternative; boundary=b\r\n\r\n' +
+            '--b\r\nContent-Type: text/plain\r\nContent-Transfer-Encoding: base64\r\n\r\n' +
+            Buffer.from('one\r\ntwo\r\n').toString('base64') +
+            '\r\n' +
+            '--b\r\nContent-Type: text/html\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n<p>one</p>=0D=0A<p>two</p>\r\n' +
+            '--b--\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text, 'one\ntwo\n');
+    assert.strictEqual(email.html, '<p>one</p>\n<p>two</p>');
+});
+
+test('Flowed text - quoted paragraphs are joined without the quote marks of the continuation lines', async () => {
+    // RFC 3676 4.1: the quote marks are counted and deleted before anything else, and only
+    // lines of the same quote depth belong to one paragraph
+    const mail = Buffer.from(
+        'Content-Type: text/plain; format=flowed\r\n\r\n' +
+            '> quoted flowed \r\n' +
+            '> continues here\r\n' +
+            '> \r\n' +
+            'reply flowed \r\n' +
+            'continues\r\n' +
+            '>> deep \r\n' +
+            '>> deeper\r\n' +
+            '> back\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(
+        email.text,
+        '> quoted flowed continues here\n> \nreply flowed continues\n>> deep deeper\n> back\n'
+    );
+});
+
+test('Flowed text - a change of quote depth or a signature separator ends a flowed paragraph', async () => {
+    const mail = Buffer.from(
+        'Content-Type: text/plain; format=flowed; delsp=yes\r\n\r\n' +
+            '> quoted \r\n' +
+            'unquoted \r\n' +
+            '-- \r\n' +
+            'sig \r\n' +
+            '>  stuffed \r\n' +
+            '> and joined\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    // the stuffing space of the first line stays as written, the one of a continuation
+    // line is deleted, and delsp takes the space that made the line flowed
+    assert.strictEqual(email.text, '> quoted \nunquoted \n-- \nsig \n>  stuffedand joined\n');
 });

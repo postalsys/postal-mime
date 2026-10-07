@@ -1,5 +1,8 @@
 export const textEncoder = new TextEncoder();
 
+/** SP or HTAB, the only whitespace RFC 5322 and RFC 2045 give a meaning to in a line */
+export const isWsp = (c: number): boolean => c === 0x20 || c === 0x09;
+
 const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 // Use a lookup table to find the index.
@@ -242,7 +245,10 @@ function tryDecoder(charset: string): TextDecoder | null {
 // missing, rather than letting the caller fail on a null decoder
 const utf8Decoder = new TextDecoder();
 
-export function getDecoder(charset?: string | null): TextDecoder {
+/**
+ * Finds the decoder for a charset label, or null when the runtime has no encoding for it
+ */
+function findDecoder(charset?: string | null): TextDecoder | null {
     charset = (charset || 'utf8').trim().toLowerCase();
 
     // Try the label as written first, so the alias table only ever adds to what the
@@ -259,7 +265,146 @@ export function getDecoder(charset?: string | null): TextDecoder {
     // differed from a supported label only by a prefix or a separator, eg. x-big5.
     const alias = (codePage && codePageAliases.get(codePage[1])) || charsetAliases.get(normalized) || normalized;
 
-    return tryDecoder(alias) || tryDecoder('windows-1252') || utf8Decoder;
+    return tryDecoder(alias);
+}
+
+export function getDecoder(charset?: string | null): TextDecoder {
+    return findDecoder(charset) || tryDecoder('windows-1252') || utf8Decoder;
+}
+
+/**
+ * Whether the bytes are well formed UTF-8. A scan rather than a fatal TextDecoder, since
+ * the exception one throws costs more than the decode itself and a message decides how
+ * many lines throw it.
+ */
+export function isUtf8(bytes: Uint8Array): boolean {
+    for (let i = 0; i < bytes.length;) {
+        const lead = bytes[i];
+        if (lead < 0x80) {
+            i++;
+            continue;
+        }
+
+        // The number of continuation bytes, and the range the first of them may take,
+        // which is what rules out overlong forms, surrogates and code points past U+10FFFF
+        let count: number;
+        if (lead >= 0xc2 && lead <= 0xdf) {
+            count = 1;
+        } else if (lead >= 0xe0 && lead <= 0xef) {
+            count = 2;
+        } else if (lead >= 0xf0 && lead <= 0xf4) {
+            count = 3;
+        } else {
+            return false;
+        }
+        if (i + count >= bytes.length) {
+            return false;
+        }
+
+        const second = bytes[i + 1];
+        const min = lead === 0xe0 ? 0xa0 : lead === 0xf0 ? 0x90 : 0x80;
+        const max = lead === 0xed ? 0x9f : lead === 0xf4 ? 0x8f : 0xbf;
+        if (second < min || second > max) {
+            return false;
+        }
+        for (let k = 2; k <= count; k++) {
+            if ((bytes[i + k] & 0xc0) !== 0x80) {
+                return false;
+            }
+        }
+        i += count + 1;
+    }
+
+    return true;
+}
+
+/**
+ * Decodes bytes whose encoding is not known: as UTF-8 when they are well formed UTF-8, as
+ * windows-1252 otherwise.
+ *
+ * A message that declares no charset, or one the runtime has never heard of, usually
+ * predates RFC 6532 or comes from a generator that never heard of it either, and its 8-bit
+ * bytes are a legacy single byte encoding far more often than broken UTF-8. windows-1252
+ * is the fallback the WHATWG Encoding Standard prescribes and what a mail client's default
+ * charset amounts to, and it reads such text rather than filling it with replacement
+ * characters.
+ *
+ * @param bytes Bytes to decode
+ * @param utf8 The UTF-8 decoder to use, header lines bring one that keeps a BOM
+ * @return Decoded text
+ */
+export function decodeUtf8OrWindows1252(bytes: Uint8Array | ArrayBuffer, utf8 = utf8Decoder): string {
+    const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    return isUtf8(view) ? utf8.decode(view) : getDecoder('windows-1252').decode(view);
+}
+
+/**
+ * Decodes bytes in a named charset. A label the runtime does not know is no charset at
+ * all, see decodeUtf8OrWindows1252.
+ *
+ * @param bytes Bytes to decode
+ * @param charset Charset label
+ * @return Decoded text
+ */
+export function decodeCharset(bytes: Uint8Array | ArrayBuffer, charset?: string | null): string {
+    const decoder = findDecoder(charset);
+    return decoder ? decoder.decode(bytes) : decodeUtf8OrWindows1252(bytes);
+}
+
+// The charset an html document names for itself, in a `<meta charset>` or in the
+// Content-Type `<meta http-equiv>`, read from the first 1024 bytes like a browser's prescan.
+// Tags are found with indexOf and the attribute is matched inside one tag at a time: a
+// single pattern over the whole head rescans it once for every `<meta` in it, and a head of
+// nothing but `<meta ` took it quadratic
+const META_PRESCAN_BYTES = 1024;
+const CHARSET_ATTRIBUTE = /charset\s*=\s*["']?\s*([^\s"';>]+)/;
+const UTF16_ENCODINGS = new Set(['utf-16le', 'utf-16be']);
+
+function sniffHtmlCharset(bytes: Uint8Array): string | null {
+    const head = utf8Decoder.decode(bytes.subarray(0, META_PRESCAN_BYTES)).toLowerCase();
+
+    let pos = 0;
+    while ((pos = head.indexOf('<meta', pos)) >= 0) {
+        let end = head.indexOf('>', pos);
+        if (end < 0) {
+            end = head.length;
+        }
+        const match = CHARSET_ATTRIBUTE.exec(head.slice(pos, end));
+        if (match) {
+            return match[1];
+        }
+        pos = end;
+    }
+
+    return null;
+}
+
+/**
+ * Decodes the bytes of a text part: in the declared charset, otherwise in the one an html
+ * part names for itself, otherwise as UTF-8 or windows-1252 depending on what the bytes
+ * turn out to be, see decodeUtf8OrWindows1252.
+ *
+ * @param bytes Decoded body of the part
+ * @param charset The charset parameter of the Content-Type, if any
+ * @param html Whether the part is html, which may name its own charset
+ * @return The text of the part
+ */
+export function decodeText(bytes: ArrayBuffer, charset: string | undefined, html: boolean): string {
+    const view = new Uint8Array(bytes);
+    if (charset) {
+        return decodeCharset(view, charset);
+    }
+
+    // The HTML prescan has two overrides, and for a reason: a `<meta>` tag that could be
+    // read as ASCII proves the document is not UTF-16, so such a label is read as UTF-8,
+    // and x-user-defined is read as windows-1252. Without them a sender picks the encoding
+    // that turns bytes a scanner sees as inert into markup for this parser alone
+    const sniffed = html ? sniffHtmlCharset(view) : null;
+    const decoder = sniffed ? findDecoder(sniffed) : null;
+    if (!decoder || UTF16_ENCODINGS.has(decoder.encoding)) {
+        return decodeUtf8OrWindows1252(view);
+    }
+    return (decoder.encoding === 'x-user-defined' ? getDecoder('windows-1252') : decoder).decode(view);
 }
 
 /**
@@ -381,7 +526,7 @@ export function decodeWord(charset: string, encoding: string, str: string): stri
         byteStr = textEncoder.encode(str);
     }
 
-    return foldLineBreaks(getDecoder(charset).decode(byteStr));
+    return foldLineBreaks(decodeCharset(byteStr, charset));
 }
 
 // A charset label runs to the next '?' so that labels containing punctuation, eg.
@@ -564,7 +709,7 @@ export function decodeURIComponentWithCharset(encodedStr: string, charset?: stri
         dataView.setUint8(i, encodedBytes[i]);
     }
 
-    return getDecoder(charset).decode(byteStr);
+    return decodeCharset(byteStr, charset);
 }
 
 interface ContinuationSection {

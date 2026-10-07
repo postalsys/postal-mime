@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import test from 'node:test';
 import assert from 'node:assert';
 import PostalMime from '../src/postal-mime.js';
+import { attachmentBytes } from './helpers.js';
 
 // Basic QP decoding tests
 test('QP decoder - simple ASCII text', async () => {
@@ -252,7 +253,8 @@ Line one=0D=0ALine two`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.text!.trim(), 'Line one\r\nLine two');
+    // text is normalized to LF whatever the encoding spelled out
+    assert.strictEqual(email.text!.trim(), 'Line one\nLine two');
 });
 
 test('QP decoder - mixed case hex digits', async () => {
@@ -612,4 +614,28 @@ test('QP decoder - complete QP sequences decode correctly', async () => {
     const parser = new PostalMime();
     const email = await parser.parse(mail);
     assert.ok(email.text!.includes('Hello World'));
+});
+
+test('QP decoder - trailing white space on an encoded line is deleted', async () => {
+    // RFC 2045 6.7 rule 3: transport agents add it, an encoder that means it writes =20.
+    // The soft line break is looked for after the deletion, since the `=` may have had
+    // white space appended the same way
+    const mail = Buffer.from(
+        'Content-Type: text/plain\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n' +
+            'kept=20 \t\r\n' +
+            'soft= \r\n' +
+            'break\r\n'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text, 'kept \nsoftbreak\n');
+});
+
+test('QP decoder - hard line breaks keep the line ending of the message', async () => {
+    const mail = Buffer.from(
+        'Content-Type: text/plain\r\nContent-Disposition: attachment; filename=a.txt\r\n' +
+            'Content-Transfer-Encoding: quoted-printable\r\n\r\n' +
+            'one\r\ntwo=\r\nthree\nfour'
+    );
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(attachmentBytes(email.attachments[0]).toString(), 'one\r\ntwothree\nfour\n');
 });

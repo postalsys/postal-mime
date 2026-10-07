@@ -348,8 +348,8 @@ The limit options must be non-negative integers. Any other value, including a nu
 -   **subject**: Subject line of the email.
 -   **messageId**, **inReplyTo**, **references**: Values from their corresponding headers.
 -   **date**: The email's sending time in ISO 8601 format (or the original string if parsing fails).
--   **html**: String containing the HTML content of the email.
--   **text**: String containing the plain text content of the email.
+-   **html**: String containing the HTML content of the email, with CRLF line endings normalized to LF.
+-   **text**: String containing the plain text content of the email, with CRLF line endings normalized to LF. A text or HTML part that declares no charset is read as UTF-8, or as windows-1252 when its bytes are not valid UTF-8, and an HTML part without one may name its charset in a `<meta>` tag.
 -   **attachments**: Array of `Attachment` objects:
     -   `filename`: String or `null`
     -   `mimeType`: String
@@ -359,7 +359,7 @@ The limit options must be non-negative integers. Any other value, including a nu
     -   `description`: String (optional, the decoded Content-Description header)
     -   `method`: String (optional, the uppercased `method` parameter of a calendar part, such as `"REQUEST"`)
     -   `rfc822DepthExceeded`: Boolean (optional, see the warning above)
-    -   `content`: `ArrayBuffer` or string, depending on `attachmentEncoding`. Calendar parts are normalized to UTF-8 text with LF line endings and returned as a `Uint8Array`
+    -   `content`: `ArrayBuffer` or string, depending on `attachmentEncoding`. The decoded bytes of the part exactly as sent, line endings included. Calendar parts are the exception: they are normalized to UTF-8 text with LF line endings and returned as a `Uint8Array`
     -   `encoding`: `"base64"` or `"utf8"` (optional)
 
 <details>

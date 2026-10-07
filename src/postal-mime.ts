@@ -1,7 +1,7 @@
 import MimeNode from './mime-node.js';
 import { textToHtml, htmlToText, formatTextHeader, formatHtmlHeader } from './text-format.js';
 import addressParser from './address-parser.js';
-import { decodeWords, foldLineBreaks, textEncoder, blobToArrayBuffer } from './decode-strings.js';
+import { decodeWords, foldLineBreaks, isWsp, textEncoder, blobToArrayBuffer } from './decode-strings.js';
 import { base64ArrayBuffer } from './base64-encoder.js';
 import type { Address, Attachment, Email, PostalMimeOptions, RawEmail } from './types.js';
 
@@ -53,6 +53,9 @@ function renderEntry(textEntry: TextEntryItem, textType: TextType, convert: bool
     }
     return textType === 'html' ? textToHtml(textEntry.value) : htmlToText(textEntry.value);
 }
+
+// The line break given to the last line of a message that ends without one, see readLine
+const LINE_FEED = new Uint8Array([0x0a]);
 
 const MAX_NESTING_DEPTH = 256;
 const MAX_HEADERS_SIZE = 2 * 1024 * 1024;
@@ -175,7 +178,11 @@ export default class PostalMime {
     }
 
     /** @internal */
-    async processLine(line: Uint8Array<ArrayBuffer>, isFinal: boolean): Promise<void> {
+    async processLine(
+        line: Uint8Array<ArrayBuffer>,
+        lineBreak: Uint8Array<ArrayBuffer>,
+        isFinal: boolean
+    ): Promise<void> {
         let boundaries = this.boundaries;
 
         // check if this is a mime boundary
@@ -217,7 +224,7 @@ export default class PostalMime {
                 // RFC 2046: boundary line may have trailing whitespace (space/tab) before CRLF
                 let hasValidTrailing = true;
                 for (let j = boundaryEnd; j < line.length; j++) {
-                    if (line[j] !== 0x20 && line[j] !== 0x09) {
+                    if (!isWsp(line[j])) {
                         hasValidTrailing = false;
                         break;
                     }
@@ -250,15 +257,22 @@ export default class PostalMime {
             }
         }
 
-        this.currentNode.feed(line);
+        if (this.currentNode.feed(line, lineBreak)) {
+            // The headers ended with the line before this one, so the boundary this part
+            // declares was not registered when the line was checked above. Read it again
+            return this.processLine(line, lineBreak, isFinal);
+        }
 
         if (isFinal) {
             return this.finalize();
         }
     }
 
+    // Reads the next line without its line break. The break itself, the exact bytes between
+    // the line and the next one, is returned alongside, because the body decoders write it
+    // back out: a part has to keep the line endings it was sent with, see PassThroughDecoder.
     /** @internal */
-    readLine(): { bytes: Uint8Array<ArrayBuffer>; done: boolean } {
+    readLine(): { bytes: Uint8Array<ArrayBuffer>; lineBreak: Uint8Array<ArrayBuffer>; done: boolean } {
         let startPos = this.readPos;
         let endPos = this.readPos;
 
@@ -272,13 +286,17 @@ export default class PostalMime {
             if (c === 0x0a) {
                 return {
                     bytes: new Uint8Array(this.buf, startPos, endPos - startPos),
+                    lineBreak: this.av.subarray(endPos, this.readPos),
                     done: this.readPos >= this.av.length
                 };
             }
         }
 
+        // A message that ends without a line break still gets one after its last line, the
+        // decoders write it out unless a boundary ended the part
         return {
             bytes: new Uint8Array(this.buf, startPos, endPos - startPos),
+            lineBreak: LINE_FEED,
             done: this.readPos >= this.av.length
         };
     }
@@ -406,7 +424,7 @@ export default class PostalMime {
                 // Enforce into unicode, ending in exactly one newline. The trailing
                 // newlines are counted rather than replaced with `/\n*$/`, which
                 // retries at every newline of a run that does not end the text.
-                const decodedText = node.getTextContent().replace(/\r?\n/g, '\n');
+                const decodedText = node.getTextContent();
                 let end = decodedText.length;
                 while (end > 0 && decodedText.charCodeAt(end - 1) === 0x0a) {
                     end--;
@@ -700,7 +718,7 @@ export default class PostalMime {
         while (this.readPos < this.av.length) {
             const line = this.readLine();
 
-            await this.processLine(line.bytes, line.done);
+            await this.processLine(line.bytes, line.lineBreak, line.done);
         }
 
         this.forceRfc822Attachments = Boolean(this.options.forceRfc822Attachments) || this.hasReportParts();
