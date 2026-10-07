@@ -1,4 +1,4 @@
-import { getDecoder, decodeParameterValueContinuations, textEncoder } from './decode-strings.js';
+import { getDecoder, decodeParameterValueContinuations, foldLineBreaks, textEncoder } from './decode-strings.js';
 import type { StructuredHeader } from './decode-strings.js';
 import PassThroughDecoder from './pass-through-decoder.js';
 import Base64Decoder from './base64-decoder.js';
@@ -552,10 +552,8 @@ export default class MimeNode {
             let unfoldedLine = parts.join('');
             sep = unfoldedLine.indexOf(':');
             let key = trimWsp(sep < 0 ? unfoldedLine : unfoldedLine.slice(0, sep));
-            // A bare CR is not legal in a field body. It used to be folded into a space by
-            // the whitespace collapse, and passing it through would hand consumers that
-            // write the value back out a line of their own.
-            let value = sep < 0 ? '' : trimWsp(unfoldedLine.slice(sep + 1).replace(/[\r\n]+/g, ' '));
+            // A bare CR is not legal in a field body, see foldLineBreaks
+            let value = sep < 0 ? '' : trimWsp(foldLineBreaks(unfoldedLine.slice(sep + 1)));
             this.headers.push({ key: key.toLowerCase(), originalKey: key, value });
 
             // A header that decides how the body is read must resolve the same way every

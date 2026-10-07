@@ -598,6 +598,28 @@ test('group syntax in a forwarded From does not reject the parse', async () => {
     assert.ok(email.html!.includes('inner'));
 });
 
+test('a line break in an RFC 2231 filename is folded into a space', async () => {
+    // the raw header had its line breaks folded before it got here, so a filename that
+    // smuggles them in through the encoding is folded the same way, see foldLineBreaks
+    const email = await PostalMime.parse(
+        "Content-Disposition: attachment; filename*=utf-8''line%0D%0Abreak.txt\r\n\r\nx"
+    );
+    assert.strictEqual(email.attachments[0].filename, 'line break.txt');
+});
+
+test('a line break in an RFC 2231 boundary still makes the boundary unmatchable', async () => {
+    // Folding the boundary would turn a message that has no parts for any other parser into
+    // one with parts here, and hand a scanner evasion to whoever hid them
+    const mail =
+        "Content-Type: multipart/mixed; boundary*=utf-8''b%0Ac\r\n\r\n" +
+        '--b c\r\nContent-Type: text/plain\r\n\r\nvisible text\r\n' +
+        '--b c\r\nContent-Type: application/octet-stream; name=payload.exe\r\n\r\nMZ\r\n' +
+        '--b c--\r\n';
+    const email = await PostalMime.parse(mail);
+    assert.strictEqual(email.text, undefined);
+    assert.deepStrictEqual(email.attachments, []);
+});
+
 // Performance. These all used to scale quadratically and are bounded well inside the
 // limits, so a regression shows up as a timeout rather than a slow test.
 

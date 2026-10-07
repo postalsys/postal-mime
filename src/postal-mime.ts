@@ -1,7 +1,7 @@
 import MimeNode from './mime-node.js';
 import { textToHtml, htmlToText, formatTextHeader, formatHtmlHeader } from './text-format.js';
 import addressParser from './address-parser.js';
-import { decodeWords, textEncoder, blobToArrayBuffer } from './decode-strings.js';
+import { decodeWords, foldLineBreaks, textEncoder, blobToArrayBuffer } from './decode-strings.js';
 import { base64ArrayBuffer } from './base64-encoder.js';
 import type { Address, Attachment, Email, PostalMimeOptions, RawEmail } from './types.js';
 
@@ -365,7 +365,9 @@ export default class PostalMime {
         const filename = node.contentDisposition.parsed.params.filename || node.contentType.parsed.params.name || null;
         // `content` is filled in below once the part type is known, hence the cast
         const attachment = {
-            filename: filename ? decodeWords(filename) : null,
+            // An RFC 2231 filename is percent decoded without folding, since the same decoder
+            // produces the boundary, so the fold happens here, see foldLineBreaks
+            filename: filename ? decodeWords(foldLineBreaks(filename)) : null,
             mimeType: node.contentType.parsed.value,
             disposition: node.contentDisposition.parsed.value || null
         } as Attachment;

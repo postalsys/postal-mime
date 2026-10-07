@@ -505,6 +505,14 @@ test('addressParser - quoted encoded word without an address is still decoded as
     assert.deepStrictEqual(addressParser('"=?utf-8?Q?J=C3=B6rg?="'), [{ address: '', name: 'Jörg' }]);
 });
 
+test('addressParser - line breaks carried by an encoded word do not reach the name', () => {
+    // the raw header had its line breaks folded before it got here, so a name that
+    // smuggles them in through the encoding is folded the same way
+    assert.deepStrictEqual(addressParser('=?utf-8?Q?Name=0D=0AInjected=3A_x?= <a@b.com>'), [
+        { address: 'a@b.com', name: 'Name Injected: x' }
+    ]);
+});
+
 test('addressParser - angle brackets holding more than a mailbox keep only the mailbox', () => {
     assert.deepStrictEqual(addressParser('<user@example.com user@example.com>'), [
         { address: 'user@example.com', name: '' }

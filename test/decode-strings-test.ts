@@ -216,7 +216,21 @@ test('decodeWords - very long encoded word', () => {
     assert.strictEqual(result, longText);
 });
 
+test('decodeWords - line breaks inside an encoded word are folded into spaces', () => {
+    // A header value holds no line breaks. A consumer writing the decoded name or subject
+    // into a header of its own would otherwise be handed a header injection
+    assert.strictEqual(decodeWords('=?utf-8?Q?Name=0D=0AInjected=3A_x?='), 'Name Injected: x');
+    // base64 of 'a\r\n\r\nb\nc'
+    assert.strictEqual(decodeWords('=?utf-8?B?YQ0KDQpiCmM=?='), 'a b c');
+});
+
 // URI Decoding with Charset Tests
+test('decodeURIComponentWithCharset - line breaks are kept', () => {
+    // RFC 2231 also encodes the boundary, which a fold would turn from a value no line can
+    // match into one that splits the body, so folding is left to the filename consumer
+    assert.strictEqual(decodeURIComponentWithCharset('a%0D%0Ab', 'utf-8'), 'a\r\nb');
+});
+
 test('decodeURIComponentWithCharset - simple ASCII', () => {
     const result = decodeURIComponentWithCharset('Hello%20World', 'utf-8');
     assert.strictEqual(result, 'Hello World');

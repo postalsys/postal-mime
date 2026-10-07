@@ -307,6 +307,26 @@ export function hexNibble(c: number): number {
 }
 
 /**
+ * Folds the line breaks of a header value into spaces.
+ *
+ * A header value holds no line breaks. The raw value is folded when the headers are
+ * processed, see processHeaders in mime-node.ts, an RFC 2047 encoded word is folded as it
+ * is decoded, and an RFC 2231 filename is folded where the attachment is built. Otherwise a
+ * decoded name, subject or filename written into a header of an outgoing message by the
+ * consumer ends the header early and starts another one with the rest of the value.
+ *
+ * The RFC 2231 percent decoder itself does not fold: it also produces the boundary, and a
+ * boundary holding a line break can never match a line. That has to stay so, or a message
+ * that has no parts for every other parser would have them here.
+ *
+ * @param str Header value
+ * @return The value with every run of CR and LF replaced by a space
+ */
+export function foldLineBreaks(str: string): string {
+    return str.replace(/[\r\n]+/g, ' ');
+}
+
+/**
  * Decode a complete mime word encoded string
  *
  * @param charset Character set of the encoded word
@@ -361,7 +381,7 @@ export function decodeWord(charset: string, encoding: string, str: string): stri
         byteStr = textEncoder.encode(str);
     }
 
-    return getDecoder(charset).decode(byteStr);
+    return foldLineBreaks(getDecoder(charset).decode(byteStr));
 }
 
 // A charset label runs to the next '?' so that labels containing punctuation, eg.
