@@ -1,5 +1,3 @@
-/* globals iFrameResize */
-
 import PostalMime from '../dist/esm/postal-mime.js';
 
 function browseFileContents() {
@@ -90,8 +88,6 @@ function formatAddresses(addresses) {
     return result;
 }
 
-let iframeResizer;
-
 function renderEmail(email) {
     document.getElementById('email-container').style.display = 'block';
 
@@ -145,37 +141,42 @@ function renderEmail(email) {
     const htmlContainerElm = document.getElementById('html-container');
     const htmlContentElm = document.getElementById('html-content');
 
-    if (iframeResizer) {
-        iframeResizer[0].iFrameResizer.close();
-        iframeResizer = false;
-    }
-
     htmlContentElm.innerHTML = '';
     if (email.html) {
         const htmlIframe = document.createElement('iframe');
-        const iframeKey = `iframe-${Date.now()}`;
 
-        htmlIframe.setAttribute('id', iframeKey);
+        // The message HTML is untrusted and postal-mime does not sanitize it. Without a
+        // sandbox a script in the message runs with the privileges of this page.
+        // `allow-same-origin` is what lets this page write into the frame, follow its links
+        // and measure it, and it is only safe because `allow-scripts` is not granted: a
+        // frame that has both can lift its own sandbox. No popup permission either, links
+        // are opened from this side, see below
+        htmlIframe.setAttribute('sandbox', 'allow-same-origin');
 
-        // div tag in which iframe will be added should have id attribute with value myDIV
         htmlContentElm.appendChild(htmlIframe);
         htmlContainerElm.style.display = 'block';
 
-        htmlIframe.contentWindow.document.open();
-        htmlIframe.contentWindow.document.write(email.html);
-        htmlIframe.contentWindow.document.close();
+        const frameDocument = htmlIframe.contentWindow.document;
+        frameDocument.open();
+        frameDocument.write(email.html);
+        frameDocument.close();
 
-        const iframeScript = document.createElement('script');
-        iframeScript.setAttribute('src', '../node_modules/iframe-resizer/js/iframeResizer.contentWindow.js');
-        htmlIframe.contentWindow.document.getElementsByTagName('head')[0].appendChild(iframeScript);
+        // Sized from this side of the frame, since the content runs no script that could
+        // report its own height. Measured again whenever the stylesheet or an image has
+        // loaded, which is what changes the height after the first layout. Load events do
+        // not bubble, but a capturing listener on the document sees every one of them
+        const resize = () => {
+            htmlIframe.style.height = `${frameDocument.documentElement.scrollHeight}px`;
+        };
+        frameDocument.addEventListener('load', resize, true);
 
         const cssLink = document.createElement('link');
         cssLink.href = './email.css';
         cssLink.type = 'text/css';
         cssLink.rel = 'stylesheet';
-        htmlIframe.contentWindow.document.getElementsByTagName('head')[0].appendChild(cssLink);
+        frameDocument.head.appendChild(cssLink);
 
-        htmlIframe.contentWindow.document.querySelectorAll('img').forEach(img => {
+        frameDocument.querySelectorAll('img').forEach(img => {
             if (/^cid:/.test(img.src)) {
                 // replace with inline attachment
                 const cid = img.src.substr(4).trim();
@@ -188,11 +189,23 @@ function renderEmail(email) {
             }
         });
 
-        htmlIframe.contentWindow.document.querySelectorAll('a').forEach(a => {
-            a.setAttribute('target', '_blank');
+        // Links are opened from this side of the frame. The frame can not open a window on
+        // its own, so a `target` or `rel` the message sets has no effect, including on the
+        // anchors a querySelectorAll would miss inside a nested frame or a shadow root, and
+        // a window opened here gets no opener to navigate this page through
+        frameDocument.addEventListener('click', event => {
+            const link = event.composedPath().find(node => node.localName === 'a' && typeof node.href === 'string');
+            if (!link) {
+                return;
+            }
+            event.preventDefault();
+            // only web and mail links, a `javascript:` or `data:` URL is not followed
+            if (/^(https?|mailto):/i.test(link.href)) {
+                window.open(link.href, '_blank', 'noopener,noreferrer');
+            }
         });
 
-        iframeResizer = iFrameResize({ checkOrigin: false }, `#${iframeKey}`);
+        resize();
     } else {
         htmlContainerElm.style.display = 'none';
     }

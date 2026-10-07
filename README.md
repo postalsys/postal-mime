@@ -324,6 +324,9 @@ The limit options must be non-negative integers. Any other value, including a nu
 > }
 > ```
 
+> [!WARNING]
+> The parsed values are the sender's, decoded but not sanitized. `html` is the message's own markup: run it through a sanitizer such as DOMPurify, or render it in an iframe with `sandbox="allow-same-origin"` and without `allow-scripts`, as the demo in `example/` does. Otherwise a script in the message runs with the privileges of your page. `text` is plain text and has to be escaped before it is inserted into HTML. An attachment `filename` can hold path separators, control characters or bidirectional overrides, so treat it as untrusted before using it as a path or showing it.
+
 **Returns**: A Promise that resolves to a structured `Email` object with the following properties:
 
 -   **headers**: An array of `Header` objects, each containing:
@@ -335,7 +338,7 @@ The limit options must be non-negative integers. Any other value, including a nu
 
 -   **headerLines**: An array of `HeaderLine` objects in the same order as `headers`, each containing:
     -   `key`: Lowercase header name.
-    -   `line`: The complete raw header line, including the name and the original line breaks of a folded header.
+    -   `line`: The complete raw header line, including the name and the original line breaks of a folded header. The line is raw, so unlike `value` it can hold a bare CR; sanitize it before writing it into another message.
 -   **from**, **sender**: Processed `Address` objects (can be a `Mailbox` or address group):
     -   `name`: Decoded display name, or an empty string if not set.
     -   `address`: Email address.
