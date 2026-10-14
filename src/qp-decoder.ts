@@ -1,56 +1,21 @@
-import { blobToArrayBuffer, hexNibble, isWsp } from './decode-strings.js';
+import { hexNibble, isWsp } from './decode-strings.js';
+import ChunkWriter from './chunk-writer.js';
 
 const CHR_EQUALS = 0x3d;
 
 export default class QPDecoder {
-    maxChunkSize: number;
-    buffer: Uint8Array<ArrayBuffer>;
-    bufferPos: number;
-    chunks: Uint8Array<ArrayBuffer>[];
+    output: ChunkWriter;
     /** the line break of the last line, written once the next line arrives, see update */
     pendingLineBreak: Uint8Array | null;
 
     constructor() {
-        this.maxChunkSize = 100 * 1024;
-
-        this.buffer = new Uint8Array(this.maxChunkSize);
-        this.bufferPos = 0;
-
-        this.chunks = [];
+        this.output = new ChunkWriter();
         this.pendingLineBreak = null;
     }
 
     writeLineBreak(): void {
         if (this.pendingLineBreak) {
-            this.writeBytes(this.pendingLineBreak, 0, this.pendingLineBreak.length);
-        }
-    }
-
-    writeByte(byte: number): void {
-        if (this.bufferPos >= this.buffer.length) {
-            this.flushBuffer();
-        }
-        this.buffer[this.bufferPos++] = byte;
-    }
-
-    // Literal text is the bulk of a typical body, so it is copied in runs rather than a
-    // byte at a time
-    writeBytes(line: Uint8Array, start: number, end: number): void {
-        while (start < end) {
-            if (this.bufferPos >= this.buffer.length) {
-                this.flushBuffer();
-            }
-            const count = Math.min(end - start, this.buffer.length - this.bufferPos);
-            this.buffer.set(line.subarray(start, start + count), this.bufferPos);
-            this.bufferPos += count;
-            start += count;
-        }
-    }
-
-    flushBuffer(): void {
-        if (this.bufferPos) {
-            this.chunks.push(this.buffer.slice(0, this.bufferPos));
-            this.bufferPos = 0;
+            this.output.writeBytes(this.pendingLineBreak);
         }
     }
 
@@ -93,12 +58,12 @@ export default class QPDecoder {
                 continue;
             }
 
-            this.writeBytes(line, literalStart, i);
-            this.writeByte((high << 4) | low);
+            this.output.writeBytes(line, literalStart, i);
+            this.output.writeByte((high << 4) | low);
             i += 2;
             literalStart = i + 1;
         }
-        this.writeBytes(line, literalStart, len);
+        this.output.writeBytes(line, literalStart, len);
 
         this.pendingLineBreak = softBreak ? null : lineBreak;
     }
@@ -108,9 +73,6 @@ export default class QPDecoder {
         if (!boundaryEnded) {
             this.writeLineBreak();
         }
-        this.flushBuffer();
-
-        // convert an array of arraybuffers into a blob and then back into a single arraybuffer
-        return blobToArrayBuffer(new Blob(this.chunks, { type: 'application/octet-stream' }));
+        return this.output.finalize();
     }
 }

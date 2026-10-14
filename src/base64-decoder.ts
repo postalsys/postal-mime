@@ -1,4 +1,5 @@
-import { decodeBase64, blobToArrayBuffer } from './decode-strings.js';
+import { decodeBase64 } from './decode-strings.js';
+import ChunkWriter from './chunk-writer.js';
 
 export interface Base64DecoderOptions {
     decoder?: TextDecoder | undefined;
@@ -7,7 +8,7 @@ export interface Base64DecoderOptions {
 export default class Base64Decoder {
     decoder: TextDecoder;
     maxChunkSize: number;
-    chunks: ArrayBuffer[];
+    output: ChunkWriter;
     remainder: string;
 
     constructor(opts?: Base64DecoderOptions) {
@@ -17,14 +18,14 @@ export default class Base64Decoder {
 
         this.maxChunkSize = 100 * 1024;
 
-        this.chunks = [];
+        this.output = new ChunkWriter();
 
         this.remainder = '';
     }
 
     pushChunk(base64Str: string): void {
         if (base64Str.length) {
-            this.chunks.push(decodeBase64(base64Str));
+            this.output.append(new Uint8Array(decodeBase64(base64Str)));
         }
     }
 
@@ -39,14 +40,18 @@ export default class Base64Decoder {
         // '=' terminates a base64 unit. Some mailers pad every line, and erasing the
         // padding used to concatenate the units, which knocked everything after the first
         // embedded pad out of 4 character alignment and decoded it to garbage.
-        const units = str.split(/=+/);
-        for (let i = 0; i < units.length; i++) {
-            this.remainder += units[i];
-            // the trailing piece is not followed by padding, so it stays open
-            if (i < units.length - 1) {
-                this.flushRemainder();
-            }
+        //
+        // Each unit is flushed as soon as its '=' is found. A run of '=' flushes an empty
+        // remainder, which writes nothing.
+        let start = 0;
+        let end: number;
+        while ((end = str.indexOf('=', start)) >= 0) {
+            this.remainder += str.substring(start, end);
+            this.flushRemainder();
+            start = end + 1;
         }
+        // the trailing piece is not followed by padding, so it stays open
+        this.remainder += str.substring(start);
 
         if (this.remainder.length >= this.maxChunkSize) {
             const alignedLength = Math.floor(this.remainder.length / 4) * 4;
@@ -58,6 +63,6 @@ export default class Base64Decoder {
     finalize(): Promise<ArrayBuffer> {
         this.flushRemainder();
 
-        return blobToArrayBuffer(new Blob(this.chunks, { type: 'application/octet-stream' }));
+        return this.output.finalize();
     }
 }

@@ -2,6 +2,9 @@ import { Buffer } from 'node:buffer';
 import test from 'node:test';
 import assert from 'node:assert';
 import PostalMime from '../src/postal-mime.js';
+import Base64Decoder from '../src/base64-decoder.js';
+import { decodeBase64 } from '../src/decode-strings.js';
+import { attachmentBytes } from './helpers.js';
 
 // Basic Base64 decoding tests
 test('Base64 decoder - simple ASCII text', async () => {
@@ -609,4 +612,68 @@ test('Base64 decoder - large input triggers chunk flush', async () => {
     const bytes = new Uint8Array(email.attachments[0].content as ArrayBuffer);
     assert.strictEqual(bytes.length, 80 * 1024);
     assert.ok(bytes.every(b => b === 0x41));
+});
+
+// https://github.com/postalsys/postal-mime/issues/107
+const parseBase64Attachment = async (body: string) => {
+    const email = await PostalMime.parse(
+        'Content-Type: application/octet-stream\r\nContent-Transfer-Encoding: base64\r\n\r\n' + body
+    );
+    return attachmentBytes(email.attachments[0]);
+};
+
+test('Base64 decoder - padded units are collected into fixed size chunks', async () => {
+    const decoder = new Base64Decoder();
+    const encoder = new TextEncoder();
+    for (let i = 0; i < 100000; i++) {
+        decoder.update(encoder.encode('AA=='));
+    }
+    decoder.update(encoder.encode('AB='.repeat(100000)));
+
+    // one buffer per 100 KiB of output, not one per unit
+    assert.ok(decoder.output.chunks.length <= 2, `${decoder.output.chunks.length} chunks`);
+
+    const decoded = new Uint8Array(await decoder.finalize());
+    assert.strictEqual(decoded.length, 200000);
+    assert.ok(decoded.every(byte => byte === 0));
+});
+
+test('Base64 decoder - units match splitting on runs of padding', async () => {
+    const encoder = new TextEncoder();
+    const inputs = ['', '=', '===', 'QQ==Qg==', 'QQ===Qg', '==QQ==', 'QUJD=REVG', 'QUJDRA==RUY=Rw', 'Q=Q=Q=', 'QUJD'];
+
+    for (const input of inputs) {
+        const expected = Buffer.concat(input.split(/=+/).map(unit => Buffer.from(decodeBase64(unit))));
+
+        const decoder = new Base64Decoder();
+        decoder.update(encoder.encode(input));
+        const decoded = Buffer.from(await decoder.finalize());
+
+        assert.deepStrictEqual(decoded, expected, input);
+    }
+});
+
+test('Base64 decoder - output spanning several chunks is kept in order', async () => {
+    const source = Buffer.alloc(350 * 1024);
+    for (let i = 0; i < source.length; i++) {
+        source[i] = (i * 31 + (i >> 8)) & 0xff;
+    }
+    // encode every 58 bytes on its own, so every other line ends in padding
+    const lines: string[] = [];
+    for (let i = 0; i < source.length; i += 58) {
+        lines.push(source.subarray(i, i + 57).toString('base64'));
+        lines.push(source.subarray(i + 57, i + 58).toString('base64'));
+    }
+
+    assert.deepStrictEqual(await parseBase64Attachment(lines.join('\r\n')), source);
+    // and the same content unpadded on a single line, decoded in large blocks
+    assert.deepStrictEqual(await parseBase64Attachment(source.toString('base64')), source);
+});
+
+test('Base64 decoder - bodies of many padded units parse', async () => {
+    for (const body of ['AA==\r\n'.repeat(400000), 'AB='.repeat(250000)]) {
+        const content = await parseBase64Attachment(body);
+        assert.strictEqual(content.length, body.startsWith('AA') ? 400000 : 250000);
+        assert.ok(content.every(byte => byte === 0));
+    }
 });
