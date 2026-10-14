@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.6](https://github.com/postalsys/postal-mime/compare/v4.0.5...v4.0.6) (2026-10-14)
+
+
+### Bug Fixes
+
+* hold base64 output in fixed size chunks instead of one buffer per padded unit ([6de2c8b](https://github.com/postalsys/postal-mime/commit/6de2c8b30b7a41f50fbc741efa34331101b93b2e)), closes [#107](https://github.com/postalsys/postal-mime/issues/107)
+
 ## [4.0.5](https://github.com/postalsys/postal-mime/compare/v4.0.4...v4.0.5) (2026-10-07)
 
 
