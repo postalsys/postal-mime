@@ -423,6 +423,53 @@ test('MimeNode - maxRfc822NestingDepth of 0 disables inline parsing', async () =
     assert.ok(!(email.text || '').includes('innermost body'));
 });
 
+// a multipart/mixed message with an html part and `forwards` inline message/rfc822 parts
+function forwardMany(forwards: number, header: string): string {
+    const parts = ['--b\r\nContent-Type: text/html\r\n\r\n<p>hi</p>'];
+    for (let i = 0; i < forwards; i++) {
+        parts.push(`--b\r\nContent-Type: message/rfc822\r\n\r\n${header}\r\nSubject: fwd ${i}\r\n\r\nbody ${i}`);
+    }
+    return 'Content-Type: multipart/mixed; boundary=b\r\n\r\n' + parts.join('\r\n') + '\r\n--b--\r\n';
+}
+
+test('MimeNode - maxForwardedAddresses bounds addresses across inline forwards', async () => {
+    // https://github.com/postalsys/postal-mime/issues/111
+    // Each forward is under maxHeadersSize on its own, but its addresses render into the
+    // html at some 60 characters per address, so the count is taken across all of them
+    const to = 'To: ' + Array(4000).fill('a').join(',');
+    await assert.rejects(() => PostalMime.parse(forwardMany(3, to)), /forwarded address count of 10000/);
+
+    const email = await PostalMime.parse(forwardMany(2, to));
+    assert.ok(email.html!.includes('fwd 1'));
+    assert.ok(email.text!.includes('fwd 1'));
+
+    // From, To, Cc and Bcc all count, as does a group along with each of its members
+    const header = 'From: a@x\r\nTo: b@x, G: c@x, d@x;\r\nCc: e@x\r\nBcc: f@x';
+    await PostalMime.parse(forwardMany(1, header), { maxForwardedAddresses: 7 });
+    await assert.rejects(
+        () => PostalMime.parse(forwardMany(1, header), { maxForwardedAddresses: 6 }),
+        /forwarded address count of 6/
+    );
+
+    // the top-level message renders no header block of its own, so it does not count
+    await PostalMime.parse(header + '\r\n\r\nbody', { maxForwardedAddresses: 0 });
+});
+
+test('MimeNode - maxForwardedAddresses is counted across nested forwards', async () => {
+    // every level is parsed by its own parser, which shares the counter with its parent
+    const nested = nestRfc822(4, 'To: a@x, b@x\r\nContent-Type: text/plain\r\n\r\ninnermost body').replace(
+        /Subject: /g,
+        'To: c@x\r\nSubject: '
+    );
+    // four inline messages carry five addresses between them, the outermost header is not rendered
+    await PostalMime.parse(nested, { maxForwardedAddresses: 5 });
+    await assert.rejects(() => PostalMime.parse(nested, { maxForwardedAddresses: 4 }), /forwarded address count/);
+
+    // a forward kept as an attachment is not rendered and does not count
+    const attached = await PostalMime.parse(nested, { maxForwardedAddresses: 0, maxRfc822NestingDepth: 0 });
+    assert.strictEqual(attached.attachments.length, 1);
+});
+
 test('MimeNode - invalid limit options throw a catchable error', async () => {
     // A string or NaN limit disables the limit altogether, because every
     // `size > limit` comparison against such a value is false. A non-finite limit
@@ -430,7 +477,13 @@ test('MimeNode - invalid limit options throw a catchable error', async () => {
     // rejected up front, since callers forward request supplied option objects.
     const invalid = [Infinity, -Infinity, NaN, -1, 2.5, '3', true, {}, []];
 
-    for (const option of ['maxNestingDepth', 'maxHeadersSize', 'maxPartCount', 'maxRfc822NestingDepth']) {
+    for (const option of [
+        'maxNestingDepth',
+        'maxHeadersSize',
+        'maxPartCount',
+        'maxRfc822NestingDepth',
+        'maxForwardedAddresses'
+    ]) {
         for (const value of invalid) {
             assert.throws(
                 () => new PostalMime({ [option]: value } as any),
@@ -469,6 +522,7 @@ test('MimeNode - unset limit options fall back to the defaults', async () => {
         assert.strictEqual(parser.mimeOptions.maxNestingDepth, 256);
         assert.strictEqual(parser.mimeOptions.maxHeadersSize, 2 * 1024 * 1024);
         assert.strictEqual(parser.mimeOptions.maxPartCount, 10000);
+        assert.strictEqual(parser.maxForwardedAddresses, 10000);
     }
 });
 

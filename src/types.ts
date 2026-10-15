@@ -133,4 +133,10 @@ export type PostalMimeOptions = {
      * become attachments flagged with `rfc822DepthExceeded`, and 0 disables inline parsing
      */
     maxRfc822NestingDepth?: number | undefined;
+    /**
+     * Maximum number of From, To, Cc and Bcc addresses across all inline `message/rfc822`
+     * parts, a group and each of its members counted, 10000 by default. These are rendered
+     * into the text and html of the message. Exceeding it rejects the parse
+     */
+    maxForwardedAddresses?: number | undefined;
 };
