@@ -1,5 +1,14 @@
 # Changelog
 
+## [4.0.7](https://github.com/postalsys/postal-mime/compare/v4.0.6...v4.0.7) (2026-10-15)
+
+
+### Bug Fixes
+
+* bound the addresses inline forwards render with a maxForwardedAddresses option ([0bc3c98](https://github.com/postalsys/postal-mime/commit/0bc3c983f9eaee3947c55cf4c7b5981eef915616)), closes [#111](https://github.com/postalsys/postal-mime/issues/111)
+* leave the text after the last &gt; out of the htmlToText link pass ([935fdf4](https://github.com/postalsys/postal-mime/commit/935fdf451c0fc67105c92abf405351e3b4048c19)), closes [#110](https://github.com/postalsys/postal-mime/issues/110)
+* unfold format=flowed text in memory that follows its length, not its line count ([3894f3c](https://github.com/postalsys/postal-mime/commit/3894f3c41559a8c3439b992763e12dcd9d59ff9b)), closes [#109](https://github.com/postalsys/postal-mime/issues/109)
+
 ## [4.0.6](https://github.com/postalsys/postal-mime/compare/v4.0.5...v4.0.6) (2026-10-14)
 
 
