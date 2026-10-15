@@ -134,6 +134,20 @@ function createFinder(str: string, regex: RegExp): (pos: number) => RegExpExecAr
 }
 
 /**
+ * Runs `process` on the text up to and including the last `>` and appends the rest as is,
+ * for a pass whose every match ends at a `>`. The text after the last `>` can never match
+ * and is where a failing pattern rescans to the end from each candidate.
+ *
+ * @param str String to process
+ * @param process The pass to run
+ * @return Processed string
+ */
+function throughLastTag(str: string, process: (head: string) => string): string {
+    const end = str.lastIndexOf('>') + 1;
+    return process(str.slice(0, end)) + str.slice(end);
+}
+
+/**
  * `str.replace(pattern, replacement)` for a pattern shaped like `<tag\b[^>]*>`.
  *
  * Such a pattern only fails at a candidate that has no `>` after it, so the text after
@@ -146,8 +160,7 @@ function createFinder(str: string, regex: RegExp): (pos: number) => RegExpExecAr
  * @return Processed string
  */
 function replaceClosedTags(str: string, pattern: RegExp, replacement: string): string {
-    const end = str.lastIndexOf('>') + 1;
-    return str.slice(0, end).replace(pattern, replacement) + str.slice(end);
+    return throughLastTag(str, head => head.replace(pattern, replacement));
 }
 
 /**
@@ -345,7 +358,12 @@ export function htmlToText(str: string): string {
     str = stripFromFirstTag(str, /<\/body\b/gi);
     str = stripFromFirstTag(str, /<\/html\b/gi);
 
-    str = replaceTags(str, /<a\b/gi, /<a\b[^>]*href\s*=\s*["']?([^\s"']+)[^>]*>/iy, (match, href) => ` (${href}) `);
+    // The href capture also matches `>`, so after a link a run with no whitespace or quote
+    // is taken to the end of the input and given back one character at a time, retrying
+    // `[^>]*>` to the end from each, which is quadratic when no `>` follows
+    str = throughLastTag(str, head =>
+        replaceTags(head, /<a\b/gi, /<a\b[^>]*href\s*=\s*["']?([^\s"']+)[^>]*>/iy, (match, href) => ` (${href}) `)
+    );
 
     str = replaceClosedTags(str, /<\/?(span|em|i|strong|b|u|a)\b[^>]*>/gi, '');
 

@@ -221,7 +221,10 @@ test('html parts with unclosed tags are converted to text in linear time', async
         'unclosed comments': '<!--'.repeat(size / 4),
         'unclosed script end tags': '<script>' + '</script'.repeat(size / 8),
         'unclosed body tags': '<body'.repeat(size / 5),
-        'unclosed br tags': '<br'.repeat(size / 3)
+        'unclosed br tags': '<br'.repeat(size / 3),
+        // https://github.com/postalsys/postal-mime/issues/110
+        'href run past the last >': '<a href=x>' + 'y'.repeat(size),
+        'href run with no > at all': '<b>z</b><a href=' + 'y'.repeat(size)
     };
 
     for (const [name, html] of Object.entries(shapes)) {
