@@ -35,6 +35,9 @@ type ContentDecoder = PassThroughDecoder | Base64Decoder | QPDecoder;
 // decodeUtf8OrWindows1252.
 const headerDecoder = new TextDecoder('utf-8', { ignoreBOM: true });
 
+// number of pieces decodeFlowedText collects before joining them
+const FLOWED_JOIN_INTERVAL = 4096;
+
 // Trims only the whitespace RFC 5322 allows around a field name. String.prototype.trim
 // also strips U+00A0, U+FEFF, U+2028 and the rest of the Unicode spaces, which turns a
 // line that a strict parser rejects into a canonical field name: a `From:` line with a
@@ -469,17 +472,24 @@ export default class MimeNode {
     // written, so a fixed quoted line comes out exactly as it went in. An unquoted stuffed
     // line loses its stuffing, which is all the stuffing is for.
     decodeFlowedText(str: string, delSp: boolean): string {
-        // Pieces of the result, joined once at the end. Growing a single string instead
-        // flattens the whole paragraph again on each line, which is quadratic in the
-        // length of a paragraph.
-        const parts: string[] = [];
+        // Pieces of the result. Growing a single string instead flattens the whole
+        // paragraph again on each line, which is quadratic in the length of a paragraph.
+        // `parts` holds an entry or two per line, so it is joined into `chunks` every few
+        // thousand entries to keep memory following the length of the text rather than
+        // the number of lines. Its last entry stays behind, since delsp trims it when
+        // the next line continues the paragraph.
+        const chunks: string[] = [];
+        let parts: string[] = [];
         // whether the previous line was flowed, and the quote depth of its paragraph
         let flowed = false;
         let depth = 0;
 
-        const lines = str.split('\n');
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
+        for (let lineStart = 0; lineStart <= str.length;) {
+            let lineEnd = str.indexOf('\n', lineStart);
+            if (lineEnd < 0) {
+                lineEnd = str.length;
+            }
+            const line = str.slice(lineStart, lineEnd);
 
             let quoteDepth = 0;
             while (line.charCodeAt(quoteDepth) === 0x3e /* > */) {
@@ -497,7 +507,7 @@ export default class MimeNode {
                 }
                 parts.push(content);
             } else {
-                if (i) {
+                if (lineStart) {
                     parts.push('\n');
                 }
                 parts.push(quoteDepth ? line : content);
@@ -505,9 +515,18 @@ export default class MimeNode {
 
             flowed = !isSignature && content.endsWith(' ');
             depth = quoteDepth;
+
+            if (parts.length >= FLOWED_JOIN_INTERVAL) {
+                const last = parts.pop() as string;
+                chunks.push(parts.join(''));
+                parts = [last];
+            }
+
+            lineStart = lineEnd + 1;
         }
 
-        return parts.join('');
+        chunks.push(parts.join(''));
+        return chunks.join('');
     }
 
     getTextContent(): string {

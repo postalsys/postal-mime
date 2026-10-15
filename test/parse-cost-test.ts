@@ -1,4 +1,7 @@
 import { Buffer } from 'node:buffer';
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import assert from 'node:assert';
 import PostalMime from '../src/postal-mime.js';
@@ -49,6 +52,40 @@ test('a long format=flowed delsp=yes paragraph is unfolded in linear time', asyn
     );
 
     assert.strictEqual(email.text, 'ab'.repeat(lines) + 'end\n');
+});
+
+test('a format=flowed body of many short lines is unfolded in memory that follows its length', () => {
+    // https://github.com/postalsys/postal-mime/issues/109
+    // An array entry per line made two million empty lines run out of a 16 MiB heap.
+    // Runs the built package in a child process, since the heap limit is per process
+    const script = `
+        const { default: PostalMime } = await import('postal-mime');
+        const lines = 2 * 1024 * 1024;
+        const email = await PostalMime.parse(
+            'Content-Type: text/plain; format=flowed\\r\\n\\r\\n' + '\\n'.repeat(lines)
+        );
+        if (email.text.length !== lines) throw new Error('unexpected text length ' + email.text.length);
+    `;
+    const result = spawnSync(process.execPath, ['--max-old-space-size=16', '--input-type=module', '-e', script], {
+        cwd: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'),
+        encoding: 'utf8'
+    });
+    assert.strictEqual(result.status, 0, result.stderr);
+});
+
+test('format=flowed unfolds a paragraph that crosses the join interval', async () => {
+    // delsp trims the last piece when the next line continues the paragraph, so the
+    // periodic join must not have taken that piece yet
+    const lines = 10000;
+    const email = await PostalMime.parse(
+        `Content-Type: text/plain; format=flowed; delsp=yes\r\n\r\n${'a \r\n\r\n'.repeat(lines)}b \r\nc\r\n`
+    );
+    assert.strictEqual(email.text, 'a\n'.repeat(lines) + 'bc\n');
+
+    const flowed = await PostalMime.parse(
+        `Content-Type: text/plain; format=flowed; delsp=yes\r\n\r\n${'ab \r\n'.repeat(lines)}c\r\n`
+    );
+    assert.strictEqual(flowed.text, 'ab'.repeat(lines) + 'c\n');
 });
 
 test('format=flowed keeps the signature separator and empty lines', async () => {
