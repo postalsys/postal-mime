@@ -104,7 +104,8 @@ test('an address header with many addresses parses in linear time', async () => 
 });
 
 test('many address headers of one kind are collected in linear time', async () => {
-    const count = 160000;
+    // as many as the header budget allows, every line counting for at least 64 bytes
+    const count = 30000;
     const email = await timed(() => PostalMime.parse(`${'Cc: a@b\r\n'.repeat(count)}\r\nx`));
 
     assert.strictEqual(email.cc!.length, count);
@@ -177,8 +178,11 @@ test('encoded words under unknown charset labels do not construct decoders', asy
     subject += '=?utf-8?Q?=FF?=';
 
     const part = `--XX\r\nContent-Type: message/rfc822\r\n\r\nSubject: ${subject}\r\n\r\nx\r\n`;
+    // the header budget is shared by the nested messages, so it is raised for this many of them
     const email = await timed(() =>
-        PostalMime.parse(`Content-Type: multipart/mixed; boundary=XX\r\n\r\n${part.repeat(128)}--XX--\r\n`)
+        PostalMime.parse(`Content-Type: multipart/mixed; boundary=XX\r\n\r\n${part.repeat(128)}--XX--\r\n`, {
+            maxHeadersSize: 16 * 1024 * 1024
+        })
     );
 
     assert.ok(email.text!.includes('Subject: \ufffd'));

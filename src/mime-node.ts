@@ -18,9 +18,6 @@ export interface MimeNodeOptions {
     parentNode?: MimeNode | undefined;
     /** multipart subtype of the parent, decides the default content type of this part */
     parentMultipartType?: string | false | undefined;
-    maxNestingDepth: number;
-    maxHeadersSize: number;
-    maxPartCount: number;
 }
 
 type ContentDecoder = PassThroughDecoder | Base64Decoder | QPDecoder;
@@ -37,6 +34,13 @@ const headerDecoder = new TextDecoder('utf-8', { ignoreBOM: true });
 
 // number of pieces decodeFlowedText collects before joining them
 const FLOWED_JOIN_INTERVAL = 4096;
+
+// What a header line costs to hold, at the least. The decoded line, its entry in
+// rawHeaderLines and the parsed header come to a few hundred bytes for a line of one
+// byte, so two million such lines stayed inside maxHeadersSize while they held a few
+// hundred megabytes. Counting every line for at least this much keeps the memory in step
+// with the budget, 32768 lines at the default 2 MiB.
+const HEADER_LINE_MIN_COST = 64;
 
 // Trims only the whitespace RFC 5322 allows around a field name. String.prototype.trim
 // also strips U+00A0, U+FEFF, U+2028 and the rest of the Unicode spaces, which turns a
@@ -106,11 +110,13 @@ export default class MimeNode {
 
         this.postalMime = options.postalMime;
 
-        // Counted across the whole message like the header size, so that a multipart can
-        // not carry the budget again for every part it declares
-        this.postalMime.partCount++;
-        if (this.postalMime.partCount > options.maxPartCount) {
-            throw new Error(`Maximum MIME part count of ${options.maxPartCount} parts exceeded`);
+        // Counted across the whole message like the header size, nested message/rfc822
+        // parts included, so that neither a multipart nor a forward can carry the budget
+        // again for every part it declares
+        const limits = this.postalMime.limits;
+        this.postalMime.counters.partCount++;
+        if (this.postalMime.counters.partCount > limits.maxPartCount) {
+            throw new Error(`Maximum MIME part count of ${limits.maxPartCount} parts exceeded`);
         }
 
         this.childNodes = [];
@@ -123,8 +129,8 @@ export default class MimeNode {
             this.parentNode = options.parentNode;
 
             this.depth = this.parentNode.depth + 1;
-            if (this.depth > options.maxNestingDepth) {
-                throw new Error(`Maximum MIME nesting depth of ${options.maxNestingDepth} levels exceeded`);
+            if (this.depth > limits.maxNestingDepth) {
+                throw new Error(`Maximum MIME nesting depth of ${limits.maxNestingDepth} levels exceeded`);
             }
 
             options.parentNode.childNodes.push(this);
@@ -659,6 +665,9 @@ export default class MimeNode {
             .match(/[\w-]+/) || [''])[0];
 
         this.setupContentDecoder(this.contentTransferEncoding.encoding);
+
+        // the lines live on in rawHeaderLines and headers, so the raw copies are released
+        this.headerLines = [];
     }
 
     // Ends the header section and sets up the body
@@ -681,11 +690,11 @@ export default class MimeNode {
                 // Counted across the whole message, not per part. A per-node budget lets a
                 // multipart carry the limit again for every part it declares, so a message
                 // many times over the limit still parses.
-                this.postalMime.headerSize += line.length;
+                this.postalMime.counters.headerSize += Math.max(line.length, HEADER_LINE_MIN_COST);
 
-                if (this.postalMime.headerSize > this.options.maxHeadersSize) {
-                    let error = new Error(`Maximum header size of ${this.options.maxHeadersSize} bytes exceeded`);
-                    throw error;
+                const maxHeadersSize = this.postalMime.limits.maxHeadersSize;
+                if (this.postalMime.counters.headerSize > maxHeadersSize) {
+                    throw new Error(`Maximum header size of ${maxHeadersSize} bytes exceeded`);
                 }
 
                 const text = decodeUtf8OrWindows1252(line, headerDecoder);

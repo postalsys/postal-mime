@@ -518,11 +518,11 @@ test('MimeNode - unset limit options fall back to the defaults', async () => {
         { maxRfc822NestingDepth: null as any }
     ]) {
         const parser = new PostalMime(options);
-        assert.strictEqual(parser.maxRfc822NestingDepth, 10);
-        assert.strictEqual(parser.mimeOptions.maxNestingDepth, 256);
-        assert.strictEqual(parser.mimeOptions.maxHeadersSize, 2 * 1024 * 1024);
-        assert.strictEqual(parser.mimeOptions.maxPartCount, 10000);
-        assert.strictEqual(parser.maxForwardedAddresses, 10000);
+        assert.strictEqual(parser.limits.maxRfc822NestingDepth, 10);
+        assert.strictEqual(parser.limits.maxNestingDepth, 256);
+        assert.strictEqual(parser.limits.maxHeadersSize, 2 * 1024 * 1024);
+        assert.strictEqual(parser.limits.maxPartCount, 10000);
+        assert.strictEqual(parser.limits.maxForwardedAddresses, 10000);
     }
 });
 
@@ -540,9 +540,9 @@ test('MimeNode - the number of parts is bounded by maxPartCount', async () => {
     assert.strictEqual(email.text, Array(parts).fill('part').join('\n'));
 });
 
-test('MimeNode - the part count starts over inside an inline message/rfc822', async () => {
-    // Each sub-message is parsed by its own parser, so the limit bounds each sub-message
-    // individually, the same as the other limits
+test('MimeNode - the part count continues inside an inline message/rfc822', async () => {
+    // Each sub-message is parsed by its own parser, which counts on from its parent, so a
+    // message can not carry the budget again in every forward it holds
     const mail =
         'Content-Type: message/rfc822\r\n\r\n' +
         'Content-Type: multipart/mixed; boundary=B\r\n\r\n' +
@@ -551,10 +551,64 @@ test('MimeNode - the part count starts over inside an inline message/rfc822', as
         '--B--\r\n';
 
     // one part outside the sub-message and three inside it
-    const email = await PostalMime.parse(mail, { maxPartCount: 3 });
+    const email = await PostalMime.parse(mail, { maxPartCount: 4 });
     assert.ok(email.text!.includes('two'));
 
-    await assert.rejects(() => PostalMime.parse(mail, { maxPartCount: 2 }), /part count/);
+    await assert.rejects(() => PostalMime.parse(mail, { maxPartCount: 3 }), /part count/);
+});
+
+// a multipart/mixed message of `count` inline message/rfc822 parts, each a multipart of
+// `parts` empty parts
+function forwardMultiparts(count: number, parts: number): string {
+    const inner = `Content-Type: multipart/mixed; boundary=i\r\n\r\n${'--i\r\n\r\n'.repeat(parts)}--i--\r\n`;
+    let mail = 'Content-Type: multipart/mixed; boundary=b\r\n\r\n';
+    for (let i = 0; i < count; i++) {
+        mail += `--b\r\nContent-Type: message/rfc822\r\n\r\n${inner}`;
+    }
+    return mail + '--b--\r\n';
+}
+
+test('MimeNode - maxPartCount bounds the parts of every inline forward together', async () => {
+    // Each forward stayed under the limit on its own when the count started over for its
+    // parser, so eighty forwards of ten thousand parts took a 5 MB message to 1.4 GB of heap
+    // and a few hundred of them ran out of it
+
+    // the root, and for every forward the message/rfc822 part, the root of the forwarded
+    // message and its empty parts
+    const total = 1 + 3 * (1 + 1 + 9);
+    await PostalMime.parse(forwardMultiparts(3, 9), { maxPartCount: total });
+    await assert.rejects(() => PostalMime.parse(forwardMultiparts(3, 9), { maxPartCount: total - 1 }), /part count/);
+
+    // more than the default allows across the forwards, where each alone is well inside it
+    await assert.rejects(() => PostalMime.parse(forwardMultiparts(3, 5000)), /part count/);
+});
+
+test('MimeNode - maxHeadersSize bounds the headers of every inline forward together', async () => {
+    const subject = 'Subject: ' + 'x'.repeat(1000);
+    // about 3.2 KB of headers in all, 1.1 KB in each forward
+    const mail = forwardMany(3, subject);
+
+    await PostalMime.parse(mail, { maxHeadersSize: 4000 });
+    await assert.rejects(() => PostalMime.parse(mail, { maxHeadersSize: 2500 }), /header size/);
+});
+
+test('MimeNode - a header line counts for at least 64 bytes', async () => {
+    // What is kept of a line is a few hundred bytes however short it is, so a million one
+    // byte lines held half a gigabyte while staying inside the budget, see HEADER_LINE_MIN_COST
+    const mail = (lines: number) => 'X: y\r\n'.repeat(lines) + '\r\nbody';
+    await PostalMime.parse(mail(4), { maxHeadersSize: 4 * 64 });
+    await assert.rejects(() => PostalMime.parse(mail(5), { maxHeadersSize: 4 * 64 }), /header size/);
+
+    // a line longer than that counts for its length
+    await assert.rejects(
+        () => PostalMime.parse(`X: ${'y'.repeat(100)}\r\n\r\nbody`, { maxHeadersSize: 100 }),
+        /header size/
+    );
+
+    // forty thousand short lines are over the default budget
+    await assert.rejects(() => PostalMime.parse(mail(40000)), /header size/);
+    const email = await PostalMime.parse(mail(30000));
+    assert.strictEqual(email.headers.length, 30000);
 });
 
 test('MimeNode - rfc822 nesting depth cannot be seeded through the options', async () => {

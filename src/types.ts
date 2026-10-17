@@ -124,9 +124,16 @@ export type PostalMimeOptions = {
     attachmentEncoding?: AttachmentEncoding | undefined;
     /** Maximum MIME part nesting depth, 256 by default. Exceeding it rejects the parse */
     maxNestingDepth?: number | undefined;
-    /** Maximum total header size in bytes across every part, 2 MiB by default. Exceeding it rejects the parse */
+    /**
+     * Maximum total header size in bytes across every part and inline `message/rfc822`
+     * sub-message, a header line counting for at least 64 bytes, 2 MiB by default.
+     * Exceeding it rejects the parse
+     */
     maxHeadersSize?: number | undefined;
-    /** Maximum number of MIME parts in a message, the message itself included, 10000 by default. Exceeding it rejects the parse */
+    /**
+     * Maximum number of MIME parts in a message, the message itself and the parts of inline
+     * `message/rfc822` sub-messages included, 10000 by default. Exceeding it rejects the parse
+     */
     maxPartCount?: number | undefined;
     /**
      * Maximum depth of inline `message/rfc822` parsing, 10 by default. Deeper messages

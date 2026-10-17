@@ -632,7 +632,8 @@ test('a multipart with many parts parses in linear time', async () => {
 });
 
 test('a deeply folded header parses in linear time', async () => {
-    const mail = 'Subject: x\r\n' + (' ' + 'y'.repeat(20) + '\r\n').repeat(40000) + '\r\nBody';
+    // every line counts for at least 64 bytes of the header budget, so this many stay inside it
+    const mail = 'Subject: x\r\n' + (' ' + 'y'.repeat(20) + '\r\n').repeat(30000) + '\r\nBody';
     const started = Date.now();
     await PostalMime.parse(mail);
     assert.ok(Date.now() - started < 5000, `took ${Date.now() - started}ms`);

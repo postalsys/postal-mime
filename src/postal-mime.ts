@@ -70,9 +70,31 @@ const MAX_PART_COUNT = 10000;
 const MAX_RFC822_NESTING_DEPTH = 10;
 // The From, To, Cc and Bcc of every inline message/rfc822 part are rendered into the
 // text and html of the parent, an address of one or two bytes as some 60 characters of
-// html. maxHeadersSize bounds the header bytes of each nested message on its own, so
-// without a limit counted across all of them the output grows with the number of forwards.
+// html. maxHeadersSize bounds the header bytes, not the addresses they hold, so without
+// a limit of their own the output grows with the number of forwards.
 const MAX_FORWARDED_ADDRESSES = 10000;
+
+// The limits a parse runs under, validated once and handed to every nested parser as
+// they are, so that a limit added here reaches an inline message/rfc822 part without
+// being threaded through anywhere else
+interface Limits {
+    maxNestingDepth: number;
+    maxHeadersSize: number;
+    maxPartCount: number;
+    maxRfc822NestingDepth: number;
+    maxForwardedAddresses: number;
+}
+
+// What the limits count, see the MimeNode constructor, MimeNode.feed and
+// collectSubMessage. One object serves the whole message: a nested parser gets the
+// object of its parent, so that an inline message/rfc822 part can not start the
+// budgets over. Before that each nested message had its own 2 MiB of headers and
+// 10000 parts, and a few hundred of them in one message exhausted the heap.
+interface LimitCounters {
+    headerSize: number;
+    partCount: number;
+    forwardedAddresses: number;
+}
 
 // the number of entries the header formatters render for a list of addresses, a group
 // counted along with each of its members
@@ -104,19 +126,35 @@ function parseLimitOption(value: unknown, defaultValue: number, name: string): n
     return value;
 }
 
+function parseLimits(options: PostalMimeOptions): Limits {
+    return {
+        maxNestingDepth: parseLimitOption(options.maxNestingDepth, MAX_NESTING_DEPTH, 'maxNestingDepth'),
+        maxHeadersSize: parseLimitOption(options.maxHeadersSize, MAX_HEADERS_SIZE, 'maxHeadersSize'),
+        maxPartCount: parseLimitOption(options.maxPartCount, MAX_PART_COUNT, 'maxPartCount'),
+        // A limit of 0 disables inline parsing entirely, so every message/rfc822 part
+        // becomes an attachment.
+        maxRfc822NestingDepth: parseLimitOption(
+            options.maxRfc822NestingDepth,
+            MAX_RFC822_NESTING_DEPTH,
+            'maxRfc822NestingDepth'
+        ),
+        maxForwardedAddresses: parseLimitOption(
+            options.maxForwardedAddresses,
+            MAX_FORWARDED_ADDRESSES,
+            'maxForwardedAddresses'
+        )
+    };
+}
+
 export default class PostalMime {
     /** @internal */ options: PostalMimeOptions;
-    /** @internal */ mimeOptions: { maxNestingDepth: number; maxHeadersSize: number; maxPartCount: number };
-    /** @internal */ maxRfc822NestingDepth: number;
     /** @internal */ rfc822NestingDepth: number;
-    /** @internal */ maxForwardedAddresses: number;
-    // shared with every nested parser, see collectSubMessage
-    /** @internal */ forwardedAddresses: { count: number };
+    // shared with every nested parser, see the constructor
+    /** @internal */ limits: Limits;
+    /** @internal */ counters: LimitCounters;
     /** @internal */ root: MimeNode;
     /** @internal */ currentNode: MimeNode;
     /** @internal */ boundaries: Boundary[];
-    /** @internal */ headerSize: number;
-    /** @internal */ partCount: number;
     /** @internal */ textContent: Record<string, string>;
     /** @internal */ textMap: Map<MimeNode, TextEntry>;
     /** @internal */ textTypes: Set<TextType>;
@@ -144,45 +182,23 @@ export default class PostalMime {
         return parser.parse(buf);
     }
 
-    constructor(options?: PostalMimeOptions) {
+    constructor(options?: PostalMimeOptions);
+    // A nested parser is created with its parent, see collectSubMessage. The overload is
+    // internal so that the state it hands over can not be seeded through the public API.
+    /** @internal */
+    constructor(options: PostalMimeOptions | undefined, parent: PostalMime);
+    constructor(options?: PostalMimeOptions, parent?: PostalMime) {
         this.options = options || {};
-        this.mimeOptions = {
-            maxNestingDepth: parseLimitOption(this.options.maxNestingDepth, MAX_NESTING_DEPTH, 'maxNestingDepth'),
-            maxHeadersSize: parseLimitOption(this.options.maxHeadersSize, MAX_HEADERS_SIZE, 'maxHeadersSize'),
-            maxPartCount: parseLimitOption(this.options.maxPartCount, MAX_PART_COUNT, 'maxPartCount')
-        };
 
-        // A limit of 0 disables inline parsing entirely, so every message/rfc822 part
-        // becomes an attachment.
-        this.maxRfc822NestingDepth = parseLimitOption(
-            this.options.maxRfc822NestingDepth,
-            MAX_RFC822_NESTING_DEPTH,
-            'maxRfc822NestingDepth'
-        );
+        // Internal state that a nested parser receives from its parent. It is deliberately
+        // not an option, so that forwarding a caller supplied options object can not seed
+        // it and switch the recursion limit off or start the counters over.
+        this.rfc822NestingDepth = parent ? parent.rfc822NestingDepth + 1 : 0;
+        // Set before the root part is created, since the root is counted and checked too
+        this.limits = parent ? parent.limits : parseLimits(this.options);
+        this.counters = parent ? parent.counters : { headerSize: 0, partCount: 0, forwardedAddresses: 0 };
 
-        // Internal state that a nested parser receives from its parent, see collectSubMessage.
-        // It is deliberately not an option, so that forwarding a caller supplied options
-        // object can not seed it and switch the recursion limit off.
-        this.rfc822NestingDepth = 0;
-
-        this.maxForwardedAddresses = parseLimitOption(
-            this.options.maxForwardedAddresses,
-            MAX_FORWARDED_ADDRESSES,
-            'maxForwardedAddresses'
-        );
-        // Like rfc822NestingDepth, a nested parser gets the counter of its parent rather
-        // than an option, so that the count runs across the whole message
-        this.forwardedAddresses = { count: 0 };
-
-        // Header bytes seen across every part of this message, see MimeNode.feed, and the
-        // number of parts created for it, the root included, see the MimeNode constructor
-        this.headerSize = 0;
-        this.partCount = 0;
-
-        this.root = this.currentNode = new MimeNode({
-            postalMime: this,
-            ...this.mimeOptions
-        });
+        this.root = this.currentNode = new MimeNode({ postalMime: this });
         this.boundaries = [];
 
         this.textContent = {};
@@ -274,8 +290,7 @@ export default class PostalMime {
                     this.currentNode = new MimeNode({
                         postalMime: this,
                         parentNode: boundary.node,
-                        parentMultipartType: boundary.node.contentType.multipart,
-                        ...this.mimeOptions
+                        parentMultipartType: boundary.node.contentType.multipart
                     });
                 }
 
@@ -354,7 +369,7 @@ export default class PostalMime {
     async collectNode(node: MimeNode, alternative: MimeNode | false, related: boolean): Promise<void> {
         if (!node.contentType.multipart) {
             const inlineRfc822 = this.isInlineMessageRfc822(node);
-            const rfc822DepthExceeded = inlineRfc822 && this.rfc822NestingDepth >= this.maxRfc822NestingDepth;
+            const rfc822DepthExceeded = inlineRfc822 && this.rfc822NestingDepth >= this.limits.maxRfc822NestingDepth;
 
             if (inlineRfc822 && !rfc822DepthExceeded) {
                 await this.collectSubMessage(node);
@@ -379,27 +394,27 @@ export default class PostalMime {
     // parts and attachments
     /** @internal */
     async collectSubMessage(node: MimeNode): Promise<void> {
-        const subParser = new PostalMime({
-            // Only the limits are inherited. Options that decide how a part
-            // is classified stay with the parser that was configured.
-            ...this.mimeOptions,
-            maxRfc822NestingDepth: this.maxRfc822NestingDepth,
-            maxForwardedAddresses: this.maxForwardedAddresses,
-            // attachments are encoded by the parent parser, keep raw buffers here
-            attachmentEncoding: 'arraybuffer'
-        });
-        subParser.rfc822NestingDepth = this.rfc822NestingDepth + 1;
-        subParser.forwardedAddresses = this.forwardedAddresses;
+        const subParser = new PostalMime(
+            {
+                // Options that decide how a part is classified stay with the parser that
+                // was configured, the limits and their counters come from this parser.
+                // Attachments are encoded by the parent parser, so raw buffers are kept here.
+                attachmentEncoding: 'arraybuffer'
+            },
+            this
+        );
         const subMessage = (node.subMessage = await subParser.parse(node.content || new ArrayBuffer(0)));
 
         // counted before the header block below is rendered into the text and html
-        this.forwardedAddresses.count +=
+        this.counters.forwardedAddresses +=
             countAddresses(subMessage.from) +
             countAddresses(subMessage.to) +
             countAddresses(subMessage.cc) +
             countAddresses(subMessage.bcc);
-        if (this.forwardedAddresses.count > this.maxForwardedAddresses) {
-            throw new Error(`Maximum forwarded address count of ${this.maxForwardedAddresses} addresses exceeded`);
+        if (this.counters.forwardedAddresses > this.limits.maxForwardedAddresses) {
+            throw new Error(
+                `Maximum forwarded address count of ${this.limits.maxForwardedAddresses} addresses exceeded`
+            );
         }
 
         // default to text if there is no content

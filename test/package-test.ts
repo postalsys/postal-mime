@@ -82,11 +82,23 @@ test('Built package - keeps the parser internals out of the declarations', () =>
         const start = declaration.indexOf(classStart);
         assert.ok(start >= 0, format + ' declaration should declare the class as ' + classStart);
         const members = declaration.slice(start, declaration.indexOf('\n}', start));
-        for (const internal of ['boundaries', 'processLine', 'readLine', 'collectNode', 'rfc822NestingDepth']) {
+        for (const internal of [
+            'boundaries',
+            'processLine',
+            'readLine',
+            'collectNode',
+            'rfc822NestingDepth',
+            'counters'
+        ]) {
             assert.ok(!members.includes(internal), internal + ' leaked into the ' + format + ' declaration');
         }
         assert.match(members, /static parse\(buf: RawEmail, options\?: PostalMimeOptions\): Promise<Email>;/);
         assert.match(members, /constructor\(options\?: PostalMimeOptions\);/);
+        // the overload that hands a nested parser its parent is internal
+        assert.ok(
+            !members.includes('parent: PostalMime'),
+            'the nested parser constructor leaked into the ' + format + ' declaration'
+        );
         assert.match(members, /^\s+parse\(buf: RawEmail\): Promise<Email>;/m);
     }
 });
