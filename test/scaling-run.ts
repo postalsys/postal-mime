@@ -62,7 +62,7 @@ for (const shape of SHAPES) {
     }
 
     let measurement = await measure(shape, small, large);
-    if (!followsTheInput(measurement.smallMs, measurement.largeMs)) {
+    if (!followsTheInput(measurement.smallMs, measurement.smallBytes, measurement.largeMs, measurement.largeBytes)) {
         // a measurement can still be unlucky, a regression is not
         measurement = await measure(shape, small, large);
     }

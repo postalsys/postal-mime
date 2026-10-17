@@ -88,9 +88,12 @@ test('parse cost follows the input', async t => {
 
             const report =
                 `${shape.name}: ${smallMs.toFixed(1)}ms for ${smallBytes} bytes, ${largeMs.toFixed(1)}ms for ${largeBytes} bytes, ` +
-                `${(largeMs / smallMs).toFixed(1)}x for ${GROWTH}x the input`;
+                `${(largeMs / smallMs).toFixed(1)}x for ${(largeBytes / smallBytes).toFixed(1)}x the input`;
             assert.ok(largeMs < LIMIT_MS, report);
-            assert.ok(followsTheInput(smallMs, largeMs), `${report}, over ${MAX_RATIO}x at more than ${NOISE_MS}ms`);
+            assert.ok(
+                followsTheInput(smallMs, smallBytes, largeMs, largeBytes),
+                `${report}, over ${MAX_RATIO}x for ${GROWTH}x at more than ${NOISE_MS}ms`
+            );
         });
     }
 });

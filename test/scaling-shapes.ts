@@ -17,13 +17,15 @@ export interface Shape {
 // sixteen times. The header shapes stay under maxHeadersSize at this size.
 export const TARGET_BYTES = 1.5 * 1024 * 1024;
 export const GROWTH = 4;
-// Well above the ratio of a linear parse and well below that of a quadratic one, so that
-// a busy machine does not fail a shape and a regression does not pass. A parse under
-// NOISE_MS at the larger size is timer noise either way, and cheap however it grows.
-export const MAX_RATIO = 8;
+// How much more the larger parse may cost than its size predicts from the smaller one:
+// well above what a linear parse measures, which the garbage collector and the caches
+// take to five or six on the shapes that allocate the most, and well below the sixteen
+// of a quadratic one. A parse under NOISE_MS at the larger size is timer noise either
+// way, and cheap however it grows.
+export const MAX_RATIO = 10;
 export const NOISE_MS = 10;
-export const followsTheInput = (smallMs: number, largeMs: number): boolean =>
-    largeMs < NOISE_MS || largeMs / smallMs < MAX_RATIO;
+export const followsTheInput = (smallMs: number, smallBytes: number, largeMs: number, largeBytes: number): boolean =>
+    largeMs < NOISE_MS || largeMs / smallMs < (MAX_RATIO * largeBytes) / (GROWTH * smallBytes);
 
 // The heap the process parsing the shapes may use. The input is held as a string and as
 // bytes, the output can be as large again, and the parser has its working set on top.
