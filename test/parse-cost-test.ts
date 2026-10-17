@@ -200,6 +200,22 @@ test('getDecoder reuses one decoder per label and falls back for labels TextDeco
     assert.strictEqual(decoder.decode(new Uint8Array([0xef, 0xbb, 0xbf, 0x61])), 'a');
 });
 
+test('a subject of many joinable base64 encoded words is decoded in linear time', async () => {
+    // Reported by Felipe Fernández. The pad check ran a regex over the text joined so far
+    // for every word, which flattens it each time, so 99000 words took ten seconds.
+    const words = 99000;
+    const email = await timed(() =>
+        PostalMime.parse(`Subject: ${Array(words).fill('=?utf-8?B?QUJD?=').join(' ')}\r\n\r\nx`)
+    );
+    assert.strictEqual(email.subject, 'ABC'.repeat(words));
+
+    // the words that decode to invalid UTF-8 make decodeWords render the header again unjoined
+    const invalid = await timed(() =>
+        PostalMime.parse(`Subject: ${Array(words).fill('=?utf-8?B?gICA?=').join(' ')}\r\n\r\nx`)
+    );
+    assert.strictEqual(invalid.subject!.length, words * 3);
+});
+
 test('a flat multipart with more parts than maxPartCount is rejected', async () => {
     // the cheapest part to send and the most expensive to parse, see MAX_PART_COUNT
     const parts = 10000;

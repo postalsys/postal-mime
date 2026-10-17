@@ -564,6 +564,11 @@ interface EncodedWordToken {
 
 type Token = TextToken | EncodedWordToken;
 
+// the encoded words joined so far, `padded` when the last of them ends in a base64 pad
+interface PendingWord extends EncodedWordToken {
+    padded: boolean;
+}
+
 /**
  * Splits a string into encoded words and the literal text around them.
  *
@@ -603,7 +608,7 @@ function splitEncodedWords(str: string): Token[] {
  * they are decoded. Base64 additionally needs the left chunk to end on a group boundary,
  * otherwise the concatenation shifts every byte that follows.
  */
-function canJoinWords(left: EncodedWordToken, right: EncodedWordToken): boolean {
+function canJoinWords(left: PendingWord, right: EncodedWordToken): boolean {
     const encoding = left.encoding.toUpperCase();
 
     if (left.charset !== right.charset || encoding !== right.encoding.toUpperCase()) {
@@ -611,7 +616,11 @@ function canJoinWords(left: EncodedWordToken, right: EncodedWordToken): boolean 
     }
 
     if (encoding === 'B') {
-        return left.encodedText.length % 4 === 0 && !/=$/.test(left.encodedText);
+        // The length of a string built by concatenation is stored with it, but a regex or
+        // endsWith on it flattens everything joined so far first. Testing the growing text
+        // for a pad on every word made a subject of a hundred thousand short words cost
+        // seconds, so the pad is tracked as the words are appended instead.
+        return left.encodedText.length % 4 === 0 && !left.padded;
     }
 
     return true;
@@ -626,7 +635,7 @@ function canJoinWords(left: EncodedWordToken, right: EncodedWordToken): boolean 
  */
 function renderTokens(tokens: Token[], joinWords: boolean): string {
     let result = '';
-    let pending: EncodedWordToken | null = null;
+    let pending: PendingWord | null = null;
 
     for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
@@ -647,13 +656,19 @@ function renderTokens(tokens: Token[], joinWords: boolean): string {
 
         if (pending && joinWords && canJoinWords(pending, token)) {
             pending.encodedText += token.encodedText;
+            pending.padded = token.encodedText.endsWith('=');
             continue;
         }
 
         if (pending) {
             result += decodeWord(pending.charset, pending.encoding, pending.encodedText);
         }
-        pending = { charset: token.charset, encoding: token.encoding, encodedText: token.encodedText };
+        pending = {
+            charset: token.charset,
+            encoding: token.encoding,
+            encodedText: token.encodedText,
+            padded: token.encodedText.endsWith('=')
+        };
     }
 
     if (pending) {

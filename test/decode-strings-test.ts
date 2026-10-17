@@ -144,6 +144,16 @@ test('decodeWords - consecutive QP words joined', () => {
     assert.strictEqual(result, 'Hello');
 });
 
+test('decodeWords - a pad ends the run of joined base64 words', () => {
+    // the pad check sees the last word appended, not the text joined so far, so the state
+    // it keeps has to follow every join
+    assert.strictEqual(decodeWords('=?utf-8?B?SGVs?= =?utf-8?B?bG8=?= =?utf-8?B?IQ==?='), 'Hello!');
+    assert.strictEqual(decodeWords('=?utf-8?B?SGVs?= =?utf-8?B?bG8=?= =?utf-8?B?V29ybGQ=?='), 'HelloWorld');
+    // an empty word leaves the pad where it was
+    assert.strictEqual(decodeWords('=?utf-8?B?SGVs?= =?utf-8?B??= =?utf-8?B?bG8=?='), 'Hello');
+    assert.strictEqual(decodeWords('=?utf-8?B?SGVsbG8=?= =?utf-8?B??= =?utf-8?B?V29ybGQ=?='), 'HelloWorld');
+});
+
 test('decodeWords - B-encoding words not joined if incomplete', () => {
     // If base64 ends with =, should not join
     const result = decodeWords('=?utf-8?B?SGVsbG8=?= =?utf-8?B?V29ybGQ=?=');
