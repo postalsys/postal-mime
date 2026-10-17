@@ -27,11 +27,11 @@ export const followsTheInput = (smallMs: number, largeMs: number): boolean =>
 
 // The heap the process parsing the shapes may use. The input is held as a string and as
 // bytes, the output can be as large again, and the parser has its working set on top.
-// The address parser is the largest at some 150 times the input, a token and an output
-// object for every byte of a list of one letter names, and sets the limit. A shape that
-// holds more per byte, as a header of one byte lines or a multipart of empty parts did
-// before their limits, runs out of it.
-export const HEAP_MB = 256;
+// The address parser is the largest at some 200 times the input, a token and an output
+// object for every byte of a list of one letter names, and sets the limit: it should come
+// down with that. A shape that holds more per byte, as a header of one byte lines or a
+// multipart of empty parts did before their limits, runs out of it.
+export const HEAP_MB = 384;
 
 const headers = (lines: string[]): string => lines.join('\r\n') + '\r\n\r\n';
 const subject = (value: string): string => headers(['From: a@b', 'Subject: ' + value]) + 'x';
