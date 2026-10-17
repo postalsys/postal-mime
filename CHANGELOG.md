@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.0.8](https://github.com/postalsys/postal-mime/compare/v4.0.7...v4.0.8) (2026-10-17)
+
+
+### Bug Fixes
+
+* count inline forwards against the limits of the whole message and a header line for at least 64 bytes ([6088bcd](https://github.com/postalsys/postal-mime/commit/6088bcd3751482f54d160862117b7d96c5ed1181))
+* track the pad of joined base64 encoded words instead of testing the text joined so far ([9eb25a6](https://github.com/postalsys/postal-mime/commit/9eb25a66bb3cc8b631421be651b9648796f19136))
+
 ## [4.0.7](https://github.com/postalsys/postal-mime/compare/v4.0.6...v4.0.7) (2026-10-15)
 
 
