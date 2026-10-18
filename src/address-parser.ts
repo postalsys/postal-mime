@@ -32,6 +32,11 @@ const ADDR_SPEC = /^[^@\s]+@[^@\s]+$/;
 const LITERAL_ADDR_SPEC = /^[^@\s]+@\[[^[\]\\\s]*\]$/;
 
 /**
+ * The '@' and domain that follow a quoted local part in the same run
+ */
+const QUOTED_LOCAL_DOMAIN = /^@(?:[^@\s"]+|\[[^[\]\\\s]*\])$/;
+
+/**
  * Whether a whitespace free run reads as an addr-spec under the strict grammar
  *
  * @param value Run to check
@@ -533,13 +538,19 @@ function _handleAddress(tokens: Token[], depth: number): Address[] {
     let isGroup = false;
     let state: AddressState = 'text';
     let addresses: Address[] = [];
-    let data: Record<AddressState, string[]> & { textWasQuoted: boolean[] } = {
+    let data: Record<AddressState, string[]> & { textWasQuoted: boolean[]; quotedLocalAt: number[] } = {
         address: [],
         comment: [],
         group: [],
         text: [],
-        textWasQuoted: [] // Track which text tokens came from inside quotes
+        textWasQuoted: [], // Track which text tokens came from inside quotes
+        // For a text run that is a quoted local part followed by the unquoted '@' and domain
+        // of an addr-spec, '"user"@example.com', the length of the local part, -1 otherwise
+        quotedLocalAt: []
     };
+    // whether the last text run holds nothing but quoted text so far, which is what a quoted
+    // local part is until the '@' after it joins the run
+    let lastTextPureQuoted = false;
     let i: number;
     let len: number;
     let insideQuotes = false; // Track if we're currently inside a quoted string
@@ -604,14 +615,24 @@ function _handleAddress(tokens: Token[], depth: number): Address[] {
 
             if (joins) {
                 // join values
-                data[state][data[state].length - 1] += token.value;
+                const last = data[state].length - 1;
+                if (state === 'text' && !insideQuotes) {
+                    if (lastTextPureQuoted && token.value.charAt(0) === '@') {
+                        data.quotedLocalAt[last] = data.text[last].length;
+                    }
+                    lastTextPureQuoted = false;
+                }
+                data[state][last] += token.value;
                 if (state === 'text' && insideQuotes) {
-                    data.textWasQuoted[data.textWasQuoted.length - 1] = true;
+                    data.textWasQuoted[last] = true;
                 }
             } else {
                 data[state].push(token.value);
                 if (state === 'text') {
                     data.textWasQuoted.push(insideQuotes || opensAfterEmptyQuotedString);
+                    // an empty quoted string leaves no text of its own, so the '@' opens the run
+                    data.quotedLocalAt.push(opensAfterEmptyQuotedString && token.value.charAt(0) === '@' ? 0 : -1);
+                    lastTextPureQuoted = insideQuotes;
                 }
             }
             lastChars[state] = token.value.charAt(token.value.length - 1);
@@ -676,21 +697,33 @@ function _handleAddress(tokens: Token[], depth: number): Address[] {
             // by its collapsed form, the display text keeps its spacing
             const candidates = data.text.map(part => collapseAtSpacing(part));
 
-            for (i = data.text.length - 1; i >= 0; i--) {
+            // The first addr-spec in the text is the mailbox, as it is for a conformant parser
+            // reading as far as it can. Taking the last one let a comment part two of them and
+            // pick the second, 'user@good.com (x) evil@evil.com' named evil.com, while the
+            // same two without the comment, one run, named good.com
+            for (i = 0; i < data.text.length; i++) {
                 // Security fix: Do not extract email addresses from quoted strings
                 // RFC 5321 allows @ inside quoted local-parts like "user@domain"@example.com
                 // Extracting emails from quoted text leads to misrouting vulnerabilities
-                if (!data.textWasQuoted[i] && isAddrSpec(candidates[i])) {
-                    data.address = [candidates[i]];
+                // A run that is a quoted local part with its '@' and domain is an addr-spec of
+                // its own, with the quoting put back on, and takes its turn like any other
+                const local = data.quotedLocalAt[i];
+                const quotedLocal =
+                    data.textWasQuoted[i] && local >= 0 && QUOTED_LOCAL_DOMAIN.test(data.text[i].slice(local))
+                        ? quoteLocalPart(data.text[i])
+                        : '';
+                if (quotedLocal || (!data.textWasQuoted[i] && isAddrSpec(candidates[i]))) {
+                    data.address = [quotedLocal || candidates[i]];
                     data.text.splice(i, 1);
                     data.textWasQuoted.splice(i, 1);
+                    data.quotedLocalAt.splice(i, 1);
                     break;
                 }
             }
 
             // still no address
             if (!data.address.length) {
-                for (i = data.text.length - 1; i >= 0; i--) {
+                for (i = 0; i < data.text.length; i++) {
                     // Security fix: Do not extract email addresses from quoted strings
                     if (!data.textWasQuoted[i]) {
                         // handles an email address that has more than one @. The strict tier
