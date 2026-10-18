@@ -1,6 +1,6 @@
 {
     "name": "postal-mime",
-    "version": "4.0.10",
+    "version": "4.0.11",
     "description": "Email parser for Node.js and browser environments",
     "type": "module",
     "main": "./dist/cjs/postal-mime.js",
