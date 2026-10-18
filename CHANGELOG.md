@@ -1,5 +1,20 @@
 # Changelog
 
+## [4.0.9](https://github.com/postalsys/postal-mime/compare/v4.0.8...v4.0.9) (2026-10-18)
+
+
+### Bug Fixes
+
+* apply the unexpected "&lt;" rule outside quotes and comments ([bb2cc7b](https://github.com/postalsys/postal-mime/commit/bb2cc7bc03fd13eb464d02e4b132fdfd0100c0a6))
+* bound group nesting at ten levels ([01645e4](https://github.com/postalsys/postal-mime/commit/01645e490f68076b328b140943745964b7dcc705))
+* drop the obsolete route from an angle-addr ([101d7fb](https://github.com/postalsys/postal-mime/commit/101d7fb1baa0ba1265c5a70ea349c109f120a8f5))
+* end a comment only at the ")" that closes the outermost one ([1bd922f](https://github.com/postalsys/postal-mime/commit/1bd922fc53567967065733a4795b99c9e17767c6))
+* honour quoted strings and comments inside an angle-addr and a group ([005a68a](https://github.com/postalsys/postal-mime/commit/005a68a46696f0723ca00de5d999bb575ba77083))
+* never read a mailbox out of a comment ([b7681ee](https://github.com/postalsys/postal-mime/commit/b7681eebab6591bec227a4a006150d8c0564ea88))
+* read CFWS beside the "@" of an addr-spec as nothing ([a1475ed](https://github.com/postalsys/postal-mime/commit/a1475ed46322aa1e2e2fd2c2ab258171094b0595))
+* read the first addr-spec of the display text ([db5317d](https://github.com/postalsys/postal-mime/commit/db5317d1b8bdb475eb2ce230d8acb33018a8302a))
+* split a domain literal off at the "@" in front of it ([25ce9d2](https://github.com/postalsys/postal-mime/commit/25ce9d248dd5e414e6e7c203da8221a562aad8e7))
+
 ## [4.0.8](https://github.com/postalsys/postal-mime/compare/v4.0.7...v4.0.8) (2026-10-17)
 
 
