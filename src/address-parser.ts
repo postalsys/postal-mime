@@ -671,7 +671,10 @@ class Tokenizer {
     afterAt: boolean;
     /** a quoted string is open inside the angle-addr or group being collected */
     innerQuoted: boolean;
-    /** comment depth inside the angle-addr or group being collected */
+    /**
+     * comment depth inside the angle-addr or group being collected, or of the comments nested
+     * in the comment being collected
+     */
     innerComment: number;
     /** a domain literal is open inside the angle-addr being collected */
     innerLiteral: boolean;
@@ -776,6 +779,16 @@ class Tokenizer {
         let nested = false;
         if (this.operatorExpecting === '>' || this.operatorExpecting === ';') {
             nested = this.trackInner(chr);
+        } else if (this.operatorExpecting === ')' && !this.escaped) {
+            // Comments nest (RFC 5322 3.2.2). Ending one at the first ')' let the ')' of a
+            // nested comment close the outer one and released the rest of it, an address
+            // included, into the header
+            if (chr === '(') {
+                this.innerComment++;
+            } else if (chr === ')' && this.innerComment) {
+                this.innerComment--;
+                nested = true;
+            }
         }
 
         if (this.escaped) {
@@ -913,7 +926,7 @@ class Tokenizer {
     }
 
     /**
-     * Forgets what trackInner collected, once the angle-addr or group it was collected for opens or ends
+     * Forgets the nesting collected for the operator that just opened or ended
      */
     resetInner(): void {
         this.innerQuoted = false;
