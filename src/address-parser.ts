@@ -377,6 +377,14 @@ function recoverAddrSpec(address: string, text: string): { address: string; text
  * literals are copied through untouched, a '(' in there is not a comment. An unexpected '<'
  * outside them drops everything in front of it, comments included.
  *
+ * RFC 822 also let an angle-addr name the relays to go through in front of the mailbox,
+ * '<@relay1,@relay2:user@example.com>', which RFC 5322 still parses as obs-route. The route
+ * is not part of the mailbox, and folded into the local part it made
+ * '"@relay1,@relay2:user"@example.com' a recipient that does not exist. A local part can not
+ * start with '@', so contents that do, up to the first ':' outside a domain literal and in
+ * front of any quoted string, are a route and are dropped, as long as a mailbox with an '@'
+ * of its own follows.
+ *
  * @param address Contents of the angle brackets
  * @return The address with the comments removed, and the text of the comments
  */
@@ -394,6 +402,11 @@ function stripAddressComments(address: string): { address: string; comments: str
     // Deciding on the spot saw only the character right after the ')', so a second comment
     // in a row hid the '@' behind it and 'a(x)(y)@b' read as 'a @b'
     let pendingSpace = false;
+    // first character of the result and whether a quoted string has opened since, which
+    // together tell a route from a local part
+    let firstChar = '';
+    let quoteSeen = false;
+    let routeEnd = -1;
 
     for (let i = 0, len = address.length; i < len; i++) {
         const chr = address.charAt(i);
@@ -433,6 +446,9 @@ function stripAddressComments(address: string): { address: string; comments: str
             }
         } else if (chr === '"') {
             closer = '"';
+            quoteSeen = true;
+        } else if (chr === ':' && routeEnd < 0 && firstChar === '@' && !quoteSeen) {
+            routeEnd = result.length + 1;
         } else if (chr === '[') {
             closer = ']';
         } else if (chr === '(') {
@@ -446,11 +462,21 @@ function stripAddressComments(address: string): { address: string; comments: str
             result = '';
             lastChar = '';
             comments.length = 0;
+            firstChar = '';
+            quoteSeen = false;
+            routeEnd = -1;
             continue;
         }
 
         result += chr;
         lastChar = chr;
+        if (!firstChar && !isSpaceCode(address.charCodeAt(i))) {
+            firstChar = chr;
+        }
+    }
+
+    if (routeEnd >= 0 && result.indexOf('@', routeEnd) >= 0) {
+        result = result.slice(routeEnd);
     }
 
     if (depth) {
@@ -629,10 +655,6 @@ function _handleAddress(tokens: Token[], depth: number): Address[] {
         const addressComments: string[] = [];
         const addressParts: string[] = [];
         for (const part of data.address) {
-            if (part.indexOf('(') < 0 && part.indexOf('<') < 0) {
-                addressParts.push(part);
-                continue;
-            }
             const stripped = stripAddressComments(part);
             for (const comment of stripped.comments) {
                 addressComments.push(comment);
