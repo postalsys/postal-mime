@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.0.10](https://github.com/postalsys/postal-mime/compare/v4.0.9...v4.0.10) (2026-10-18)
+
+
+### Bug Fixes
+
+* handle an address list without copying it per address ([ad33b56](https://github.com/postalsys/postal-mime/commit/ad33b5668502af11d9567fd213819328e4887481))
+* tokenize addresses into offsets instead of an object per token ([1026499](https://github.com/postalsys/postal-mime/commit/1026499c6e1c0d669925e6abda4482924955499b))
+
 ## [4.0.9](https://github.com/postalsys/postal-mime/compare/v4.0.8...v4.0.9) (2026-10-18)
 
 
