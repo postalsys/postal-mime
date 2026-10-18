@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.11](https://github.com/postalsys/postal-mime/compare/v4.0.10...v4.0.11) (2026-10-18)
+
+
+### Bug Fixes
+
+* read address groups in the same pass as the rest of the list ([a951c80](https://github.com/postalsys/postal-mime/commit/a951c808c6176d4eea81ee85c232148e61f1ee4b))
+
 ## [4.0.10](https://github.com/postalsys/postal-mime/compare/v4.0.9...v4.0.10) (2026-10-18)
 
 
