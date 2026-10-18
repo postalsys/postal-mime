@@ -1,5 +1,5 @@
 import { decodeWords, isEncodedWordsOnly } from './decode-strings.js';
-import type { Address, AddressParserOptions, Mailbox } from './types.js';
+import type { Address, AddressGroup, AddressParserOptions, Mailbox } from './types.js';
 
 /** The token is an operator, a text run otherwise */
 const TOKEN_OPERATOR = 1;
@@ -92,7 +92,7 @@ class TokenList {
     }
 }
 
-type AddressState = 'text' | 'address' | 'comment' | 'group';
+type AddressState = 'text' | 'address' | 'comment';
 
 /**
  * Any whitespace, the test for an angle-addr that needs recovering
@@ -612,22 +612,26 @@ function hasAngleAddress(text: string): boolean {
 }
 
 /**
- * Converts tokens for a single address into an address object
+ * Walks the tokens of one entry of an address list and sorts them into the runs of display
+ * text, angle-addr and comment they belong to
  *
  * @param tokens Tokens of the whole address list
- * @param from Index of the first token of this address
- * @param to Index just past the last token of this address
- * @param depth Current recursion depth for nested group protection
- * @return Address objects
+ * @param from Index of the first token of the entry
+ * @param to Index just past the last token of the entry
+ * @return The collected runs, and whether the display text came out of a comment
  */
-function _handleAddress(tokens: TokenList, from: number, to: number, depth: number): Address[] {
-    let isGroup = false;
+function collectAddressParts(
+    tokens: TokenList,
+    from: number,
+    to: number
+): {
+    data: Record<AddressState, string[]> & { textWasQuoted: boolean[]; quotedLocalAt: number[] };
+    textFromComment: boolean;
+} {
     let state: AddressState = 'text';
-    let addresses: Address[] = [];
     let data: Record<AddressState, string[]> & { textWasQuoted: boolean[]; quotedLocalAt: number[] } = {
         address: [],
         comment: [],
-        group: [],
         text: [],
         textWasQuoted: [], // Track which text tokens came from inside quotes
         // For a text run that is a quoted local part followed by the unquoted '@' and domain
@@ -643,7 +647,7 @@ function _handleAddress(tokens: TokenList, from: number, to: number, depth: numb
     // the accumulator with slice(-1) makes the engine flatten the whole growing string on
     // every token, which is quadratic over an address built from many comment-joined atoms.
     // A run only ever grows by the token appended below, so the character is carried along.
-    const lastChars: Record<AddressState, string> = { address: '', comment: '', group: '', text: '' };
+    const lastChars: Record<AddressState, string> = { address: '', comment: '', text: '' };
 
     // Filter out <addresses>, (comments) and regular text
     for (i = from; i < to; i++) {
@@ -659,11 +663,6 @@ function _handleAddress(tokens: TokenList, from: number, to: number, depth: numb
                     break;
                 case '(':
                     state = 'comment';
-                    insideQuotes = false;
-                    break;
-                case ':':
-                    state = 'group';
-                    isGroup = true;
                     insideQuotes = false;
                     break;
                 case '"':
@@ -730,192 +729,193 @@ function _handleAddress(tokens: TokenList, from: number, to: number, depth: numb
         textFromComment = true;
     }
 
-    if (isGroup) {
-        // http://tools.ietf.org/html/rfc2822#appendix-A.1.3
-        const text = data.text.join(' ');
+    return { data, textFromComment };
+}
 
-        // Parse group members, but flatten any nested groups (RFC 5322 doesn't allow nesting)
-        let groupMembers: Mailbox[] = [];
-        if (data.group.length) {
-            let parsedGroup = parseAddressList(data.group.join(','), depth + 1);
-            // Flatten: if any member is itself a group, extract its members into the sequence
-            parsedGroup.forEach(member => {
-                if (member.group) {
-                    // Nested group detected - flatten it by adding its members directly
-                    for (const nestedMember of member.group) {
-                        groupMembers.push(nestedMember);
-                    }
-                } else {
-                    groupMembers.push(member);
-                }
-            });
+/**
+ * Name of a group, from the tokens in front of its ':'. A comment names it when no text
+ * does, as it names a mailbox.
+ *
+ * @param tokens Tokens of the whole address list
+ * @param from Index of the first token in front of the ':'
+ * @param to Index of the ':'
+ * @return Decoded name of the group
+ */
+function groupName(tokens: TokenList, from: number, to: number): string {
+    // http://tools.ietf.org/html/rfc2822#appendix-A.1.3
+    return decodeWords(collectAddressParts(tokens, from, to).data.text.join(' '));
+}
+
+/**
+ * Converts tokens for a single address into an address object. An address that is nothing
+ * but an encoded word holding an angle-addr is parsed again once decoded, which can give
+ * more than one entry.
+ *
+ * @param tokens Tokens of the whole address list
+ * @param from Index of the first token of this address
+ * @param to Index just past the last token of this address
+ * @param depth Current recursion depth of the encoded word re-parse
+ * @return Address objects
+ */
+function _handleAddress(tokens: TokenList, from: number, to: number, depth: number): Address[] {
+    const collected = collectAddressParts(tokens, from, to);
+    const data = collected.data;
+    let textFromComment = collected.textFromComment;
+    let i: number;
+
+    // Comments come out of the angle-addr before anything asks whether one was found, so
+    // that brackets holding nothing but a comment read the same as empty ones
+    const addressComments: string[] = [];
+    const addressParts: string[] = [];
+    for (const part of data.address) {
+        const stripped = stripAddressComments(part);
+        for (const comment of stripped.comments) {
+            addressComments.push(comment);
+        }
+        if (stripped.address) {
+            addressParts.push(stripped.address);
+        }
+    }
+    data.address = addressParts;
+
+    // If no address was found, try to detect one from regular text
+    if (!data.address.length && data.text.length && !textFromComment) {
+        // Whitespace beside the '@' is CFWS, so 'user @ good.com' is read as one run. Both
+        // tiers read the collapsed runs, and only a run an address comes out of is replaced
+        // by its collapsed form, the display text keeps its spacing
+        const candidates = data.text.map(part => collapseAtSpacing(part));
+
+        // The first addr-spec in the text is the mailbox, as it is for a conformant parser
+        // reading as far as it can. Taking the last one let a comment part two of them and
+        // pick the second, 'user@good.com (x) evil@evil.com' named evil.com, while the
+        // same two without the comment, one run, named good.com
+        for (i = 0; i < data.text.length; i++) {
+            // Security fix: Do not extract email addresses from quoted strings
+            // RFC 5321 allows @ inside quoted local-parts like "user@domain"@example.com
+            // Extracting emails from quoted text leads to misrouting vulnerabilities
+            // A run that is a quoted local part with its '@' and domain is an addr-spec of
+            // its own, with the quoting put back on, and takes its turn like any other
+            const local = data.quotedLocalAt[i];
+            const quotedLocal =
+                data.textWasQuoted[i] && local >= 0 && QUOTED_LOCAL_DOMAIN.test(data.text[i].slice(local))
+                    ? quoteLocalPart(data.text[i])
+                    : '';
+            if (quotedLocal || (!data.textWasQuoted[i] && isAddrSpec(candidates[i]))) {
+                data.address = [quotedLocal || candidates[i]];
+                data.text.splice(i, 1);
+                data.textWasQuoted.splice(i, 1);
+                data.quotedLocalAt.splice(i, 1);
+                break;
+            }
         }
 
-        addresses.push({
-            name: decodeWords(text),
-            group: groupMembers
-        });
-    } else {
-        // Comments come out of the angle-addr before anything asks whether one was found, so
-        // that brackets holding nothing but a comment read the same as empty ones
-        const addressComments: string[] = [];
-        const addressParts: string[] = [];
-        for (const part of data.address) {
-            const stripped = stripAddressComments(part);
-            for (const comment of stripped.comments) {
-                addressComments.push(comment);
-            }
-            if (stripped.address) {
-                addressParts.push(stripped.address);
-            }
-        }
-        data.address = addressParts;
-
-        // If no address was found, try to detect one from regular text
-        if (!data.address.length && data.text.length && !textFromComment) {
-            // Whitespace beside the '@' is CFWS, so 'user @ good.com' is read as one run. Both
-            // tiers read the collapsed runs, and only a run an address comes out of is replaced
-            // by its collapsed form, the display text keeps its spacing
-            const candidates = data.text.map(part => collapseAtSpacing(part));
-
-            // The first addr-spec in the text is the mailbox, as it is for a conformant parser
-            // reading as far as it can. Taking the last one let a comment part two of them and
-            // pick the second, 'user@good.com (x) evil@evil.com' named evil.com, while the
-            // same two without the comment, one run, named good.com
+        // still no address
+        if (!data.address.length) {
             for (i = 0; i < data.text.length; i++) {
                 // Security fix: Do not extract email addresses from quoted strings
-                // RFC 5321 allows @ inside quoted local-parts like "user@domain"@example.com
-                // Extracting emails from quoted text leads to misrouting vulnerabilities
-                // A run that is a quoted local part with its '@' and domain is an addr-spec of
-                // its own, with the quoting put back on, and takes its turn like any other
-                const local = data.quotedLocalAt[i];
-                const quotedLocal =
-                    data.textWasQuoted[i] && local >= 0 && QUOTED_LOCAL_DOMAIN.test(data.text[i].slice(local))
-                        ? quoteLocalPart(data.text[i])
-                        : '';
-                if (quotedLocal || (!data.textWasQuoted[i] && isAddrSpec(candidates[i]))) {
-                    data.address = [quotedLocal || candidates[i]];
-                    data.text.splice(i, 1);
-                    data.textWasQuoted.splice(i, 1);
-                    data.quotedLocalAt.splice(i, 1);
-                    break;
-                }
-            }
-
-            // still no address
-            if (!data.address.length) {
-                for (i = 0; i < data.text.length; i++) {
-                    // Security fix: Do not extract email addresses from quoted strings
-                    if (!data.textWasQuoted[i]) {
-                        // handles an email address that has more than one @. The strict tier
-                        // found nothing, so it spliced nothing and the indexes still line up
-                        const part = candidates[i];
-                        const start = looseAddressStart(part);
-                        if (start >= 0) {
-                            LOOSE_TEXT_ADDR.lastIndex = start;
-                            const match = LOOSE_TEXT_ADDR.exec(part);
-                            if (match) {
-                                data.address = [match[0].trim()];
-                                // the match takes the whitespace around the address along, so
-                                // the text on either side is joined with a single space
-                                data.text[i] = (
-                                    part.slice(0, start) +
-                                    ' ' +
-                                    part.slice(start + match[0].length)
-                                ).trim();
-                                break;
-                            }
+                if (!data.textWasQuoted[i]) {
+                    // handles an email address that has more than one @. The strict tier
+                    // found nothing, so it spliced nothing and the indexes still line up
+                    const part = candidates[i];
+                    const start = looseAddressStart(part);
+                    if (start >= 0) {
+                        LOOSE_TEXT_ADDR.lastIndex = start;
+                        const match = LOOSE_TEXT_ADDR.exec(part);
+                        if (match) {
+                            data.address = [match[0].trim()];
+                            // the match takes the whitespace around the address along, so
+                            // the text on either side is joined with a single space
+                            data.text[i] = (part.slice(0, start) + ' ' + part.slice(start + match[0].length)).trim();
+                            break;
                         }
-                        data.text[i] = data.text[i].trim();
                     }
+                    data.text[i] = data.text[i].trim();
                 }
             }
         }
-
-        // If there's still no text but a comment exists, replace the two
-        if (!data.text.length && data.comment.length) {
-            data.text = data.comment;
-            data.comment = [];
-        }
-
-        // Keep only the first address occurrence, push others to regular text
-        if (data.address.length > 1) {
-            data.text = data.text.concat(data.address.splice(1));
-        }
-
-        // An address is only taken from unquoted text, so anything left in the text at this
-        // point that still has to serve as the address carries its quoting in this flag
-        const addressFromQuotedText = !data.address.length && data.textWasQuoted.some(wasQuoted => wasQuoted);
-
-        // Join values with spaces
-        let text = data.text.join(' ');
-        let addressValue = data.address.join(' ');
-
-        // `^=\?[^=]+?=$` could not match a base64 word whose padding puts an '=' inside it,
-        // so whether a bare encoded word was decoded or left to become the address itself
-        // came down to whether its payload happened to need padding.
-        if (!addressValue && isEncodedWordsOnly(text.trim())) {
-            // try to extract words from text content
-            const decodedText = decodeWords(text);
-            // Security: only re-parse if decoded text contains angle-bracket addresses.
-            // Without this, a bare encoded email (e.g. =?utf-8?B?dGVzdEBldmlsLmNv?=)
-            // would be fabricated into an address from attacker-controlled input. A quoted
-            // encoded word is never re-parsed, addresses are not taken out of quoted strings
-            // and neither is one that came out of a comment
-            if (!addressFromQuotedText && !textFromComment && hasAngleAddress(decodedText)) {
-                const parsedSubAddresses = parseAddressList(decodedText, depth + 1);
-                if (parsedSubAddresses.length) {
-                    return parsedSubAddresses;
-                }
-            }
-            // No usable address found - treat decoded text as display name only
-            return [{ address: '', name: decodedText }];
-        }
-
-        if (addressFromQuotedText && text.indexOf('@') >= 0) {
-            // The mailbox is still sitting in the text, so it moves over here and is quoted
-            // before the recovery below rather than after it. Anything else the text holds
-            // came along with it: a comment ends the domain but leaves the atoms behind it in
-            // the same text, so '"user"@example.com(x)evil.com' would otherwise hand on
-            // 'user@example.com evil.com', a second domain riding along in a value that is no
-            // addr-spec at all. Putting the quotes back first is what lets the recovery tell
-            // the whitespace a quoted local part may carry from the wreckage trailing one
-            // The quotes are gone at this point, so the '@' the domain splits off at is the
-            // last one, not the single one collapseAtSpacing insists on
-            addressValue = quoteLocalPart(joinAtSpacing(text, domainAt(text)));
-            text = '';
-        }
-
-        ({ address: addressValue, text } = recoverAddrSpec(addressValue, text));
-
-        // a comment names the mailbox only when nothing else does, as one outside the brackets
-        if (!text && addressComments.length) {
-            text = addressComments.join(' ');
-            textFromComment = true;
-        }
-
-        const rawName = text || addressValue || '';
-        const address: Mailbox = {
-            address: addressValue || (textFromComment ? '' : text) || '',
-            name: decodeWords(rawName)
-        };
-
-        // The raw comparison is the check Nodemailer makes, it holds when a single source
-        // filled both fields. The decoded one is added because postal-mime decodes names,
-        // which also catches a name that decodes to the address itself. Comparing only the
-        // decoded name kept a name that mixes an encoded word with plain text as the address
-        if (address.address === rawName || address.address === address.name) {
-            if (address.address.match(/@/)) {
-                address.name = '';
-            } else {
-                address.address = '';
-            }
-        }
-
-        addresses.push(address);
     }
 
-    return addresses;
+    // If there's still no text but a comment exists, replace the two
+    if (!data.text.length && data.comment.length) {
+        data.text = data.comment;
+        data.comment = [];
+    }
+
+    // Keep only the first address occurrence, push others to regular text
+    if (data.address.length > 1) {
+        data.text = data.text.concat(data.address.splice(1));
+    }
+
+    // An address is only taken from unquoted text, so anything left in the text at this
+    // point that still has to serve as the address carries its quoting in this flag
+    const addressFromQuotedText = !data.address.length && data.textWasQuoted.some(wasQuoted => wasQuoted);
+
+    // Join values with spaces
+    let text = data.text.join(' ');
+    let addressValue = data.address.join(' ');
+
+    // `^=\?[^=]+?=$` could not match a base64 word whose padding puts an '=' inside it,
+    // so whether a bare encoded word was decoded or left to become the address itself
+    // came down to whether its payload happened to need padding.
+    if (!addressValue && isEncodedWordsOnly(text.trim())) {
+        // try to extract words from text content
+        const decodedText = decodeWords(text);
+        // Security: only re-parse if decoded text contains angle-bracket addresses.
+        // Without this, a bare encoded email (e.g. =?utf-8?B?dGVzdEBldmlsLmNv?=)
+        // would be fabricated into an address from attacker-controlled input. A quoted
+        // encoded word is never re-parsed, addresses are not taken out of quoted strings
+        // and neither is one that came out of a comment
+        if (!addressFromQuotedText && !textFromComment && hasAngleAddress(decodedText)) {
+            const parsedSubAddresses = parseAddressList(decodedText, depth + 1);
+            if (parsedSubAddresses.length) {
+                return parsedSubAddresses;
+            }
+        }
+        // No usable address found - treat decoded text as display name only
+        return [{ address: '', name: decodedText }];
+    }
+
+    if (addressFromQuotedText && text.indexOf('@') >= 0) {
+        // The mailbox is still sitting in the text, so it moves over here and is quoted
+        // before the recovery below rather than after it. Anything else the text holds
+        // came along with it: a comment ends the domain but leaves the atoms behind it in
+        // the same text, so '"user"@example.com(x)evil.com' would otherwise hand on
+        // 'user@example.com evil.com', a second domain riding along in a value that is no
+        // addr-spec at all. Putting the quotes back first is what lets the recovery tell
+        // the whitespace a quoted local part may carry from the wreckage trailing one
+        // The quotes are gone at this point, so the '@' the domain splits off at is the
+        // last one, not the single one collapseAtSpacing insists on
+        addressValue = quoteLocalPart(joinAtSpacing(text, domainAt(text)));
+        text = '';
+    }
+
+    ({ address: addressValue, text } = recoverAddrSpec(addressValue, text));
+
+    // a comment names the mailbox only when nothing else does, as one outside the brackets
+    if (!text && addressComments.length) {
+        text = addressComments.join(' ');
+        textFromComment = true;
+    }
+
+    const rawName = text || addressValue || '';
+    const address: Mailbox = {
+        address: addressValue || (textFromComment ? '' : text) || '',
+        name: decodeWords(rawName)
+    };
+
+    // The raw comparison is the check Nodemailer makes, it holds when a single source
+    // filled both fields. The decoded one is added because postal-mime decodes names,
+    // which also catches a name that decodes to the address itself. Comparing only the
+    // decoded name kept a name that mixes an encoded word with plain text as the address
+    if (address.address === rawName || address.address === address.name) {
+        if (address.address.match(/@/)) {
+            address.name = '';
+        } else {
+            address.address = '';
+        }
+    }
+
+    return [address];
 }
 
 /**
@@ -931,7 +931,9 @@ class Tokenizer {
     inDomainLiteral: boolean;
     /** the last addr-spec character seen was an "@", with only whitespace or comments since */
     afterAt: boolean;
-    /** a quoted string is open inside the angle-addr or group being collected */
+    /** a group has opened and its ';' has not been seen yet */
+    inGroup: boolean;
+    /** a quoted string is open inside the angle-addr being collected */
     innerQuoted: boolean;
     /**
      * comment depth inside the angle-addr or group being collected, or of the comments nested
@@ -959,6 +961,7 @@ class Tokenizer {
         this.escaped = false;
         this.inDomainLiteral = false;
         this.afterAt = false;
+        this.inGroup = false;
         this.innerQuoted = false;
         this.innerComment = 0;
         this.innerLiteral = false;
@@ -971,7 +974,9 @@ class Tokenizer {
             '(': ')',
             '<': '>',
             ',': '',
-            ':': ';',
+            // A group is read in the same pass as the rest of the list, so its ':' only marks
+            // where the name ends and its members are tokenized like any other address
+            ':': '',
             // Semicolons are not a legal delimiter per the RFC2822 grammar other
             // than for terminating a group, but they are also not valid for any
             // other use in this context.  Given that some mail clients have
@@ -1102,15 +1107,23 @@ class Tokenizer {
             }
         }
 
-        // The closer of an angle-addr or a group is only read outside the quoted strings,
-        // comments and domain literals it holds. Looking for nothing but the closer let a '>'
-        // inside a quoted local part end the angle-addr, '<"a@evil.com>"@good.com>' was read
-        // as an address at evil.com, and a ';' inside a quoted display name or a comment end
-        // the group and release the rest of that text as recipients. The characters are still
-        // collected as they are, the angle-addr and the group content are read again later
+        // The closer of an angle-addr is only read outside the quoted strings, comments and
+        // domain literals it holds. Looking for nothing but the closer let a '>' inside a
+        // quoted local part end the angle-addr, '<"a@evil.com>"@good.com>' was read as an
+        // address at evil.com. The characters are still collected as they are, the angle-addr
+        // is read again later
         let nested = false;
-        if (this.operatorExpecting === '>' || this.operatorExpecting === ';') {
+        if (this.operatorExpecting === '>') {
             nested = this.trackInner(chr);
+            if (!nested && chr === ';' && this.inGroup) {
+                // The ';' of a group ends an angle-addr left open inside it, as it always did
+                // when a group was cut out of the field at its ';' and parsed on its own. Read
+                // as text instead, an unclosed '<' swallowed the end of the group and every
+                // recipient after it
+                this.closeText(i);
+                this.operatorExpecting = '';
+                this.resetInner();
+            }
         } else if (this.operatorExpecting === ')' && !this.escaped) {
             // Comments nest (RFC 5322 3.2.2). Ending one at the first ')' let the ')' of a
             // nested comment close the outer one and released the rest of it, an address
@@ -1147,6 +1160,11 @@ class Tokenizer {
         } else if (!this.operatorExpecting && !(this.inDomainLiteral && chr === ':') && chr in this.operators) {
             this.closeText(i);
             this.list.push(TOKEN_OPERATOR, i, i + 1);
+            if (chr === ':') {
+                this.inGroup = true;
+            } else if (chr === ';') {
+                this.inGroup = false;
+            }
             if (chr !== '(') {
                 this.afterAt = false;
             }
@@ -1199,13 +1217,11 @@ class Tokenizer {
     }
 
     /**
-     * Tracks the quoted strings, comments and domain literals inside an angle-addr or a
-     * group, which the closer of either must not be read from. A backslash escapes the next
-     * character inside a quoted string and a comment. A domain literal is only tracked in an
-     * angle-addr, where it opens right after an "@" and ends at the "]". dtext holds the list
-     * separators as well, and inside the brackets they never split the list anyway. In a group
-     * they do, so a literal is not tracked there and an unclosed "[" can not swallow the
-     * recipients after it.
+     * Tracks the quoted strings, comments and domain literals inside an angle-addr, which its
+     * closer must not be read from. A backslash escapes the next character inside a quoted
+     * string and a comment. A domain literal opens right after an "@" and ends at the "]".
+     * dtext holds the list separators as well, and inside the brackets they never split the
+     * list anyway.
      *
      * @param chr Character from the address field
      * @return true while the character sits inside one of them, the one that closes it included
@@ -1247,7 +1263,7 @@ class Tokenizer {
             this.innerComment = 1;
             return true;
         }
-        if (chr === '[' && this.afterAt && this.operatorExpecting === '>') {
+        if (chr === '[' && this.afterAt) {
             this.innerLiteral = true;
             return true;
         }
@@ -1271,32 +1287,64 @@ class Tokenizer {
 }
 
 /**
- * Maximum recursion depth for parsing nested groups.
- * RFC 5322 doesn't allow nested groups, so this is a safeguard against
- * malicious input that could cause stack overflow. Every level parses what is left of the
- * value once more, so the limit is also the factor a crafted header multiplies the parse by.
+ * Maximum depth of the re-parse of an address that is nothing but an encoded word holding
+ * an angle-addr. Groups no longer recurse, but a decoded word could hold another one, so this
+ * still bounds that.
  */
 const MAX_NESTED_GROUP_DEPTH = 10;
 
 /**
- * Parses an address list, recursing into groups. The depth is threaded through the
- * calls rather than taken from an option, so a caller supplied options object can not
- * seed it and lift the recursion limit.
+ * Folds the fragments an unquoted display name holding a comma is split into back together.
+ *
+ * "Joe Foo, PhD <joe@example.com>" is split on the comma into
+ * [{name:"Joe Foo", address:""}, {name:"PhD", address:"joe@example.com"}]. A name-only entry
+ * followed by an entry with both name and address is recombined. Walked back to front so
+ * that a run of fragments folds into one entry in a single pass. Splicing each fragment out
+ * of the list instead would be quadratic.
+ *
+ * @param list Parsed entries, in order
+ * @return The entries with the fragments folded in
+ */
+function mergeNameFragments<T extends Address>(list: T[]): T[] {
+    const merged: T[] = [];
+    for (let i = list.length - 1; i >= 0; i--) {
+        const current = list[i];
+        const next = merged.length ? merged[merged.length - 1] : null;
+        if (next && current.address === '' && current.name && !current.group && next.address && next.name) {
+            next.name = current.name + ', ' + next.name;
+        } else {
+            merged.push(current);
+        }
+    }
+    return merged.reverse();
+}
+
+/**
+ * Parses an address list, groups included, in a single pass over its tokens.
+ *
+ * A group used to be cut out of the field at the ';' that ends it and parsed again as an
+ * address list of its own, recursively, so every level of nesting parsed what was left of
+ * the field once more. RFC 5322 does not nest groups at all, and the nested ones were
+ * flattened anyway. The tokens are now walked once: a ':' opens a group, its members are
+ * read as they come, a ';' closes it. A ':' inside an open group stands for a group nested
+ * in it, whose name is dropped and whose members belong to the outer one, and the first ';'
+ * ends the group, nested or not, as before.
  *
  * @param str Address field
- * @param depth Current recursion depth for nested group protection
+ * @param depth Current depth of the encoded word re-parse
  * @return An array of address objects
  */
 function parseAddressList(str: string, depth: number): Address[] {
-    // Prevent stack overflow from deeply nested groups (DoS protection)
+    // Prevent stack overflow from encoded words decoding to more of them (DoS protection)
     if (depth > MAX_NESTED_GROUP_DEPTH) {
         return [];
     }
 
-    let tokenizer = new Tokenizer(str);
-    let tokens = tokenizer.tokenize();
+    const tokens = new Tokenizer(str).tokenize();
 
     const parsedAddresses: Address[] = [];
+    let group: AddressGroup | null = null;
+    let members: Mailbox[] = [];
 
     // Every address is handed over as the range of the token list it covers, as soon as the
     // separator after it is seen. Copying the tokens of each address into an array of its own,
@@ -1306,37 +1354,46 @@ function parseAddressList(str: string, depth: number): Address[] {
     let from = 0;
     for (let i = 0, len = tokens.length; i <= len; i++) {
         const operator = i < len ? tokens.operatorAt(i) : '';
-        if (i < len && operator !== ',' && operator !== ';') {
+        if (i < len && operator !== ',' && operator !== ';' && operator !== ':') {
             continue;
         }
+
+        if (operator === ':') {
+            if (!group) {
+                group = { name: groupName(tokens, from, i), group: [] };
+                members = [];
+            }
+            from = i + 1;
+            continue;
+        }
+
         if (i > from) {
             // Appended in place. Rebuilding the list with concat() for every address copies
             // everything parsed so far and is quadratic in the number of addresses.
             for (const address of _handleAddress(tokens, from, i, depth)) {
-                parsedAddresses.push(address);
+                if (!group) {
+                    parsedAddresses.push(address);
+                } else if (address.group) {
+                    // an encoded word inside a group decoded to a group of its own, which is
+                    // flattened into this one as a nested group is
+                    for (const member of address.group) {
+                        members.push(member);
+                    }
+                } else {
+                    members.push(address);
+                }
             }
         }
         from = i + 1;
-    }
 
-    // Merge fragments produced when unquoted display names contain commas.
-    // "Joe Foo, PhD <joe@example.com>" is split on the comma into
-    // [{name:"Joe Foo", address:""}, {name:"PhD", address:"joe@example.com"}].
-    // Recombine: a name-only entry followed by an entry with both name and address.
-    // Walked back to front so that a run of fragments folds into one entry in a single
-    // pass. Splicing each fragment out of the list instead would be quadratic.
-    const mergedAddresses: Address[] = [];
-    for (let i = parsedAddresses.length - 1; i >= 0; i--) {
-        const current = parsedAddresses[i];
-        const next = mergedAddresses.length ? mergedAddresses[mergedAddresses.length - 1] : null;
-        if (next && current.address === '' && current.name && !current.group && next.address && next.name) {
-            next.name = current.name + ', ' + next.name;
-        } else {
-            mergedAddresses.push(current);
+        if (group && (operator === ';' || i === len)) {
+            group.group = mergeNameFragments(members);
+            parsedAddresses.push(group);
+            group = null;
         }
     }
 
-    return mergedAddresses.reverse();
+    return mergeNameFragments(parsedAddresses);
 }
 
 /**
