@@ -669,6 +669,14 @@ class Tokenizer {
     inDomainLiteral: boolean;
     /** the last addr-spec character seen was an "@", with only whitespace or comments since */
     afterAt: boolean;
+    /** a quoted string is open inside the angle-addr or group being collected */
+    innerQuoted: boolean;
+    /** comment depth inside the angle-addr or group being collected */
+    innerComment: number;
+    /** a domain literal is open inside the angle-addr being collected */
+    innerLiteral: boolean;
+    /** the previous character inside an inner quoted string or comment was a backslash */
+    innerEscaped: boolean;
     list: Token[];
     /**
      * Operator tokens and which tokens are expected to end the sequence
@@ -686,6 +694,10 @@ class Tokenizer {
         this.escaped = false;
         this.inDomainLiteral = false;
         this.afterAt = false;
+        this.innerQuoted = false;
+        this.innerComment = 0;
+        this.innerLiteral = false;
+        this.innerEscaped = false;
 
         this.list = [];
 
@@ -755,9 +767,20 @@ class Tokenizer {
             }
         }
 
+        // The closer of an angle-addr or a group is only read outside the quoted strings,
+        // comments and domain literals it holds. Looking for nothing but the closer let a '>'
+        // inside a quoted local part end the angle-addr, '<"a@evil.com>"@good.com>' was read
+        // as an address at evil.com, and a ';' inside a quoted display name or a comment end
+        // the group and release the rest of that text as recipients. The characters are still
+        // collected as they are, the angle-addr and the group content are read again later
+        let nested = false;
+        if (this.operatorExpecting === '>' || this.operatorExpecting === ';') {
+            nested = this.trackInner(chr);
+        }
+
         if (this.escaped) {
             // ignore next condition blocks
-        } else if (chr === this.operatorExpecting) {
+        } else if (chr === this.operatorExpecting && !nested) {
             this.node = {
                 type: 'operator',
                 value: chr
@@ -775,6 +798,7 @@ class Tokenizer {
             }
             this.operatorExpecting = '';
             this.escaped = false;
+            this.resetInner();
 
             return;
         } else if (!this.operatorExpecting && !(this.inDomainLiteral && chr === ':') && chr in this.operators) {
@@ -789,6 +813,7 @@ class Tokenizer {
             }
             this.operatorExpecting = this.operators[chr];
             this.escaped = false;
+            this.resetInner();
             return;
         } else if ((this.operatorExpecting === '"' || this.operatorExpecting === ')') && chr === '\\') {
             // A backslash escapes the next character inside a quoted string and inside a
@@ -824,6 +849,77 @@ class Tokenizer {
         }
 
         this.escaped = false;
+    }
+
+    /**
+     * Tracks the quoted strings, comments and domain literals inside an angle-addr or a
+     * group, which the closer of either must not be read from. A backslash escapes the next
+     * character inside a quoted string and a comment. A domain literal is only tracked in an
+     * angle-addr, where it opens right after an "@" and ends at the "]". dtext holds the list
+     * separators as well, and inside the brackets they never split the list anyway. In a group
+     * they do, so a literal is not tracked there and an unclosed "[" can not swallow the
+     * recipients after it.
+     *
+     * @param chr Character from the address field
+     * @return true while the character sits inside one of them, the one that closes it included
+     */
+    trackInner(chr: string): boolean {
+        if (this.innerEscaped) {
+            this.innerEscaped = false;
+            return true;
+        }
+        if (this.innerQuoted) {
+            if (chr === '\\') {
+                this.innerEscaped = true;
+            } else if (chr === '"') {
+                this.innerQuoted = false;
+            }
+            return true;
+        }
+        if (this.innerComment) {
+            if (chr === '\\') {
+                this.innerEscaped = true;
+            } else if (chr === '(') {
+                this.innerComment++;
+            } else if (chr === ')') {
+                this.innerComment--;
+            }
+            return true;
+        }
+        if (this.innerLiteral) {
+            if (chr === ']') {
+                this.innerLiteral = false;
+            }
+            return true;
+        }
+        if (chr === '"') {
+            this.innerQuoted = true;
+            return true;
+        }
+        if (chr === '(') {
+            this.innerComment = 1;
+            return true;
+        }
+        if (chr === '[' && this.afterAt && this.operatorExpecting === '>') {
+            this.innerLiteral = true;
+            return true;
+        }
+        // afterAt is otherwise only kept outside the operators and is cleared when one opens
+        // or ends, so inside an angle-addr it serves the literal tracked here
+        if (!isSpaceCode(chr.charCodeAt(0))) {
+            this.afterAt = chr === '@';
+        }
+        return false;
+    }
+
+    /**
+     * Forgets what trackInner collected, once the angle-addr or group it was collected for opens or ends
+     */
+    resetInner(): void {
+        this.innerQuoted = false;
+        this.innerComment = 0;
+        this.innerLiteral = false;
+        this.innerEscaped = false;
     }
 }
 
