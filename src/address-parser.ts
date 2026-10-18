@@ -618,10 +618,14 @@ function _handleAddress(tokens: Token[], depth: number): Address[] {
         }
     }
 
-    // If there is no text but a comment, replace the two
+    // If there is no text but a comment, replace the two. A comment is never part of a
+    // mailbox, so text that came out of one only ever names it: reading an address out of it
+    // made '(a@evil.com)' a recipient where no conformant reading has a mailbox at all
+    let textFromComment = false;
     if (!data.text.length && data.comment.length) {
         data.text = data.comment;
         data.comment = [];
+        textFromComment = true;
     }
 
     if (isGroup) {
@@ -666,7 +670,7 @@ function _handleAddress(tokens: Token[], depth: number): Address[] {
         data.address = addressParts;
 
         // If no address was found, try to detect one from regular text
-        if (!data.address.length && data.text.length) {
+        if (!data.address.length && data.text.length && !textFromComment) {
             // Whitespace beside the '@' is CFWS, so 'user @ good.com' is read as one run. Both
             // tiers read the collapsed runs, and only a run an address comes out of is replaced
             // by its collapsed form, the display text keeps its spacing
@@ -743,7 +747,8 @@ function _handleAddress(tokens: Token[], depth: number): Address[] {
             // Without this, a bare encoded email (e.g. =?utf-8?B?dGVzdEBldmlsLmNv?=)
             // would be fabricated into an address from attacker-controlled input. A quoted
             // encoded word is never re-parsed, addresses are not taken out of quoted strings
-            if (!addressFromQuotedText && hasAngleAddress(decodedText)) {
+            // and neither is one that came out of a comment
+            if (!addressFromQuotedText && !textFromComment && hasAngleAddress(decodedText)) {
                 const parsedSubAddresses = parseAddressList(decodedText, depth + 1);
                 if (parsedSubAddresses.length) {
                     return parsedSubAddresses;
@@ -772,11 +777,12 @@ function _handleAddress(tokens: Token[], depth: number): Address[] {
         // a comment names the mailbox only when nothing else does, as one outside the brackets
         if (!text && addressComments.length) {
             text = addressComments.join(' ');
+            textFromComment = true;
         }
 
         const rawName = text || addressValue || '';
         const address: Mailbox = {
-            address: addressValue || text || '',
+            address: addressValue || (textFromComment ? '' : text) || '',
             name: decodeWords(rawName)
         };
 

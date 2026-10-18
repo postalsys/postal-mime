@@ -587,3 +587,20 @@ test('addressParser - specials inside an unquoted encoded word are read as RFC 5
         'a@evil.example'
     );
 });
+
+// A comment is never part of a mailbox, and Nodemailer no longer reads one out of it. An
+// encoded word inside a comment is decoded for the name but never parsed again for an
+// address, or '(=?utf-8?B?PGV2aWxAZXZpbC5jb20+?=)' would name evil@evil.com where Nodemailer,
+// and DMARC verifiers built on it, see no mailbox at all
+test('addressParser - comment holding an encoded angle-addr names no mailbox', () => {
+    for (const input of [
+        '(=?utf-8?B?PGV2aWxAZXZpbC5jb20+?=)',
+        '<(=?utf-8?B?PGV2aWxAZXZpbC5jb20+?=)>',
+        '<> (=?utf-8?B?PGV2aWxAZXZpbC5jb20+?=)'
+    ]) {
+        const result = addressParser(input);
+        assert.strictEqual(result.length, 1, input);
+        assert.strictEqual(result[0].address, '', input);
+        assert.strictEqual(result[0].name, '<evil@evil.com>', input);
+    }
+});
