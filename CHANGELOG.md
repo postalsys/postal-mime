@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.0](https://github.com/postalsys/postal-mime/compare/v4.0.11...v4.1.0) (2026-10-21)
+
+
+### Features
+
+* set a code on every error the parser throws ([76f45a0](https://github.com/postalsys/postal-mime/commit/76f45a0abe4af56ec4747156abe02596397ab4ce))
+
 ## [4.0.11](https://github.com/postalsys/postal-mime/compare/v4.0.10...v4.0.11) (2026-10-18)
 
 
