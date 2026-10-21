@@ -214,28 +214,76 @@ export const ENCODING_LABELS = new Set(
         .split(' ')
 );
 
-// Decoders by label, or null where the runtime refuses the label (the replacement
-// encoding, or an encoding a runtime was built without). Only labels from the list above
-// are stored, so the map can not grow past it however many labels a message makes up.
+/** What is used of a TextDecoder, so that the replacement encoding can have one as well */
+export type Decoder = Pick<TextDecoder, 'encoding' | 'decode'>;
+
+// The labels the Encoding Standard maps to the replacement encoding: ISO-2022-KR,
+// ISO-2022-CN and HZ-GB-2312, whose escape and shift sequences let the same bytes read as
+// text to one decoder and as markup to another. A browser decodes a document in any of
+// them to a single U+FFFD for that reason, and TextDecoder refuses to be constructed for
+// them. They used to fall through to the UTF-8 or windows-1252 reading, which is the
+// markup reading: a body of `ESC$)C SO <img onerror=…> SI` under charset=iso-2022-kr is
+// Hangul to Python and a scanner built on it, and was an image tag here.
+const REPLACEMENT_LABELS = new Set([
+    'csiso2022kr',
+    'hz-gb-2312',
+    'iso-2022-cn',
+    'iso-2022-cn-ext',
+    'iso-2022-kr',
+    'replacement'
+]);
+
+// The decoder of the replacement encoding: U+FFFD once there is a byte to replace
+const replacementDecoder: Decoder = {
+    encoding: 'replacement',
+    decode: input => (input && input.byteLength ? '�' : '')
+};
+
+/**
+ * The label of the Encoding Standard a charset resolves to, as written or through the
+ * alias tables, or null when it names no encoding the standard lists
+ */
+function resolveLabel(charset?: string | null): string | null {
+    charset = (charset || 'utf8').trim().toLowerCase();
+
+    // The label as written first, so the alias table only ever adds to what the standard
+    // lists instead of shadowing it
+    if (ENCODING_LABELS.has(charset)) {
+        return charset;
+    }
+
+    const normalized = normalizeCharset(charset);
+    const codePage = normalized.match(codePagePattern);
+
+    // The normalized label is itself the last candidate, which resolves everything that
+    // differed from a listed label only by a prefix or a separator, eg. x-big5.
+    const alias = (codePage && codePageAliases.get(codePage[1])) || charsetAliases.get(normalized) || normalized;
+
+    return ENCODING_LABELS.has(alias) ? alias : null;
+}
+
+// Decoders by label, or null where the runtime refuses the label (an encoding a runtime
+// was built without). Only labels from the list above are stored, so the map can not grow
+// past it however many labels a message makes up.
 //
 // Sharing a decoder is safe because nothing decodes with `stream: true`, so every
 // decode() call starts from a fresh state.
 const decoders = new Map<string, TextDecoder | null>();
 
-function tryDecoder(charset: string): TextDecoder | null {
-    if (!ENCODING_LABELS.has(charset)) {
-        return null;
+function tryDecoder(label: string): Decoder | null {
+    if (REPLACEMENT_LABELS.has(label)) {
+        return replacementDecoder;
     }
 
-    let decoder = decoders.get(charset);
+    let decoder = decoders.get(label);
     if (decoder === undefined) {
         decoder = null;
         try {
-            decoder = new TextDecoder(charset);
+            decoder = new TextDecoder(label);
         } catch {
             // not supported by this runtime
         }
-        decoders.set(charset, decoder);
+        decoders.set(label, decoder);
     }
 
     return decoder;
@@ -248,28 +296,31 @@ const utf8Decoder = new TextDecoder();
 /**
  * Finds the decoder for a charset label, or null when the runtime has no encoding for it
  */
-function findDecoder(charset?: string | null): TextDecoder | null {
-    charset = (charset || 'utf8').trim().toLowerCase();
-
-    // Try the label as written first, so the alias table only ever adds to what the
-    // runtime already supports instead of shadowing it.
-    const decoder = tryDecoder(charset);
-    if (decoder) {
-        return decoder;
-    }
-
-    const normalized = normalizeCharset(charset);
-    const codePage = normalized.match(codePagePattern);
-
-    // The normalized label is itself the last candidate, which resolves everything that
-    // differed from a supported label only by a prefix or a separator, eg. x-big5.
-    const alias = (codePage && codePageAliases.get(codePage[1])) || charsetAliases.get(normalized) || normalized;
-
-    return tryDecoder(alias);
+function findDecoder(charset?: string | null): Decoder | null {
+    const label = resolveLabel(charset);
+    return label ? tryDecoder(label) : null;
 }
 
-export function getDecoder(charset?: string | null): TextDecoder {
+export function getDecoder(charset?: string | null): Decoder {
     return findDecoder(charset) || tryDecoder('windows-1252') || utf8Decoder;
+}
+
+const UTF16_ENCODINGS = new Set(['utf-16le', 'utf-16be']);
+
+/**
+ * The encoding a byte order mark at the start of the bytes names, or null without one
+ */
+function bomEncoding(bytes: Uint8Array): string | null {
+    if (bytes[0] === 0xfe && bytes[1] === 0xff) {
+        return 'utf-16be';
+    }
+    if (bytes[0] === 0xff && bytes[1] === 0xfe) {
+        return 'utf-16le';
+    }
+    if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+        return 'utf-8';
+    }
+    return null;
 }
 
 /**
@@ -347,8 +398,20 @@ export function decodeUtf8OrWindows1252(bytes: Uint8Array | ArrayBuffer, utf8 = 
  * @return Decoded text
  */
 export function decodeCharset(bytes: Uint8Array | ArrayBuffer, charset?: string | null): string {
-    const decoder = findDecoder(charset);
-    return decoder ? decoder.decode(bytes) : decodeUtf8OrWindows1252(bytes);
+    const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    let decoder = findDecoder(charset);
+    if (decoder && UTF16_ENCODINGS.has(decoder.encoding)) {
+        // A utf-16 label leaves the byte order to the bytes, `utf-16` itself reads as
+        // little endian, so a byte order mark decides it, as the decode algorithm of the
+        // Encoding Standard has it. Read in the other order the bytes are swapped pairs
+        // of the characters every other reader got: FE FF and big endian text under
+        // charset=utf-16 was CJK text to Python and a browser, and here it was the
+        // little endian reading, which the sender picks to be markup.
+        const bom = bomEncoding(view);
+        decoder = (bom && tryDecoder(bom)) || decoder;
+    }
+
+    return decoder ? decoder.decode(view) : decodeUtf8OrWindows1252(view);
 }
 
 // The charset an html document names for itself, in a `<meta charset>` or in the
@@ -358,7 +421,6 @@ export function decodeCharset(bytes: Uint8Array | ArrayBuffer, charset?: string 
 // nothing but `<meta ` took it quadratic
 const META_PRESCAN_BYTES = 1024;
 const CHARSET_ATTRIBUTE = /charset\s*=\s*["']?\s*([^\s"';>]+)/;
-const UTF16_ENCODINGS = new Set(['utf-16le', 'utf-16be']);
 
 function sniffHtmlCharset(bytes: Uint8Array): string | null {
     const head = utf8Decoder.decode(bytes.subarray(0, META_PRESCAN_BYTES)).toLowerCase();
@@ -398,7 +460,9 @@ export function decodeText(bytes: ArrayBuffer, charset: string | undefined, html
     // The HTML prescan has two overrides, and for a reason: a `<meta>` tag that could be
     // read as ASCII proves the document is not UTF-16, so such a label is read as UTF-8,
     // and x-user-defined is read as windows-1252. Without them a sender picks the encoding
-    // that turns bytes a scanner sees as inert into markup for this parser alone
+    // that turns bytes a scanner sees as inert into markup for this parser alone. A label
+    // of the replacement encoding is the replacement text, as it is for a browser, see
+    // tryDecoder
     const sniffed = html ? sniffHtmlCharset(view) : null;
     const decoder = sniffed ? findDecoder(sniffed) : null;
     if (!decoder || UTF16_ENCODINGS.has(decoder.encoding)) {

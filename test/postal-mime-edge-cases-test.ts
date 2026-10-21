@@ -411,6 +411,116 @@ Body`);
     assert.ok(email.text);
 });
 
+test('Edge case - a transfer encoding is matched whole, not as a substring', async () => {
+    // base64 of "<script>alert(1)</script>", which Python and mailparser keep as it is
+    // under any of these, so it must not be decoded into markup here
+    const body = 'PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==';
+    for (const encoding of ['x-base64', 'base64x', '7bit-base64', 'xquoted-printable', 'quoted-printable-x']) {
+        const email = await PostalMime.parse(
+            `Content-Type: text/html\r\nContent-Transfer-Encoding: ${encoding}\r\n\r\n${body}`
+        );
+        assert.strictEqual(email.html, body + '\n', encoding);
+    }
+    // the exact tokens still decode, in any case, with comments and quotes around them
+    for (const encoding of ['BASE64', '(x) base64', '"base64"', 'base64;']) {
+        const email = await PostalMime.parse(
+            `Content-Type: text/html\r\nContent-Transfer-Encoding: ${encoding}\r\n\r\n${body}`
+        );
+        assert.strictEqual(email.html, '<script>alert(1)</script>', encoding);
+    }
+});
+
+test('Edge case - trailing whitespace of a boundary parameter is not part of it', async () => {
+    // Python strips it and finds the parts, so an attachment it shows is not hidden here
+    for (const boundary of ['abc ', 'abc\t', 'abc  ']) {
+        const email = await PostalMime.parse(
+            `Content-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n` +
+                '--abc\r\nContent-Type: text/plain\r\n\r\ntext\r\n' +
+                '--abc\r\nContent-Type: application/octet-stream; name=evil.exe\r\n\r\nMZ\r\n--abc--\r\n'
+        );
+        assert.strictEqual(email.text!.trim(), 'text', JSON.stringify(boundary));
+        assert.strictEqual(email.attachments.length, 1, JSON.stringify(boundary));
+        assert.strictEqual(email.attachments[0].filename, 'evil.exe');
+    }
+    // a boundary of nothing but whitespace is no boundary
+    const email = await PostalMime.parse('Content-Type: multipart/mixed; boundary=" "\r\n\r\n--\r\ntext\r\n');
+    assert.strictEqual(email.text, '--\ntext\n');
+});
+
+test('Edge case - the disposition type ends at the first whitespace', async () => {
+    // `attachment garbage` is an attachment to Python and mailparser, so the html is not
+    // the body here either
+    for (const disposition of ['attachment garbage', 'attachment\tgarbage', 'attachment junk; filename=a.html']) {
+        const email = await PostalMime.parse(
+            `Content-Type: multipart/mixed; boundary=b\r\n\r\n` +
+                `--b\r\nContent-Type: text/html\r\nContent-Disposition: ${disposition}\r\n\r\n<p>hi</p>\r\n--b--\r\n`
+        );
+        assert.strictEqual(email.html, undefined, disposition);
+        assert.strictEqual(email.attachments.length, 1, disposition);
+        assert.strictEqual(email.attachments[0].disposition, 'attachment', disposition);
+    }
+});
+
+test('Edge case - a charset of the replacement encoding decodes to the replacement character', async () => {
+    // The bytes are an ISO-2022-KR shift to Hangul around ASCII, which Python decodes as
+    // Hangul and a browser as U+FFFD. Read as UTF-8 they are the markup inside
+    const body = '\x1b$)C\x0e<img src=x onerror=alert(1)>\x0f';
+    for (const charset of [
+        'iso-2022-kr',
+        'ISO-2022-KR',
+        'csISO2022KR',
+        'hz-gb-2312',
+        'iso-2022-cn',
+        'iso-2022-cn-ext'
+    ]) {
+        const email = await PostalMime.parse(`Content-Type: text/html; charset=${charset}\r\n\r\n${body}`);
+        assert.strictEqual(email.html, '�', charset);
+    }
+    // in an encoded word and in an RFC 2231 parameter as well
+    const email = await PostalMime.parse(
+        'Subject: =?iso-2022-kr?Q?<b>x</b>?=\r\n' +
+            'Content-Type: application/octet-stream\r\n' +
+            "Content-Disposition: attachment; filename*=iso-2022-kr''%3Cb%3E\r\n\r\nx"
+    );
+    assert.strictEqual(email.subject, '�');
+    assert.strictEqual(email.attachments[0].filename, '�');
+    // the html prescan reads the label the same way
+    const sniffed = await PostalMime.parse(`Content-Type: text/html\r\n\r\n<meta charset="iso-2022-kr">${body}`);
+    assert.strictEqual(sniffed.html, '�');
+    // an empty text is empty
+    const empty = await PostalMime.parse('Content-Type: text/plain; charset=iso-2022-kr\r\n\r\n');
+    assert.strictEqual(empty.text, undefined);
+});
+
+test('Edge case - a byte order mark decides the byte order of a utf-16 label', async () => {
+    const markup = '<img src=x onerror=alert(1)>';
+    const le = Buffer.from(markup, 'utf16le');
+    const be = Buffer.from(le.map((_, i, bytes) => bytes[i ^ 1]));
+    // base64, as a utf-16 body travels, so that no line break of the transport is appended
+    const parse = (label: string, bom: readonly number[], bytes: Buffer) =>
+        PostalMime.parse(
+            `Content-Type: text/html; charset=${label}\r\nContent-Transfer-Encoding: base64\r\n\r\n` +
+                Buffer.concat([Buffer.from(bom), bytes]).toString('base64')
+        );
+    // a big endian document labelled utf-16, which read as little endian without the mark
+    for (const [label, bom, bytes] of [
+        ['utf-16', [0xfe, 0xff], be],
+        ['utf-16le', [0xfe, 0xff], be],
+        ['utf-16', [0xff, 0xfe], le],
+        ['utf-16be', [0xff, 0xfe], le],
+        ['utf-16', [0xef, 0xbb, 0xbf], Buffer.from(markup)]
+    ] as const) {
+        const email = await parse(label, bom, bytes);
+        assert.strictEqual(email.html, markup, `${label} with ${bom.map(b => b.toString(16)).join(' ')}`);
+    }
+    // without a mark the label decides, as before
+    assert.strictEqual((await parse('utf-16', [], le)).html, markup);
+    assert.strictEqual((await parse('utf-16be', [], be)).html, markup);
+    // a mark does not override a single byte charset
+    const latin = await parse('iso-8859-1', [0xfe, 0xff], Buffer.from('A'));
+    assert.strictEqual(latin.html, 'þÿA');
+});
+
 // Attachment Edge Cases
 test('Edge case - attachment without filename', async () => {
     const mail = Buffer.from(`Content-Type: application/pdf

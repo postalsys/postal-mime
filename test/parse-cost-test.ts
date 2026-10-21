@@ -192,9 +192,18 @@ test('getDecoder reuses one decoder per label and falls back for labels TextDeco
     assert.strictEqual(getDecoder('iso-8859-2'), getDecoder('iso-8859-2'));
     assert.strictEqual(getDecoder('ISO-8859-2').encoding, 'iso-8859-2');
 
-    // the replacement encoding and made up labels both end up as windows-1252
-    for (const label of ['iso-2022-kr', 'hz-gb-2312', 'replacement', 'x-made-up', 'utf-32']) {
+    // made up labels end up as windows-1252
+    for (const label of ['x-made-up', 'utf-32']) {
         assert.strictEqual(getDecoder(label).encoding, 'windows-1252', label);
+    }
+
+    // the labels of the replacement encoding get its decoder, which TextDecoder refuses
+    // to construct, see decodeCharset for why they do not fall back
+    for (const label of ['iso-2022-kr', 'hz-gb-2312', 'replacement']) {
+        const decoder = getDecoder(label);
+        assert.strictEqual(decoder.encoding, 'replacement', label);
+        assert.strictEqual(decoder.decode(new Uint8Array([0x61, 0x62])), '�', label);
+        assert.strictEqual(decoder.decode(new Uint8Array(0)), '', label);
     }
 
     // a reused decoder starts from a fresh state on every call
