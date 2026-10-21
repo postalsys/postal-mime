@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.3](https://github.com/postalsys/postal-mime/compare/v4.1.2...v4.1.3) (2026-10-21)
+
+
+### Bug Fixes
+
+* honour a byte order mark only under a utf-16 label that leaves the order open ([db9a6ce](https://github.com/postalsys/postal-mime/commit/db9a6cefe5b5ce341af486ecc1bcdd5268498917))
+
 ## [4.1.2](https://github.com/postalsys/postal-mime/compare/v4.1.1...v4.1.2) (2026-10-21)
 
 
