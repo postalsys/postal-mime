@@ -251,8 +251,16 @@ export default class PostalMime {
 
         // check if this is a mime boundary
         if (boundaries.length && line.length > 2 && line[0] === 0x2d && line[1] === 0x2d) {
-            // could be a boundary marker
-            for (let i = boundaries.length - 1; i >= 0; i--) {
+            // Could be a boundary marker. The open boundaries are checked outermost first:
+            // a boundary may not appear inside the parts it delimits (RFC 2046 5.1.1), and
+            // when a nested multipart declares the boundary of an ancestor anyway, or one
+            // that ancestor's terminator matches, the ancestor's delimiter is the one every
+            // other parser reads the line as. Reading it as the nested one instead gave the
+            // nested multipart parts, and an attachment after the ancestor's terminator, that
+            // Python and Go leave in the epilogue, which hid it from a scanner built on
+            // either while it was shown here. Legal boundaries match one line at most, the
+            // order changes nothing for them.
+            for (let i = 0; i < boundaries.length; i++) {
                 let boundary = boundaries[i];
 
                 // Line must be at least long enough for "--" + boundary
@@ -421,7 +429,7 @@ export default class PostalMime {
             },
             this
         );
-        const subMessage = (node.subMessage = await subParser.parse(node.content || new ArrayBuffer(0)));
+        const subMessage = await subParser.parse(node.content || new ArrayBuffer(0));
 
         // counted before the header block below is rendered into the text and html
         this.counters.forwardedAddresses +=
@@ -436,12 +444,18 @@ export default class PostalMime {
             );
         }
 
+        // The nested parser renders no text, see parse, its text parts are taken over below
+        // and rendered by the root parser along with everything else. What it holds of each
+        // kind is read off its text types instead of its text and html
+        const hasPlain = subParser.textTypes.has('plain');
+        const hasHtml = subParser.textTypes.has('html');
+
         // default to text if there is no content
-        if (subMessage.text || !subMessage.html) {
+        if (hasPlain || !hasHtml) {
             this.addTextEntry(node, 'plain', { type: 'subMessage', value: subMessage });
         }
 
-        if (subMessage.html) {
+        if (hasHtml) {
             this.addTextEntry(node, 'html', { type: 'subMessage', value: subMessage });
         }
 
@@ -810,7 +824,15 @@ export default class PostalMime {
 
         this.forceRfc822Attachments = Boolean(this.options.forceRfc822Attachments) || this.hasReportParts();
         await this.collectNode(this.root, false, false);
-        this.renderTextContent();
+
+        // A nested parser hands its text parts to its parent, see collectSubMessage, and the
+        // root parser renders them all at once. Rendering at every level as well cost each
+        // level the text and html of everything below it, and kept them until the root was
+        // done: a chain of forwards as deep as maxRfc822NestingDepth allows took ten times
+        // the time and the memory of the flat message it held
+        if (this.rfc822NestingDepth === 0) {
+            this.renderTextContent();
+        }
 
         const message = this.buildMessage();
         this.encodeAttachments();

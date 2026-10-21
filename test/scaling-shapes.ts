@@ -235,5 +235,23 @@ export const SHAPES: Shape[] = [
             }
             return message;
         }
+    },
+    {
+        name: 'a chain of nested forwards with text to convert',
+        size: 1000,
+        build: n => {
+            // The html sibling makes the parser derive html from the plain part, six
+            // characters for every `<`, and the non-ASCII character makes every string two
+            // bytes a character. Rendered at every level of the chain, this took ten times
+            // the time and memory of the flat message
+            let message = mixed([
+                headers(['Content-Type: text/html']) + '<p>€</p>',
+                headers(['Content-Type: text/plain']) + '<'.repeat(n)
+            ]);
+            for (let depth = 0; depth < 10; depth++) {
+                message = forward(message);
+            }
+            return message;
+        }
     }
 ];

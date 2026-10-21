@@ -93,6 +93,64 @@ test('a Content-Type cannot be smuggled in on a Unicode whitespace line', async 
     assert.strictEqual(email.text!.trim(), '<script>alert(1)</script>');
 });
 
+test('a field name keeps the SP and HTAB around it', async () => {
+    // A first line that starts with whitespace is a fold of nothing, which Python drops and
+    // Go rejects the message for, and whitespace between the name and the colon is
+    // obsolete syntax that Go reads as a different name. Trimmed, either spelling placed
+    // ahead of the genuine header became the canonical one and won as its first occurrence
+    for (const [first, second] of [
+        [' From: security@paypal.example', 'From: attacker@evil.example'],
+        ['\tFrom: security@paypal.example', 'From: attacker@evil.example'],
+        ['From : security@paypal.example', 'From: attacker@evil.example'],
+        ['From\t: security@paypal.example', 'From: attacker@evil.example'],
+        ['Received: from mx.example.com', 'From : security@paypal.example\r\nFrom: attacker@evil.example']
+    ]) {
+        const email = await PostalMime.parse(`${first}\r\n${second}\r\nSubject: hi\r\n\r\nBody`);
+        assert.strictEqual(email.from!.address, 'attacker@evil.example', `spoofed via ${JSON.stringify(first)}`);
+        assert.strictEqual(email.headers.filter(h => h.key === 'from').length, 1);
+        // the line stays visible under the name as it was written
+        const spelled = email.headers.find(h => h.key !== 'from' && h.key.trim() === 'from');
+        assert.ok(spelled, `the line is kept for ${JSON.stringify(first)}`);
+        assert.ok(/^[ \t]from$|^from[ \t]$/.test(spelled.key), spelled.key);
+        assert.strictEqual(email.headerLines.filter(h => h.key === 'from').length, 1);
+    }
+});
+
+test('a Content-Type is not read from a field name with whitespace around it', async () => {
+    for (const spelling of [' Content-Type', 'Content-Type ']) {
+        const email = await PostalMime.parse(
+            `${spelling}: multipart/mixed; boundary=X\r\nContent-Type: text/plain\r\n\r\n` +
+                '--X\r\nContent-Type: application/octet-stream; name=evil.exe\r\n\r\nMZ\r\n--X--\r\n'
+        );
+        // plain text to every other parser, so no attachment is found here either
+        assert.strictEqual(email.attachments.length, 0, spelling);
+        assert.ok(email.text!.includes('evil.exe'), spelling);
+    }
+});
+
+test('a nested multipart cannot reuse the boundary of an ancestor', async () => {
+    // The outer delimiter is the one every other parser reads such a line as, so the
+    // nested multipart has no parts and what follows the outer terminator is the epilogue
+    for (const inner of ['X', 'X--']) {
+        const email = await PostalMime.parse(
+            'From: a@b.example\r\nContent-Type: multipart/mixed; boundary="X"\r\n\r\n' +
+                `--X\r\nContent-Type: multipart/alternative; boundary="${inner}"\r\n\r\n` +
+                `--${inner}\r\nContent-Type: text/plain\r\n\r\ntext\r\n` +
+                '--X--\r\n' +
+                '--X\r\nContent-Type: application/octet-stream; name=evil.exe\r\n\r\nMZ\r\n--X--\r\n'
+        );
+        assert.strictEqual(email.attachments.length, 0, inner);
+        assert.strictEqual(email.html, undefined, inner);
+        if (inner === 'X') {
+            // the text part is a part of the outer multipart, as in Python
+            assert.strictEqual(email.text!.trim(), 'text', inner);
+        } else {
+            // `--X--` ends the outer multipart before any part of the nested one
+            assert.strictEqual(email.text, undefined, inner);
+        }
+    }
+});
+
 test('a bare CR does not survive into a header value', async () => {
     const email = await PostalMime.parse('Subject: hello\rBcc: victim@example.com\r\n\r\nBody');
     assert.ok(!email.subject!.includes('\r'));
