@@ -577,41 +577,6 @@ function stripAddressComments(address: string): { address: string; comments: str
 }
 
 /**
- * Checks whether text holds an angle bracket address, ie. `<` and `>` around a run
- * without other angle brackets that has an '@' with at least one character on each side.
- *
- * Same answer as `/<[^<>]+@[^<>]+>/.test(text)`, which backtracks quadratically on a `<`
- * followed by a long run of '@' and no closing `>`.
- *
- * @param text Text to check
- * @return true if an angle bracket address is present
- */
-function hasAngleAddress(text: string): boolean {
-    // position right after the `<` that opened the current bracket, or -1
-    let start = -1;
-    // first '@' inside the bracket that has a character before it, or -1
-    let at = -1;
-
-    for (let i = 0; i < text.length; i++) {
-        const chr = text.charAt(i);
-        if (chr === '<') {
-            start = i + 1;
-            at = -1;
-        } else if (chr === '>') {
-            if (at >= 0 && at < i - 1) {
-                return true;
-            }
-            start = -1;
-            at = -1;
-        } else if (chr === '@' && start >= 0 && at < 0 && i > start) {
-            at = i;
-        }
-    }
-
-    return false;
-}
-
-/**
  * Walks the tokens of one entry of an address list and sorts them into the runs of display
  * text, angle-addr and comment they belong to
  *
@@ -747,17 +712,14 @@ function groupName(tokens: TokenList, from: number, to: number): string {
 }
 
 /**
- * Converts tokens for a single address into an address object. An address that is nothing
- * but an encoded word holding an angle-addr is parsed again once decoded, which can give
- * more than one entry.
+ * Converts tokens for a single address into an address object
  *
  * @param tokens Tokens of the whole address list
  * @param from Index of the first token of this address
  * @param to Index just past the last token of this address
- * @param depth Current recursion depth of the encoded word re-parse
- * @return Address objects
+ * @return The address object
  */
-function _handleAddress(tokens: TokenList, from: number, to: number, depth: number): Address[] {
+function _handleAddress(tokens: TokenList, from: number, to: number): Mailbox {
     const collected = collectAddressParts(tokens, from, to);
     const data = collected.data;
     let textFromComment = collected.textFromComment;
@@ -854,25 +816,19 @@ function _handleAddress(tokens: TokenList, from: number, to: number, depth: numb
     let text = data.text.join(' ');
     let addressValue = data.address.join(' ');
 
+    // A field that is nothing but encoded words names the mailbox and is not one. The
+    // decoded text used to be parsed again when it held an angle-addr, so a word decoding
+    // to `CEO <ceo@victim.example>` became that mailbox. Nothing that authenticates the
+    // message reads it that way: a DMARC verifier takes the author from the raw header,
+    // where the word holds no mailbox, so the message has no author domain to check and
+    // the sender it showed here was one no verifier had seen. nodemailer, mailparser and
+    // Python read the field as a name as well.
+    //
     // `^=\?[^=]+?=$` could not match a base64 word whose padding puts an '=' inside it,
     // so whether a bare encoded word was decoded or left to become the address itself
     // came down to whether its payload happened to need padding.
     if (!addressValue && isEncodedWordsOnly(text.trim())) {
-        // try to extract words from text content
-        const decodedText = decodeWords(text);
-        // Security: only re-parse if decoded text contains angle-bracket addresses.
-        // Without this, a bare encoded email (e.g. =?utf-8?B?dGVzdEBldmlsLmNv?=)
-        // would be fabricated into an address from attacker-controlled input. A quoted
-        // encoded word is never re-parsed, addresses are not taken out of quoted strings
-        // and neither is one that came out of a comment
-        if (!addressFromQuotedText && !textFromComment && hasAngleAddress(decodedText)) {
-            const parsedSubAddresses = parseAddressList(decodedText, depth + 1);
-            if (parsedSubAddresses.length) {
-                return parsedSubAddresses;
-            }
-        }
-        // No usable address found - treat decoded text as display name only
-        return [{ address: '', name: decodedText }];
+        return { address: '', name: decodeWords(text) };
     }
 
     if (addressFromQuotedText && text.indexOf('@') >= 0) {
@@ -915,7 +871,7 @@ function _handleAddress(tokens: TokenList, from: number, to: number, depth: numb
         }
     }
 
-    return [address];
+    return address;
 }
 
 /**
@@ -1287,13 +1243,6 @@ class Tokenizer {
 }
 
 /**
- * Maximum depth of the re-parse of an address that is nothing but an encoded word holding
- * an angle-addr. Groups no longer recurse, but a decoded word could hold another one, so this
- * still bounds that.
- */
-const MAX_NESTED_GROUP_DEPTH = 10;
-
-/**
  * Folds the fragments an unquoted display name holding a comma is split into back together.
  *
  * "Joe Foo, PhD <joe@example.com>" is split on the comma into
@@ -1331,15 +1280,9 @@ function mergeNameFragments<T extends Address>(list: T[]): T[] {
  * ends the group, nested or not, as before.
  *
  * @param str Address field
- * @param depth Current depth of the encoded word re-parse
  * @return An array of address objects
  */
-function parseAddressList(str: string, depth: number): Address[] {
-    // Prevent stack overflow from encoded words decoding to more of them (DoS protection)
-    if (depth > MAX_NESTED_GROUP_DEPTH) {
-        return [];
-    }
-
+function parseAddressList(str: string): Address[] {
     const tokens = new Tokenizer(str).tokenize();
 
     const parsedAddresses: Address[] = [];
@@ -1370,19 +1313,7 @@ function parseAddressList(str: string, depth: number): Address[] {
         if (i > from) {
             // Appended in place. Rebuilding the list with concat() for every address copies
             // everything parsed so far and is quadratic in the number of addresses.
-            for (const address of _handleAddress(tokens, from, i, depth)) {
-                if (!group) {
-                    parsedAddresses.push(address);
-                } else if (address.group) {
-                    // an encoded word inside a group decoded to a group of its own, which is
-                    // flattened into this one as a nested group is
-                    for (const member of address.group) {
-                        members.push(member);
-                    }
-                } else {
-                    members.push(address);
-                }
-            }
+            (group ? members : parsedAddresses).push(_handleAddress(tokens, from, i));
         }
         from = i + 1;
 
@@ -1412,7 +1343,7 @@ function parseAddressList(str: string, depth: number): Address[] {
  * @return An array of address objects
  */
 function addressParser(str: string, options?: AddressParserOptions): Address[] {
-    const parsedAddresses = parseAddressList(str, 0);
+    const parsedAddresses = parseAddressList(str);
 
     if (options && options.flatten) {
         let addresses: Mailbox[] = [];

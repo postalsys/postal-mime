@@ -146,11 +146,11 @@ test('an encoded word that decodes to an unclosed angle bracket parses in linear
     assert.deepStrictEqual(email.to, [{ address: '', name: decoded }]);
 });
 
-test('an encoded word that decodes to an angle bracket address is parsed as one', async () => {
+test('an encoded word that decodes to an angle bracket address names no mailbox', async () => {
     const encoded = `=?utf-8?B?${Buffer.from('Name <a@b.c>').toString('base64')}?=`;
     const email = await PostalMime.parse(`To: ${encoded}\r\n\r\nx`);
 
-    assert.deepStrictEqual(email.to, [{ address: 'a@b.c', name: 'Name' }]);
+    assert.deepStrictEqual(email.to, [{ address: '', name: 'Name <a@b.c>' }]);
 });
 
 test('a calendar attachment with a long run of blank lines is normalized in linear time', async () => {

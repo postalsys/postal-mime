@@ -406,12 +406,14 @@ test('addressParser - RFC 2047 encoded bare email should not fabricate address (
     assert.strictEqual(result[0].name, 'test@evil.co');
 });
 
-test('addressParser - RFC 2047 encoded full address with angle brackets should work (base64)', () => {
-    // =?utf-8?B?Sm9lIDxqQGEuY28+?= decodes to "Joe <j@a.co>"
+test('addressParser - RFC 2047 encoded full address with angle brackets names no mailbox', () => {
+    // =?utf-8?B?Sm9lIDxqQGEuY28+?= decodes to "Joe <j@a.co>". The raw header holds no
+    // mailbox, so a DMARC verifier finds no author domain in it and the message is never
+    // authenticated as j@a.co. Reading the mailbox out of the decoded text showed a sender
+    // no verifier had seen, so the decoded text is the name and nothing more, as in
+    // Nodemailer and mailparser
     const result = addressParser('=?utf-8?B?Sm9lIDxqQGEuY28+?=');
-    assert.strictEqual(result.length, 1);
-    assert.strictEqual(result[0].address, 'j@a.co');
-    assert.strictEqual(result[0].name, 'Joe');
+    assert.deepStrictEqual(result, [{ address: '', name: 'Joe <j@a.co>' }]);
 });
 
 test('addressParser - RFC 2047 encoded full address with angle brackets should work (QP)', () => {
@@ -455,14 +457,16 @@ test('addressParser - angle bracket immediately followed by comment', () => {
 });
 
 test('addressParser - encoded word with base64 padding handled the same as without', () => {
-    // =?utf-8?B?QSA8YUBiLmNvPiwgQiA8Y0BkLmNvPg==?= decodes to "A <a@b.co>, B <c@d.co>".
-    // Whether the base64 payload happens to need padding must not decide how the value is
-    // treated, so this re-parses into real addresses just like an unpadded word would.
-    const result = addressParser('=?utf-8?B?QSA8YUBiLmNvPiwgQiA8Y0BkLmNvPg==?=');
-    assert.ok(Array.isArray(result));
-    assert.strictEqual(result.length, 2);
-    assert.strictEqual(result[0].address, 'a@b.co');
-    assert.strictEqual(result[1].address, 'c@d.co');
+    // =?utf-8?B?QSA8YUBiLmNvPiwgQiA8Y0BkLmNvPg==?= decodes to "A <a@b.co>, B <c@d.co>" and
+    // =?utf-8?B?QSA8YUBiLmNvPiwgQiA8Y0BkLmNvPiA?= to the same with a trailing space. Whether
+    // the base64 payload happens to need padding must not decide how the value is treated,
+    // and neither word names a mailbox
+    assert.deepStrictEqual(addressParser('=?utf-8?B?QSA8YUBiLmNvPiwgQiA8Y0BkLmNvPg==?='), [
+        { address: '', name: 'A <a@b.co>, B <c@d.co>' }
+    ]);
+    assert.deepStrictEqual(addressParser('=?utf-8?B?QSA8YUBiLmNvPiwgQiA8Y0BkLmNvPiA?='), [
+        { address: '', name: 'A <a@b.co>, B <c@d.co> ' }
+    ]);
 });
 
 test('addressParser - bare encoded email is never fabricated into an address', () => {
@@ -539,11 +543,14 @@ test('addressParser - display name mixing an encoded word with text is not kept 
     assert.deepStrictEqual(addressParser('=?utf-8?Q?a@b.com?= <a@b.com>'), [{ address: 'a@b.com', name: '' }]);
 });
 
-test('addressParser - quoted encoded word is never re-parsed into an address', () => {
-    // =?utf-8?B?PGFAZXZpbC5jb20+?= decodes to "<a@evil.com>"
+test('addressParser - an encoded word is never re-parsed into an address', () => {
+    // =?utf-8?B?PGFAZXZpbC5jb20+?= decodes to "<a@evil.com>", quoted or not
     assert.deepStrictEqual(addressParser('"=?utf-8?B?PGFAZXZpbC5jb20+?="'), [{ address: '', name: '<a@evil.com>' }]);
-    // an unquoted one still is, as before
-    assert.deepStrictEqual(addressParser('=?utf-8?B?PGFAZXZpbC5jb20+?='), [{ address: 'a@evil.com', name: '' }]);
+    assert.deepStrictEqual(addressParser('=?utf-8?B?PGFAZXZpbC5jb20+?='), [{ address: '', name: '<a@evil.com>' }]);
+    // the same inside a group, where the re-parse used to add members
+    assert.deepStrictEqual(addressParser('g: =?utf-8?B?PGFAZXZpbC5jb20+?=;'), [
+        { name: 'g', group: [{ address: '', name: '<a@evil.com>' }] }
+    ]);
 });
 
 test('addressParser - a "[" does not hide the comment, quoted string or angle-addr after it', () => {

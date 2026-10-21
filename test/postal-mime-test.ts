@@ -294,6 +294,11 @@ hello world
 });
 
 test('Parse double encoded address string', async () => {
+    // A sender that encodes the whole `"Name" <address>` as one word. The word used to be
+    // parsed again once decoded and gave the mailbox, but the raw header holds none, so
+    // nothing that authenticates a message sees it: a From written this way has no author
+    // domain for DMARC to check while the mailbox it decodes to can name anyone. The
+    // decoded text is the name only, as Nodemailer and mailparser read it
     const mail = Buffer.from(
         `From: test@example.com
 To: =?utf-8?B?IlJ5ZGVsIiA8UnlkZWxrYWxvdEAxN2d1YWd1YS5jb20+?=, andris@tr.ee
@@ -305,7 +310,7 @@ test`
     const email = await parser.parse(mail);
 
     assert.deepEqual(email.to, [
-        { address: 'Rydelkalot@17guagua.com', name: 'Rydel' },
+        { address: '', name: '"Rydel" <Rydelkalot@17guagua.com>' },
         { address: 'andris@tr.ee', name: '' }
     ]);
 });
