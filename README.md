@@ -311,7 +311,7 @@ PostalMime.parse(email, options) -> Promise<Email>
     -   **maxRfc822NestingDepth** (number, default: `10`): Maximum allowed recursion depth for inline `message/rfc822` sub-messages. Nested messages deeper than this are treated as regular attachments instead of being parsed inline, and the resulting attachment has `rfc822DepthExceeded: true` set. Use `0` to disable inline parsing entirely.
     -   **maxForwardedAddresses** (number, default: `10000`): Maximum allowed number of From, To, Cc and Bcc addresses across all inline `message/rfc822` sub-messages, a group and each of its members counted. These addresses are rendered into the `text` and `html` of the message, so the count is shared by every level of nesting. Throws an `EMAXFORWARDEDADDRESSES` error if exceeded.
 
-The limit options must be non-negative integers. Any other value, including a numeric string, `NaN` or `Infinity`, throws an `EINVALIDOPTION` error. Passing `0` means a literal zero, not "use the default".
+The limit options must be non-negative integers. Any other value, including a numeric string, `NaN` or `Infinity`, throws an `EINVALIDOPTION` error. Passing `0` means a literal zero, not "use the default". The options are configuration: a large enough limit is as good as none, so do not pass an options object that comes from untrusted input as it is.
 
 > [!IMPORTANT]
 > The `maxNestingDepth`, `maxHeadersSize`, `maxPartCount`, `maxRfc822NestingDepth` and `maxForwardedAddresses` options provide built-in security against malicious emails with deeply nested or very wide MIME structures or oversized headers that could cause performance issues or memory exhaustion. `maxHeadersSize` and `maxPartCount` count the header bytes and the parts of every level of a message together, so a multipart cannot carry the budget again for each part it declares. Each inline `message/rfc822` sub-message is parsed by a new parser instance that continues the counts of its parent, so the limits hold for the message as a whole however many sub-messages it carries. `maxRfc822NestingDepth` bounds how deep such sub-parsers can be nested, and `maxForwardedAddresses` bounds the addresses that all of them together render into the parent.
@@ -336,7 +336,7 @@ The limit options must be non-negative integers. Any other value, including a nu
 **Returns**: A Promise that resolves to a structured `Email` object with the following properties:
 
 -   **headers**: An array of `Header` objects, each containing:
-    -   `key`: Lowercase header name (e.g., `"dkim-signature"`).
+    -   `key`: Lowercase header name (e.g., `"dkim-signature"`). The name is otherwise kept as written, so a line with whitespace around the name, such as a `From :` line or a first line that starts with a space, is listed under that spelling (`"from "`) and does not count as the `from` header.
     -   `originalKey`: The header name as written in the message, preserving case.
     -   `value`: Header value as a string, unfolded per RFC 5322 and otherwise unprocessed. Unfolding removes the line break of a folded header and keeps the folding whitespace, so `Subject: Hello\r\n    World` reads as `Hello    World`. Encoded words are not decoded here.
 
@@ -476,6 +476,8 @@ addressParser(addressStr, opts) -> Address[]
     -   **flatten** (boolean, default: `false`): If `true`, ignores address groups and returns a flat array of addresses.
 
 **Returns**: An array of `Address` objects, which can be nested if address groups are present.
+
+An address is only ever read from the raw header. An RFC 2047 encoded word is decoded into the display name, and a word that decodes to something that looks like a mailbox, such as `=?utf-8?B?...?=` standing for `Name <name@example.com>`, gives a name and an empty address: the raw header holds no mailbox, so no DMARC verifier has authenticated one.
 
 **Example**:
 
