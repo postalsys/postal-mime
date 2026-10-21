@@ -1,5 +1,22 @@
 # Changelog
 
+## [4.1.1](https://github.com/postalsys/postal-mime/compare/v4.1.0...v4.1.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* decode a charset of the replacement encoding to the replacement character ([0624f77](https://github.com/postalsys/postal-mime/commit/0624f7704c615826d9513f13d09489f91a0a147f))
+* drop a script or style body holding any line terminator from the text of an html part ([78e00e6](https://github.com/postalsys/postal-mime/commit/78e00e60a6e13cdf98fe5ed3d8bb888cfb40c027))
+* keep the whitespace around a field name in its key ([8b79d3e](https://github.com/postalsys/postal-mime/commit/8b79d3e1466646415368d039666332b7ff6a11a2))
+* let a byte order mark decide the byte order under a utf-16 label ([0624f77](https://github.com/postalsys/postal-mime/commit/0624f7704c615826d9513f13d09489f91a0a147f))
+* match a boundary line against the outermost open boundary first ([a2083ec](https://github.com/postalsys/postal-mime/commit/a2083ec847956ff6aa85404037b1d2749fcaa5e3))
+* match the Content-Transfer-Encoding token whole, so `x-base64` decodes nothing ([8b79d3e](https://github.com/postalsys/postal-mime/commit/8b79d3e1466646415368d039666332b7ff6a11a2))
+* never read a mailbox out of an encoded word ([e06badb](https://github.com/postalsys/postal-mime/commit/e06badb145d9a7c10c809cec9af45dddd2b6b81c))
+* percent-encode the address of a mailto link in a rendered forwarded header ([78e00e6](https://github.com/postalsys/postal-mime/commit/78e00e60a6e13cdf98fe5ed3d8bb888cfb40c027))
+* read the Content-Disposition type up to the first whitespace ([8b79d3e](https://github.com/postalsys/postal-mime/commit/8b79d3e1466646415368d039666332b7ff6a11a2))
+* render the text of inline forwards once, at the root parser ([a2083ec](https://github.com/postalsys/postal-mime/commit/a2083ec847956ff6aa85404037b1d2749fcaa5e3))
+* trim trailing whitespace off a boundary parameter, as Python does ([8b79d3e](https://github.com/postalsys/postal-mime/commit/8b79d3e1466646415368d039666332b7ff6a11a2))
+
 ## [4.1.0](https://github.com/postalsys/postal-mime/compare/v4.0.11...v4.1.0) (2026-10-21)
 
 
