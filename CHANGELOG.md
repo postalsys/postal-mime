@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.2](https://github.com/postalsys/postal-mime/compare/v4.1.1...v4.1.2) (2026-10-21)
+
+
+### Bug Fixes
+
+* copy the characters of a structured header as runs instead of one at a time ([f0edeee](https://github.com/postalsys/postal-mime/commit/f0edeeebf3da1f92b3f105c1c87066e48727a6f9))
+
 ## [4.1.1](https://github.com/postalsys/postal-mime/compare/v4.1.0...v4.1.1) (2026-10-21)
 
 
