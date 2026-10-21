@@ -241,55 +241,53 @@ export default class MimeNode {
         // A parameter value starts at `=` and ends at the `;` that begins the next one
         let inParameterValue = false;
 
-        // Whether result ends in SP or HTAB. Kept up to date on every append, because
-        // testing `/[ \t]$/` against result flattens the whole string on each `(` and is
-        // quadratic in the length of the header.
+        // The characters kept are copied into the result as runs, a run ending at the
+        // next character dropped. Appended one at a time they made a cons string of a
+        // node per character, tens of megabytes of pointer chasing for the collector on a
+        // header of a megabyte, and the parse grew faster than the header did
+        let runStart = 0;
+        const drop = (i: number): void => {
+            result += str.slice(runStart, i);
+            runStart = i + 1;
+        };
+
+        // Whether anything has been kept, and whether the last character kept is SP or
+        // HTAB. Kept up to date on every character, because testing `/[ \t]$/` against the
+        // result flattens the whole string on each `(` and is quadratic in the length of
+        // the header.
+        let keptAny = false;
         let endsWithWsp = false;
-        const append = (c: string): void => {
-            result += c;
-            endsWithWsp = c === ' ' || c === '\t';
+        const keep = (i: number): void => {
+            keptAny = true;
+            endsWithWsp = isWsp(str.charCodeAt(i));
         };
 
         // A comment may only appear where linear whitespace is allowed, so inside a
         // parameter value the parenthesis has to follow whitespace to open one. Outside
         // one, eg. after the type itself, anything goes.
-        const opensComment = (): boolean => !inParameterValue || !result.length || endsWithWsp;
+        const opensComment = (): boolean => !inParameterValue || !keptAny || endsWithWsp;
 
         for (let i = 0; i < str.length; i++) {
             const chr = str.charAt(i);
 
             if (escaped) {
-                if (depth === 0) {
-                    append(chr);
-                }
                 escaped = false;
-                continue;
-            }
-
-            if (chr === '\\') {
+            } else if (chr === '\\') {
                 escaped = true;
-                if (depth === 0) {
-                    append(chr);
-                }
-                continue;
-            }
-
-            if (chr === '"' && depth === 0) {
+            } else if (chr === '"' && depth === 0) {
                 inQuote = !inQuote;
-                append(chr);
-                continue;
-            }
-
-            if (!inQuote) {
+            } else if (!inQuote) {
                 if (chr === '(' && opensComment()) {
                     if (depth === 0) {
                         commentStart = i;
                     }
                     depth++;
+                    drop(i);
                     continue;
                 }
                 if (chr === ')' && depth > 0) {
                     depth--;
+                    drop(i);
                     continue;
                 }
                 if (depth === 0) {
@@ -302,18 +300,20 @@ export default class MimeNode {
             }
 
             if (depth === 0) {
-                append(chr);
+                keep(i);
+            } else {
+                drop(i);
             }
         }
 
         if (depth === 0) {
-            return result;
+            return result + str.slice(runStart);
         }
 
         // An unbalanced `(` is not a comment. Dropping everything after it would take any
         // parameter that follows with it, including the boundary that holds the message
         // together, so the dangling text is only discarded when nothing follows it.
-        return str.indexOf(';', commentStart) < 0 ? result : str;
+        return str.indexOf(';', commentStart) < 0 ? result + str.slice(runStart) : str;
     }
 
     parseStructuredHeader(str: string): StructuredHeader {
@@ -350,9 +350,23 @@ export default class MimeNode {
             pendingSpace = '';
         };
 
-        const addChr = (c: string): void => {
-            flushSpace();
-            value += c;
+        // The characters of the value are copied as runs, see stripComments. A run is the
+        // characters from runStart on, none is open while it is -1, and it is closed by
+        // whatever is not a character of the value
+        let runStart = -1;
+        const closeRun = (end: number): void => {
+            if (runStart >= 0) {
+                value += str.slice(runStart, end);
+                runStart = -1;
+            }
+        };
+
+        // the character at i is part of the value
+        const addChr = (i: number): void => {
+            if (runStart < 0) {
+                flushSpace();
+                runStart = i;
+            }
         };
 
         const takeValue = (): string => {
@@ -396,15 +410,19 @@ export default class MimeNode {
             switch (stage) {
                 case 'key':
                     if (chr === '=') {
+                        closeRun(i);
                         key = takeValue().trim().toLowerCase();
                         stage = 'value';
                         break;
                     }
                     if (chr === ';') {
+                        closeRun(i);
                         storeEmptyKey();
                         break;
                     }
-                    value += chr;
+                    if (runStart < 0) {
+                        runStart = i;
+                    }
                     break;
                 case 'value':
                     if (quoteClosed && chr !== ';') {
@@ -424,31 +442,37 @@ export default class MimeNode {
                         break;
                     }
                     if (escaped) {
-                        addChr(chr);
+                        addChr(i);
                     } else if (quote && chr === '\\') {
                         // backslash only escapes inside a quoted string, everywhere else
                         // it is an ordinary character. Treating it as an escape turns
                         // `filename=C:\Users\me\a.txt` into `C:Usersmea.txt`.
+                        closeRun(i);
                         escaped = true;
                         continue;
                     } else if (quote && chr === quote) {
+                        closeRun(i);
                         quote = false;
                         quoteClosed = true;
                     } else if (!quote && chr === '"') {
+                        closeRun(i);
                         quote = chr;
                         flushSpace();
                     } else if (!quote && chr === ';') {
+                        closeRun(i);
                         storeValue();
                         stage = 'key';
                     } else if (!quote && (chr === ' ' || chr === '\t')) {
+                        closeRun(i);
                         pendingSpace += chr;
                     } else {
-                        addChr(chr);
+                        addChr(i);
                     }
                     escaped = false;
                     break;
             }
         }
+        closeRun(str.length);
 
         // finalize remainder
         if (stage === 'value') {
