@@ -122,17 +122,18 @@ export type PostalMimeOptions = {
     forceRfc822Attachments?: boolean | undefined;
     /** How attachment content is returned, `arraybuffer` by default */
     attachmentEncoding?: AttachmentEncoding | undefined;
-    /** Maximum MIME part nesting depth, 256 by default. Exceeding it rejects the parse */
+    /** Maximum MIME part nesting depth, 256 by default. Exceeding it rejects the parse with `EMAXNESTINGDEPTH` */
     maxNestingDepth?: number | undefined;
     /**
      * Maximum total header size in bytes across every part and inline `message/rfc822`
      * sub-message, a header line counting for at least 64 bytes, 2 MiB by default.
-     * Exceeding it rejects the parse
+     * Exceeding it rejects the parse with `EMAXHEADERSIZE`
      */
     maxHeadersSize?: number | undefined;
     /**
      * Maximum number of MIME parts in a message, the message itself and the parts of inline
      * `message/rfc822` sub-messages included, 10000 by default. Exceeding it rejects the parse
+     * with `EMAXPARTCOUNT`
      */
     maxPartCount?: number | undefined;
     /**
@@ -143,7 +144,8 @@ export type PostalMimeOptions = {
     /**
      * Maximum number of From, To, Cc and Bcc addresses across all inline `message/rfc822`
      * parts, a group and each of its members counted, 10000 by default. These are rendered
-     * into the text and html of the message. Exceeding it rejects the parse
+     * into the text and html of the message. Exceeding it rejects the parse with
+     * `EMAXFORWARDEDADDRESSES`
      */
     maxForwardedAddresses?: number | undefined;
 };

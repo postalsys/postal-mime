@@ -1008,7 +1008,9 @@ test('Edge case - quoted-printable with literal equals sign', async () => {
 test('Coverage - invalid attachment encoding throws', async () => {
     const mail = Buffer.from('Content-Type: text/plain\r\n\r\nBody');
     await assert.rejects(async () => PostalMime.parse(mail, { attachmentEncoding: 'invalid' as any }), {
-        message: 'Unknown attachment encoding'
+        name: 'TypeError',
+        code: 'EINVALIDOPTION',
+        message: 'Unknown attachment encoding invalid'
     });
 });
 

@@ -10,6 +10,7 @@ import type { StructuredHeader } from './decode-strings.js';
 import PassThroughDecoder from './pass-through-decoder.js';
 import Base64Decoder from './base64-decoder.js';
 import QPDecoder from './qp-decoder.js';
+import { createError } from './errors.js';
 import type PostalMime from './postal-mime.js';
 import type { Email, Header, HeaderLine } from './types.js';
 
@@ -116,7 +117,7 @@ export default class MimeNode {
         const limits = this.postalMime.limits;
         this.postalMime.counters.partCount++;
         if (this.postalMime.counters.partCount > limits.maxPartCount) {
-            throw new Error(`Maximum MIME part count of ${limits.maxPartCount} parts exceeded`);
+            throw createError('EMAXPARTCOUNT', `Maximum MIME part count of ${limits.maxPartCount} parts exceeded`);
         }
 
         this.childNodes = [];
@@ -130,7 +131,10 @@ export default class MimeNode {
 
             this.depth = this.parentNode.depth + 1;
             if (this.depth > limits.maxNestingDepth) {
-                throw new Error(`Maximum MIME nesting depth of ${limits.maxNestingDepth} levels exceeded`);
+                throw createError(
+                    'EMAXNESTINGDEPTH',
+                    `Maximum MIME nesting depth of ${limits.maxNestingDepth} levels exceeded`
+                );
             }
 
             options.parentNode.childNodes.push(this);
@@ -694,7 +698,7 @@ export default class MimeNode {
 
                 const maxHeadersSize = this.postalMime.limits.maxHeadersSize;
                 if (this.postalMime.counters.headerSize > maxHeadersSize) {
-                    throw new Error(`Maximum header size of ${maxHeadersSize} bytes exceeded`);
+                    throw createError('EMAXHEADERSIZE', `Maximum header size of ${maxHeadersSize} bytes exceeded`);
                 }
 
                 const text = decodeUtf8OrWindows1252(line, headerDecoder);

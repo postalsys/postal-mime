@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import test from 'node:test';
 import assert from 'node:assert';
 import PostalMime from '../src/postal-mime.js';
+import type { PostalMimeError } from '../src/postal-mime.js';
 
 // Charset alias handling
 test('Charset - iso-8859-8-i body decodes Hebrew', async () => {
@@ -627,6 +628,7 @@ test('Edge case - reuse parser instance', async () => {
         assert.fail('Should not allow parser reuse');
     } catch (err) {
         assert.ok((err as Error).message.includes('reuse'));
+        assert.strictEqual((err as PostalMimeError).code, 'EPARSERREUSED');
     }
 });
 

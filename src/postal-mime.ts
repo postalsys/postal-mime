@@ -3,7 +3,8 @@ import { textToHtml, htmlToText, formatTextHeader, formatHtmlHeader } from './te
 import addressParser from './address-parser.js';
 import { decodeWords, foldLineBreaks, isWsp, textEncoder, blobToArrayBuffer } from './decode-strings.js';
 import { base64ArrayBuffer } from './base64-encoder.js';
-import type { Address, Attachment, Email, PostalMimeOptions, RawEmail } from './types.js';
+import { createError } from './errors.js';
+import type { Address, Attachment, AttachmentEncoding, Email, PostalMimeOptions, RawEmail } from './types.js';
 
 export { addressParser, decodeWords };
 export type {
@@ -20,6 +21,7 @@ export type {
     PostalMimeOptions,
     RawEmail
 } from './types.js';
+export type { ErrorCode, PostalMimeError } from './errors.js';
 
 interface Boundary {
     value: Uint8Array;
@@ -32,6 +34,27 @@ function isReadableStream(value: unknown): value is ReadableStream<Uint8Array> {
 
 function isBlob(value: unknown): value is Blob {
     return value instanceof Blob || Object.prototype.toString.call(value) === '[object Blob]';
+}
+
+// Checked by tag rather than instanceof, which fails for a buffer from another realm
+function isArrayBuffer(value: unknown): value is ArrayBuffer {
+    const tag = Object.prototype.toString.call(value);
+    return tag === '[object ArrayBuffer]' || tag === '[object SharedArrayBuffer]';
+}
+
+const ATTACHMENT_ENCODINGS: ReadonlySet<string> = new Set<AttachmentEncoding>(['arraybuffer', 'base64', 'utf8']);
+
+// Checked up front, an unknown encoding used to reject only once the whole message had
+// been parsed
+function parseAttachmentEncoding(value: unknown): AttachmentEncoding {
+    const encoding =
+        String(value || '')
+            .replace(/[-_\s]/g, '')
+            .toLowerCase() || 'arraybuffer';
+    if (!ATTACHMENT_ENCODINGS.has(encoding)) {
+        throw createError('EINVALIDOPTION', `Unknown attachment encoding ${encoding}`);
+    }
+    return encoding as AttachmentEncoding;
 }
 
 // the inline text parts a message body is assembled from, see isInlineTextNode
@@ -120,7 +143,7 @@ function parseLimitOption(value: unknown, defaultValue: number, name: string): n
     }
 
     if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
-        throw new TypeError(`${name} must be a non-negative integer`);
+        throw createError('EINVALIDOPTION', `${name} must be a non-negative integer`);
     }
 
     return value;
@@ -159,7 +182,7 @@ export default class PostalMime {
     /** @internal */ textMap: Map<MimeNode, TextEntry>;
     /** @internal */ textTypes: Set<TextType>;
     /** @internal */ attachments: Attachment[];
-    /** @internal */ attachmentEncoding: string;
+    /** @internal */ attachmentEncoding: AttachmentEncoding;
     // whether message/rfc822 parts are kept as attachments, decided once the tree is parsed
     /** @internal */ forceRfc822Attachments: boolean;
     /** @internal */ started: boolean;
@@ -207,12 +230,7 @@ export default class PostalMime {
         this.attachments = [];
         this.forceRfc822Attachments = false;
 
-        this.attachmentEncoding =
-            (this.options.attachmentEncoding || '')
-                .toString()
-                .replace(/[-_\s]/g, '')
-                .trim()
-                .toLowerCase() || 'arraybuffer';
+        this.attachmentEncoding = parseAttachmentEncoding(this.options.attachmentEncoding);
 
         this.started = false;
     }
@@ -412,7 +430,8 @@ export default class PostalMime {
             countAddresses(subMessage.cc) +
             countAddresses(subMessage.bcc);
         if (this.counters.forwardedAddresses > this.limits.maxForwardedAddresses) {
-            throw new Error(
+            throw createError(
+                'EMAXFORWARDEDADDRESSES',
                 `Maximum forwarded address count of ${this.limits.maxForwardedAddresses} addresses exceeded`
             );
         }
@@ -582,8 +601,16 @@ export default class PostalMime {
             if (done) {
                 break;
             }
-            chunks.push(value);
-            chunkLen += value.length;
+            // A chunk that is not a byte view, eg. a string from a text stream, used to be
+            // copied in as zeros
+            if (!ArrayBuffer.isView(value)) {
+                const error = createError('EINVALIDINPUT', 'Stream chunks must be Uint8Array values');
+                // Not awaited, a source that fails or stalls on cancel must not hide this error
+                reader.cancel(error).catch(() => {});
+                throw error;
+            }
+            chunks.push(new Uint8Array(value.buffer, value.byteOffset, value.byteLength));
+            chunkLen += value.byteLength;
         }
 
         const result = new Uint8Array(chunkLen);
@@ -624,6 +651,12 @@ export default class PostalMime {
         // byteOffset also keeps views over a larger buffer from reading their neighbours.
         if (ArrayBuffer.isView(input)) {
             return input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength) as ArrayBuffer;
+        }
+
+        // Anything else, eg. a number or a plain object, was handed to the Uint8Array
+        // constructor as it is and parsed into an empty or zero filled message
+        if (!isArrayBuffer(input)) {
+            throw createError('EINVALIDINPUT', 'Unsupported email input type');
         }
 
         return input;
@@ -750,9 +783,6 @@ export default class PostalMime {
                 }
                 break;
             }
-
-            default:
-                throw new Error('Unknown attachment encoding');
         }
     }
 
@@ -764,7 +794,7 @@ export default class PostalMime {
      */
     async parse(buf: RawEmail): Promise<Email> {
         if (this.started) {
-            throw new Error('Can not reuse parser, create a new PostalMime object');
+            throw createError('EPARSERREUSED', 'Can not reuse parser, create a new PostalMime object');
         }
         this.started = true;
 
