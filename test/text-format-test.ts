@@ -430,12 +430,64 @@ test('htmlToText - tags left open are kept or dropped as before', () => {
     // an unterminated comment or script is left alone
     assert.strictEqual(htmlToText('a <!-- b'), 'a <!-- b');
     assert.strictEqual(htmlToText('a <script>b</script c'), 'a b</script c');
-    // `.*?` does not reach a closer on another line, so this is only removed as a tag
+    // a comment or a script holding any line terminator is still removed as a block
     assert.strictEqual(htmlToText('a<!--\rb-->c'), 'a c');
+    assert.strictEqual(htmlToText('a<!--\u2028b-->c'), 'a c');
     // an anchor without href is dropped like any other inline tag
     assert.strictEqual(htmlToText('<a <a name="x">y</a>'), 'y');
     assert.strictEqual(htmlToText('<a class="x" href="http://e.com/">y</a>'), ' (http://e.com/) y');
-    // the last body tag on the first line wins, the first closing body tag on the last line does
+    // the last body tag wins, the first closing body tag does, on whatever line they are
     assert.strictEqual(htmlToText('x<body>y<body>z</body>w'), 'z');
-    assert.strictEqual(htmlToText('x<body>y <body>z'), 'y  z');
+    assert.strictEqual(htmlToText('x<body>y\u2028<body>z'), 'z');
+    assert.strictEqual(htmlToText('x<body>y</body>z\r</body>w'), 'y');
+});
+
+test('htmlToText - a script or style body does not survive on any line terminator', () => {
+    // `.*?` used to stop at a bare CR and at U+2028, so the tags around such a body were
+    // stripped as tags and the body itself became text
+    for (const terminator of ['\r\n', '\n', '\r', ' ', ' ']) {
+        const html = `<p>hi</p><script>var a=1;${terminator}SECRET=1;</script><p>after</p>`;
+        const text = htmlToText(html);
+        assert.ok(!text.includes('SECRET'), JSON.stringify(terminator));
+        assert.ok(text.includes('hi') && text.includes('after'), JSON.stringify(terminator));
+
+        const styled = htmlToText(`<p>hi</p><style>.x{${terminator}display:none}</style><p>after</p>`);
+        assert.ok(!styled.includes('display'), JSON.stringify(terminator));
+        assert.ok(styled.includes('hi') && styled.includes('after'), JSON.stringify(terminator));
+    }
+    // an unclosed script is still left alone, there is no block to remove
+    assert.strictEqual(htmlToText('a <script>b\rc'), 'a b\nc');
+});
+
+test('htmlToText - every line terminator becomes a line break', () => {
+    assert.strictEqual(htmlToText('a\r\nb\nc\rd e f'), 'a\nb\nc\nd\ne\nf');
+});
+
+test('formatHtmlHeader - the mailto link carries no header fields', () => {
+    // `?` and `&` would start the header fields of the URL once the browser has decoded
+    // the entities, so the address is percent encoded before it is escaped
+    const message = {
+        from: {
+            name: 'Support',
+            address: 'help@bank.example?cc=attacker@evil.example&body=send%20password#x'
+        },
+        to: [
+            { name: '', address: '"x y"@z.example' },
+            { name: '', address: 'a@[IPv6:::1]' },
+            { name: '', address: "o'brien+tag@example.com" },
+            { name: '', address: 'ünï@example.com' }
+        ]
+    };
+
+    const result = formatHtmlHeader(message);
+    assert.ok(
+        result.includes('href="mailto:help@bank.example%3Fcc%3Dattacker@evil.example%26body%3Dsend%2520password%23x"'),
+        result
+    );
+    assert.ok(result.includes('href="mailto:%22x%20y%22@z.example"'), result);
+    assert.ok(result.includes('href="mailto:a@%5BIPv6:::1%5D"'), result);
+    assert.ok(result.includes('href="mailto:o&#x27;brien+tag@example.com"'), result);
+    assert.ok(result.includes('href="mailto:%C3%BCn%C3%AF@example.com"'), result);
+    // the visible text is the address as it is, escaped
+    assert.ok(result.includes('>&#x3C;&#x22;x y&#x22;@z.example&#x3E;</a>'), result);
 });

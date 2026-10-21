@@ -1,4 +1,5 @@
 import { htmlEntities } from './html-entities.js';
+import { textEncoder } from './decode-strings.js';
 import type { Address, Email, Mailbox } from './types.js';
 
 // What a numeric character reference to the C1 control range stands for, per the HTML
@@ -79,14 +80,33 @@ export function decodeHTMLEntities(str: string): string {
     });
 }
 
+// two uppercase hex digits of a value below 256
+const hexByte = (value: number): string => value.toString(16).toUpperCase().padStart(2, '0');
+
 export function escapeHtml(str: string): string {
-    return str.trim().replace(/[<>"'?&]/g, c => {
-        let hex = c.charCodeAt(0).toString(16);
-        if (hex.length < 2) {
-            hex = '0' + hex;
+    return str.trim().replace(/[<>"'?&]/g, c => '&#x' + hexByte(c.charCodeAt(0)) + ';');
+}
+
+// The characters an address may carry into a mailto URL as they are (RFC 6068 2:
+// unreserved and some-delims). Anything else is percent encoded: a `?` or `&` starts the
+// header fields of the URL, so `help@bank.example?cc=attacker@evil.example&body=…` given
+// as the address of a forwarded message opened a compose window with a Cc and a body the
+// sender chose once the link was clicked. Html escaping alone does not help, the browser
+// decodes the entities back before it reads the URL
+const MAILTO_SAFE = /^[A-Za-z0-9\-._~!$'()*+,;:@]$/;
+
+function encodeMailto(address: string): string {
+    let result = '';
+    for (const chr of address) {
+        if (MAILTO_SAFE.test(chr)) {
+            result += chr;
+            continue;
         }
-        return '&#x' + hex.toUpperCase() + ';';
-    });
+        for (const byte of textEncoder.encode(chr)) {
+            result += '%' + hexByte(byte);
+        }
+    }
+    return result;
 }
 
 export function textToHtml(str: string): string {
@@ -96,17 +116,10 @@ export function textToHtml(str: string): string {
 
 // htmlToText strips tags with regexes like `<br\b[^>]*>` and `<!--.*?-->`. Handed to
 // String#replace as they are, the engine tries every candidate in turn and a candidate
-// that does not close scans on to the next `>`, the end of the line or the end of the
-// input before giving up, so an html part holding many unclosed `<`, `<a ` or `<!--`
-// took seconds to minutes to convert. The helpers below give the same results in linear
-// time.
-
-// Characters that `.` does not match, so a `.*` can not run across them
-const LINE_TERMINATOR = /[\n\r\u2028\u2029]/g;
-
-function lastLineTerminator(str: string): number {
-    return Math.max(str.lastIndexOf('\n'), str.lastIndexOf('\r'), str.lastIndexOf('\u2028'), str.lastIndexOf('\u2029'));
-}
+// that does not close scans on to the next `>` or the end of the input before giving up,
+// so an html part holding many unclosed `<`, `<a ` or `<!--` took seconds to minutes to
+// convert. The helpers below give the same results in linear time. They run on text
+// without line terminators, see htmlToText, so `.` matches every character of it.
 
 /**
  * Returns a function that finds the next match of a global regex at or after a position.
@@ -225,7 +238,7 @@ function replaceTags(
  * `str.replace(pattern, replacement)` for a pattern like `<!--.*?-->` or
  * `<script\b[^>]*>.*?<\/script\b[^>]*>`, ie. an opener and a closer, either of which may
  * continue with `[^>]*>`, and a lazy `.*?` between them. The engine rescans to the end of
- * the line for every opener that is not closed.
+ * the input for every opener that is not closed.
  *
  * @param str String to process
  * @param open Global regex for the opener
@@ -245,7 +258,6 @@ function replaceBlocks(
 ): string {
     const nextGt = createFinder(str, />/g);
     const nextClose = createFinder(str, close);
-    const nextLineEnd = createFinder(str, LINE_TERMINATOR);
     const parts: string[] = [];
     let copied = 0;
     let searchFrom = 0;
@@ -277,12 +289,6 @@ function replaceBlocks(
             break;
         }
 
-        // `.*?` can not reach the closer across a line terminator
-        const lineEnd = nextLineEnd(from);
-        if (lineEnd && lineEnd.index < closer.index) {
-            continue;
-        }
-
         let end = closer.index + closer[0].length;
         if (closeToGt) {
             const gt = nextGt(end);
@@ -304,16 +310,15 @@ function replaceBlocks(
 
 /**
  * `str.replace(pattern, '')` for `^.*<tag\b[^>]*>`, ie. drops everything up to and
- * including the last such tag on the first line.
+ * including the last such tag.
  *
  * @param str String to process
  * @param prefix Global regex for the start of the tag, which can not contain `>`
  * @return Processed string
  */
 function stripThroughLastTag(str: string, prefix: RegExp): string {
-    const lineEnd = str.search(LINE_TERMINATOR);
-    // `.*` stops at the first line terminator, and `[^>]*>` needs a `>` after the tag
-    const limit = Math.min(lineEnd < 0 ? str.length : lineEnd, str.lastIndexOf('>'));
+    // `[^>]*>` needs a `>` after the tag
+    const limit = str.lastIndexOf('>');
 
     let last = -1;
     prefix.lastIndex = 0;
@@ -326,32 +331,35 @@ function stripThroughLastTag(str: string, prefix: RegExp): string {
 }
 
 /**
- * `str.replace(pattern, '')` for `<tag\b[^>]*>.*$`, ie. drops the first such tag whose
- * `>` is on the last line, and everything after it.
+ * `str.replace(pattern, '')` for `<tag\b[^>]*>.*$`, ie. drops the first such tag that is
+ * closed, and everything after it.
  *
  * @param str String to process
  * @param prefix Global regex for the start of the tag, which can not contain `>`
  * @return Processed string
  */
 function stripFromFirstTag(str: string, prefix: RegExp): string {
-    // `.*$` has to reach the end of the string without crossing a line terminator, so the
-    // tag has to start after the last `>` that comes before the last line terminator
-    const lineEnd = lastLineTerminator(str);
-    prefix.lastIndex = lineEnd < 0 ? 0 : str.lastIndexOf('>', lineEnd) + 1;
-
+    prefix.lastIndex = 0;
     const match = prefix.exec(str);
     return match && match.index < str.lastIndexOf('>') ? str.slice(0, match.index) : str;
 }
 
 export function htmlToText(str: string): string {
-    // we can't process tags on multiple lines so remove newlines first
-    str = str.replace(/\r?\n/g, '\u0001');
+    // Tags are not processed across lines, so every line terminator, every character `.`
+    // does not match, becomes a placeholder first. Only `\r?\n` used to, and the patterns
+    // below do not cross the others either: `.*?` stops at a bare CR or a U+2028, so a
+    // script whose body held one was not removed as a block, its tags were stripped as
+    // tags and the script itself landed in the text, which a filter reading the text then
+    // took for content
+    str = str.replace(/\r\n|[\n\r\u2028\u2029]/g, '\u0001');
 
     str = replaceBlocks(str, /<!--/g, false, /-->/g, false, ' ');
 
     str = replaceClosedTags(str, /<br\b[^>]*>/gi, '\n');
     str = replaceClosedTags(str, /<\/?(p|div|table|tr|td|th)\b[^>]*>/gi, '\n\n');
     str = replaceBlocks(str, /<script\b/gi, true, /<\/script\b/gi, true, ' ');
+    // a stylesheet in the body is no text of the message either
+    str = replaceBlocks(str, /<style\b/gi, true, /<\/style\b/gi, true, ' ');
     str = stripThroughLastTag(str, /<body\b/gi);
     str = stripThroughLastTag(str, /<\/head\b/gi);
     str = stripThroughLastTag(str, /<!doctype\b/gi);
@@ -445,7 +453,7 @@ function formatTextAddresses(addresses: Address[]): string {
 }
 
 function formatHtmlAddress(address: Mailbox): string {
-    return `<a href="mailto:${escapeHtml(address.address)}" class="postal-email-address">${escapeHtml(address.name || `<${address.address}>`)}</a>`;
+    return `<a href="mailto:${escapeHtml(encodeMailto(address.address))}" class="postal-email-address">${escapeHtml(address.name || `<${address.address}>`)}</a>`;
 }
 
 function formatHtmlAddresses(addresses: Address[]): string {
