@@ -307,18 +307,24 @@ export function getDecoder(charset?: string | null): Decoder {
 
 const UTF16_ENCODINGS = new Set(['utf-16le', 'utf-16be']);
 
+// The labels of UTF-16 that leave the byte order to the bytes, which a byte order mark
+// then decides, as it does for Python's utf-16 codec and for iconv-lite. The labels that
+// name the order, utf-16le, utf-16be, unicodefeff and unicodefffe, are read as they say
+// whatever mark the bytes carry, and no label honours a UTF-8 mark. The Encoding Standard
+// lets any mark override any label, but Python and mailparser do not, and following it
+// here rendered as markup under charset=utf-16be a body that a scanner built on either
+// reads as CJK text.
+const UTF16_UNORDERED_LABELS = new Set(['utf-16', 'ucs-2', 'unicode', 'csunicode', 'iso-10646-ucs-2']);
+
 /**
- * The encoding a byte order mark at the start of the bytes names, or null without one
+ * The byte order a UTF-16 byte order mark at the start of the bytes names, or null without one
  */
-function bomEncoding(bytes: Uint8Array): string | null {
+function bomByteOrder(bytes: Uint8Array): string | null {
     if (bytes[0] === 0xfe && bytes[1] === 0xff) {
         return 'utf-16be';
     }
     if (bytes[0] === 0xff && bytes[1] === 0xfe) {
         return 'utf-16le';
-    }
-    if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
-        return 'utf-8';
     }
     return null;
 }
@@ -399,16 +405,16 @@ export function decodeUtf8OrWindows1252(bytes: Uint8Array | ArrayBuffer, utf8 = 
  */
 export function decodeCharset(bytes: Uint8Array | ArrayBuffer, charset?: string | null): string {
     const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-    let decoder = findDecoder(charset);
-    if (decoder && UTF16_ENCODINGS.has(decoder.encoding)) {
-        // A utf-16 label leaves the byte order to the bytes, `utf-16` itself reads as
-        // little endian, so a byte order mark decides it, as the decode algorithm of the
-        // Encoding Standard has it. Read in the other order the bytes are swapped pairs
-        // of the characters every other reader got: FE FF and big endian text under
-        // charset=utf-16 was CJK text to Python and a browser, and here it was the
-        // little endian reading, which the sender picks to be markup.
-        const bom = bomEncoding(view);
-        decoder = (bom && tryDecoder(bom)) || decoder;
+    const label = resolveLabel(charset);
+    let decoder = label ? tryDecoder(label) : null;
+    if (label && UTF16_UNORDERED_LABELS.has(label)) {
+        // `utf-16` reads as little endian on its own, so a byte order mark decides the
+        // order. Read in the other order the bytes are swapped pairs of the characters
+        // every other reader got: FE FF and big endian text under charset=utf-16 was CJK
+        // text to Python and a browser, and here it was the little endian reading, which
+        // the sender picks to be markup.
+        const order = bomByteOrder(view);
+        decoder = (order && tryDecoder(order)) || decoder;
     }
 
     return decoder ? decoder.decode(view) : decodeUtf8OrWindows1252(view);

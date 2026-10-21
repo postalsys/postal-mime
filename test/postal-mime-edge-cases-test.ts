@@ -502,16 +502,27 @@ test('Edge case - a byte order mark decides the byte order of a utf-16 label', a
             `Content-Type: text/html; charset=${label}\r\nContent-Transfer-Encoding: base64\r\n\r\n` +
                 Buffer.concat([Buffer.from(bom), bytes]).toString('base64')
         );
-    // a big endian document labelled utf-16, which read as little endian without the mark
+    // a document under a label that leaves the byte order open, which read as little
+    // endian without the mark
+    for (const label of ['utf-16', 'ucs-2', 'unicode', 'UTF-16']) {
+        assert.strictEqual((await parse(label, [0xfe, 0xff], be)).html, markup, label);
+        assert.strictEqual((await parse(label, [0xff, 0xfe], le)).html, markup, label);
+    }
+    // A label that names the order is read as it says, as Python and mailparser read it,
+    // and no label honours a UTF-8 mark. A scanner built on either sees CJK text in these,
+    // so none of them may be markup here
     for (const [label, bom, bytes] of [
-        ['utf-16', [0xfe, 0xff], be],
         ['utf-16le', [0xfe, 0xff], be],
-        ['utf-16', [0xff, 0xfe], le],
         ['utf-16be', [0xff, 0xfe], le],
-        ['utf-16', [0xef, 0xbb, 0xbf], Buffer.from(markup)]
+        ['unicodefffe', [0xff, 0xfe], le],
+        ['utf-16', [0xef, 0xbb, 0xbf], Buffer.from(markup)],
+        ['utf-16be', [0xef, 0xbb, 0xbf], Buffer.from(markup)]
     ] as const) {
         const email = await parse(label, bom, bytes);
-        assert.strictEqual(email.html, markup, `${label} with ${bom.map(b => b.toString(16)).join(' ')}`);
+        assert.ok(
+            !email.html!.includes('<img'),
+            `${label} with ${bom.map(b => b.toString(16)).join(' ')}: ${email.html}`
+        );
     }
     // without a mark the label decides, as before
     assert.strictEqual((await parse('utf-16', [], le)).html, markup);
