@@ -12,7 +12,7 @@ import Base64Decoder from './base64-decoder.js';
 import QPDecoder from './qp-decoder.js';
 import { createError } from './errors.js';
 import type PostalMime from './postal-mime.js';
-import type { Email, Header, HeaderLine } from './types.js';
+import type { Header, HeaderLine } from './types.js';
 
 export interface MimeNodeOptions {
     postalMime: PostalMime;
@@ -43,12 +43,9 @@ const FLOWED_JOIN_INTERVAL = 4096;
 // with the budget, 32768 lines at the default 2 MiB.
 const HEADER_LINE_MIN_COST = 64;
 
-// Trims only the whitespace RFC 5322 allows around a field name. String.prototype.trim
-// also strips U+00A0, U+FEFF, U+2028 and the rest of the Unicode spaces, which turns a
-// line that a strict parser rejects into a canonical field name: a `From:` line with a
-// leading U+00A0 became a `from` header, and since the first occurrence of a header wins
-// it outranked the real sender. Leaving the character in the key keeps the line visible
-// without letting it collide with a genuine header.
+// Trims the SP and HTAB around a field body, the only whitespace RFC 5322 reads as padding
+// there. String.prototype.trim also strips U+00A0, U+FEFF, U+2028 and the rest of the
+// Unicode spaces, which a raw UTF-8 header (RFC 6532) may carry as content.
 //
 // An index scan rather than `/^[ \t]+|[ \t]+$/g`, which retries the trailing branch at
 // every position of a blank run that is followed by other text, so a single header with
@@ -103,8 +100,6 @@ export default class MimeNode {
     contentDecoder: ContentDecoder | null;
     /** decoded body, set by finalize() */
     content: ArrayBuffer | null;
-    /** parsed inline message/rfc822 content, set by the parser */
-    subMessage?: Email | undefined;
 
     constructor(options: MimeNodeOptions) {
         this.options = options;
@@ -176,10 +171,14 @@ export default class MimeNode {
         this.content = null;
     }
 
+    // `transferEncoding` is the lowercased token of the header, see processHeaders. It is
+    // matched whole: `x-base64` or `7bit-base64` is no encoding Python or mailparser
+    // decode, and decoding it here rendered as markup a body every other reader keeps as
+    // inert base64
     setupContentDecoder(transferEncoding: string): void {
-        if (/base64/i.test(transferEncoding)) {
+        if (transferEncoding === 'base64') {
             this.contentDecoder = new Base64Decoder();
-        } else if (/quoted-printable/i.test(transferEncoding)) {
+        } else if (transferEncoding === 'quoted-printable') {
             this.contentDecoder = new QPDecoder();
         } else {
             this.contentDecoder = new PassThroughDecoder();
@@ -587,9 +586,20 @@ export default class MimeNode {
         for (let parts of foldedLines) {
             let rawLine = parts.join('\n');
 
-            // Extract key from raw line for rawHeaderLines
+            // The field name is kept as it was written, whitespace included. RFC 5322 puts
+            // the colon right after the name and only its obsolete syntax lets whitespace
+            // come between the two, so `From :` names a different field than `From:`, as
+            // Go reads it, and the first line of a message may start with whitespace while
+            // it is a fold of nothing, a line Python drops and Go rejects the message for.
+            // Trimming the name made such a line the canonical header, and since the first
+            // occurrence of a header wins, a ` From:` first line or a `From :` ahead of the
+            // genuine From named the sender here while a verifier reading the other had
+            // authenticated the one this parser ignored. The same put a Content-Type ahead
+            // of the one every other parser reads the body by. Leaving the whitespace in
+            // the key keeps the line visible without letting it collide with a genuine
+            // header, the way a non-ASCII space in a name stays in it as well.
             let sep = rawLine.indexOf(':');
-            let rawKey = trimWsp(sep < 0 ? rawLine : rawLine.slice(0, sep));
+            let rawKey = sep < 0 ? rawLine : rawLine.slice(0, sep);
 
             // Store raw line with lowercase key
             this.rawHeaderLines.push({
@@ -603,7 +613,7 @@ export default class MimeNode {
             // replaced the non-ASCII spaces that raw UTF-8 headers (RFC 6532) may carry.
             let unfoldedLine = parts.join('');
             sep = unfoldedLine.indexOf(':');
-            let key = trimWsp(sep < 0 ? unfoldedLine : unfoldedLine.slice(0, sep));
+            let key = sep < 0 ? unfoldedLine : unfoldedLine.slice(0, sep);
             // A bare CR is not legal in a field body, see foldLineBreaks
             let value = sep < 0 ? '' : trimWsp(foldLineBreaks(unfoldedLine.slice(sep + 1)));
             this.headers.push({ key: key.toLowerCase(), originalKey: key, value });
@@ -641,7 +651,16 @@ export default class MimeNode {
             ? this.contentType.parsed.value.slice(this.contentType.parsed.value.indexOf('/') + 1)
             : false;
 
-        if (this.contentType.multipart && !this.contentType.parsed.params.boundary) {
+        // A boundary does not end in whitespace (RFC 2046 5.1.1, bcharsnospace), and one
+        // written with some anyway, `boundary="abc "`, is `abc` to Python. Registered as
+        // written it matched no delimiter line and the whole body was dropped without a
+        // trace, an attachment included. A delimiter line written with the space still
+        // matches, since a boundary line may end in whitespace. trimEnd rather than
+        // trimWsp, because Python strips any whitespace here and a boundary holds no
+        // non-ASCII character in the first place
+        const boundary = this.contentType.multipart ? (this.contentType.parsed.params.boundary || '').trimEnd() : '';
+
+        if (this.contentType.multipart && !boundary) {
             // A multipart without the boundary RFC 2046 5.1.1 requires has no parts to find,
             // and its body used to be dropped without a trace. RFC 2045 5.2 recommends
             // reading an invalid Content-Type as plain text, which is also what the body of
@@ -653,12 +672,23 @@ export default class MimeNode {
         if (this.contentType.multipart) {
             // add self to boundary terminator listing
             this.postalMime.boundaries.push({
-                value: textEncoder.encode(this.contentType.parsed.params.boundary),
+                value: textEncoder.encode(boundary),
                 node: this
             });
         }
 
         this.contentDisposition.parsed = this.parseStructuredHeader(this.contentDisposition.value);
+
+        // The disposition type is a token, so it ends at the first whitespace. Read whole,
+        // `attachment garbage` was neither attachment nor inline, and a text/html part
+        // declaring it was rendered as the body while Python and mailparser keep it an
+        // attachment. The type of a Content-Type stays as it is: `text/html garbage` is no
+        // html to them either, and reading it as html here would be the reverse mistake
+        const disposition = this.contentDisposition.parsed.value;
+        const dispositionEnd = disposition.search(/[ \t]/);
+        if (dispositionEnd >= 0) {
+            this.contentDisposition.parsed.value = disposition.slice(0, dispositionEnd);
+        }
 
         // Take the first token rather than splitting on the first non-token character.
         // `split()` returns an empty string for anything that does not start with a word

@@ -1021,13 +1021,14 @@ test('MimeNode - a multipart without a boundary is read as plain text', async ()
 
 test('MimeNode - the line after a whitespace-only line is a header when it looks like one', async () => {
     // the same reading of "looks like a header" as processHeaders, whitespace before the
-    // colon included, so a line does not switch from header to body because of what preceded it
+    // colon included, so a line does not switch from header to body because of what preceded
+    // it. The whitespace stays in the name, see processHeaders
     const email = await PostalMime.parse('Subject: s\r\n \r\nX-Foo : bar\r\n\r\nbody');
     assert.deepStrictEqual(
         email.headers.map(header => [header.key, header.value]),
         [
             ['subject', 's'],
-            ['x-foo', 'bar']
+            ['x-foo ', 'bar']
         ]
     );
     assert.strictEqual(email.text, 'body\n');
