@@ -415,14 +415,26 @@ test('Edge case - a transfer encoding is matched whole, not as a substring', asy
     // base64 of "<script>alert(1)</script>", which Python and mailparser keep as it is
     // under any of these, so it must not be decoded into markup here
     const body = 'PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==';
-    for (const encoding of ['x-base64', 'base64x', '7bit-base64', 'xquoted-printable', 'quoted-printable-x']) {
+    for (const encoding of [
+        'x-base64',
+        'base64x',
+        '7bit-base64',
+        'xquoted-printable',
+        'quoted-printable-x',
+        // a quoted token is raw base64 to Python and mailparser, so it is not decoded
+        '"base64"',
+        "'base64'",
+        'x "base64"',
+        '"quoted-printable"'
+    ]) {
         const email = await PostalMime.parse(
             `Content-Type: text/html\r\nContent-Transfer-Encoding: ${encoding}\r\n\r\n${body}`
         );
         assert.strictEqual(email.html, body + '\n', encoding);
     }
-    // the exact tokens still decode, in any case, with comments and quotes around them
-    for (const encoding of ['BASE64', '(x) base64', '"base64"', 'base64;']) {
+    // the exact tokens still decode, in any case, with comments around them and behind
+    // them whatever Python decodes them behind
+    for (const encoding of ['BASE64', '(x) base64', 'base64 (x)', 'base64;', 'base64; x=1', 'base64 x']) {
         const email = await PostalMime.parse(
             `Content-Type: text/html\r\nContent-Transfer-Encoding: ${encoding}\r\n\r\n${body}`
         );

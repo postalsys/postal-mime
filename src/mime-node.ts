@@ -580,10 +580,7 @@ export default class MimeNode {
         // format=flowed is defined for text/plain (RFC 3676), and a browser never unfolds
         // an html part. Unfolded here anyway, `<scri \r\npt>` under delsp=yes was joined
         // into a tag that neither Python nor a browser given the raw bytes sees
-        if (
-            this.contentType.parsed.value === 'text/plain' &&
-            /^flowed$/i.test(this.contentType.parsed.params.format)
-        ) {
+        if (this.contentType.parsed.value === 'text/plain' && /^flowed$/i.test(this.contentType.parsed.params.format)) {
             str = this.decodeFlowedText(str, /^yes$/i.test(this.contentType.parsed.params.delsp));
         }
 
@@ -732,13 +729,14 @@ export default class MimeNode {
             this.contentDisposition.parsed.value = disposition.slice(0, dispositionEnd);
         }
 
-        // Take the first token rather than splitting on the first non-token character.
-        // `split()` returns an empty string for anything that does not start with a word
-        // character, so `(comment) base64` and `"base64"` used to fall through to the
-        // pass-through decoder and hand the caller undecoded base64 as the message body.
+        // The token at the start of the value, behind the whitespace a leading comment
+        // leaves: `(comment) base64`, `base64 (comment)` and `base64 x` decode, as they do
+        // for Python. A quoted token does not. `"base64"` is raw base64 to Python and to
+        // mailparser, and decoding it here rendered as markup a body both hand through as
+        // it is. Taking the first token anywhere in the value read it, and `x "base64"`.
         this.contentTransferEncoding.encoding = (this.stripComments(this.contentTransferEncoding.value)
             .toLowerCase()
-            .match(/[\w-]+/) || [''])[0];
+            .match(/^[ \t]*([\w-]+)/) || ['', ''])[1];
 
         this.setupContentDecoder(this.contentTransferEncoding.encoding);
 

@@ -97,10 +97,7 @@ test('a Content-Type cannot be smuggled in on a Unicode whitespace line', async 
     // the line ends the headers of the part, so the part is plain text holding both
     // lines, and it must not reach the caller as trusted HTML
     assert.strictEqual(email.html, undefined);
-    assert.strictEqual(
-        email.text,
-        ' Content-Type: text/html\nContent-Type: text/plain\n\n<script>alert(1)</script>'
-    );
+    assert.strictEqual(email.text, ' Content-Type: text/html\nContent-Type: text/plain\n\n<script>alert(1)</script>');
 });
 
 test('a field name keeps the SP and HTAB around it', async () => {
@@ -550,15 +547,20 @@ test('quoted whitespace inside a continuation is preserved', async () => {
 
 // Content-Transfer-Encoding
 
-test('a Content-Transfer-Encoding that does not start with a word character still decodes', async () => {
+test('a Content-Transfer-Encoding behind a comment still decodes, a quoted one does not', async () => {
     for (const header of [
         'Content-Transfer-Encoding: (comment) base64',
-        'Content-Transfer-Encoding: "base64"',
         'Content-Transfer-Encoding:  base64 (comment)'
     ]) {
         const email = await PostalMime.parse(`Content-Type: text/plain\r\n${header}\r\n\r\naGVsbG8=\r\n`);
         assert.strictEqual(email.text, 'hello', header);
     }
+
+    // Python and mailparser hand the body of a quoted token through as it is
+    const email = await PostalMime.parse(
+        'Content-Type: text/plain\r\nContent-Transfer-Encoding: "base64"\r\n\r\naGVsbG8=\r\n'
+    );
+    assert.strictEqual(email.text, 'aGVsbG8=\n');
 });
 
 // Base64
