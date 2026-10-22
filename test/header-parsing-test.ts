@@ -190,8 +190,8 @@ test('a header wrapped without folding whitespace ends the headers at the wrap',
 });
 
 test('an empty field name, a space before the colon and an mbox From line stay headers', async () => {
-    // the shapes Python's header pattern lets through, with the `From :` that Go and
-    // mailparser tolerate as well
+    // the shapes Python's header pattern lets through, and the `X-Spaced :` that Go and
+    // mailparser tolerate as well while Python ends the headers at it, see the README
     const email = await PostalMime.parse(
         'From sender@example.com Mon Jan  1 00:00:00 2024\r\n' +
             'Subject: x\r\n' +

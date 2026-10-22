@@ -342,6 +342,7 @@ The limit options must be non-negative integers, and `maxPartCount` a positive o
 >
 > - The header block ends at the first line that is neither a header field (`Name:`, an empty name or an mbox `From ` line included) nor a fold starting with SP or HTAB. That line and everything after it is the body, even when more header-like lines follow. A line of only whitespace is a fold unless the next line is not a header, in which case it ends the headers.
 > - A bare CR inside a header line is folded into a space in `value`, as Go and mailparser read it; it is not a line break, which Python reads it as.
+> - Whitespace between a field name and its colon (`Name :`, RFC 5322 obsolete syntax) keeps the line a header, listed under the key with the whitespace in it, as Go and mailparser read it; Python ends the header block there.
 > - A `message/rfc822` part with a `base64` or `quoted-printable` transfer encoding, which RFC 2046 forbids, is an attachment with its content decoded, as mailparser returns it, rather than an inline forward.
 > - `format=flowed` is unfolded in `text/plain` parts only.
 > - A multipart whose `boundary` holds a non-ASCII character has no parts: its body is read as plain text, like that of a multipart without a boundary.
