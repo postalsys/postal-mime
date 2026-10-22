@@ -7,37 +7,37 @@
 
 ## Features
 
--   **Browser & Node.js compatible** - Works in browsers, Web Workers, Node.js, and serverless environments
--   **Written in TypeScript** - Type declarations are generated from the source and shipped for both module formats
--   **Dual package** - Published as ES modules and as CommonJS, compiled from the same source
--   **Zero dependencies** - No external dependencies
--   **RFC compliant** - Follows RFC 2822/5322 email standards
--   **Handles complex MIME structures** - Multipart messages, nested parts, attachments
--   **Security limits** - Built-in protection against deeply nested or very wide messages, oversized headers and runaway nested message parsing
+- **Browser & Node.js compatible** - Works in browsers, Web Workers, Node.js, and serverless environments
+- **Written in TypeScript** - Type declarations are generated from the source and shipped for both module formats
+- **Dual package** - Published as ES modules and as CommonJS, compiled from the same source
+- **Zero dependencies** - No external dependencies
+- **RFC compliant** - Follows RFC 2822/5322 email standards
+- **Handles complex MIME structures** - Multipart messages, nested parts, attachments
+- **Security limits** - Built-in protection against deeply nested or very wide messages, oversized headers and runaway nested message parsing
 
 > [!NOTE]
 > Full documentation is available at [postal-mime.postalsys.com](https://postal-mime.postalsys.com/).
 
 ## Table of Contents
 
--   [Source](#source)
--   [Demo](#demo)
--   [Installation](#installation)
--   [Upgrading from 3.x](#upgrading-from-3x)
--   [Usage](#usage)
-    -   [Browser](#browser)
-    -   [Node.js](#nodejs)
-    -   [CommonJS](#commonjs)
-    -   [Cloudflare Email Workers](#cloudflare-email-workers)
--   [TypeScript Support](#typescript-support)
--   [API](#api)
-    -   [PostalMime.parse()](#postalmimeparse)
-    -   [Errors](#errors)
-    -   [Utility Functions](#utility-functions)
-        -   [addressParser()](#addressparser)
-        -   [decodeWords()](#decodewords)
--   [Development](#development)
--   [License](#license)
+- [Source](#source)
+- [Demo](#demo)
+- [Installation](#installation)
+- [Upgrading from 3.x](#upgrading-from-3x)
+- [Usage](#usage)
+    - [Browser](#browser)
+    - [Node.js](#nodejs)
+    - [CommonJS](#commonjs)
+    - [Cloudflare Email Workers](#cloudflare-email-workers)
+- [TypeScript Support](#typescript-support)
+- [API](#api)
+    - [PostalMime.parse()](#postalmimeparse)
+    - [Errors](#errors)
+    - [Utility Functions](#utility-functions)
+        - [addressParser()](#addressparser)
+        - [decodeWords()](#decodewords)
+- [Development](#development)
+- [License](#license)
 
 ---
 
@@ -63,12 +63,12 @@ The package needs a runtime with the `TextDecoder`, `Blob` and `ReadableStream` 
 
 Version 4 is the TypeScript rewrite. Code that imports `postal-mime` by name keeps working and the parsed output is unchanged. What did change:
 
--   **Browser deep imports.** The ES module build moved from `src/postal-mime.js` to `dist/esm/postal-mime.js`. Only code that loaded the file from `node_modules` by its path is affected, see [Browser](#browser).
--   **Node.js 20 or newer** is required.
--   **`Attachment.disposition`** is typed as `AttachmentDisposition | null`. The parser has always passed the Content-Disposition token through as it is, so the type now says so instead of claiming that only `attachment` and `inline` occur.
--   **Stream input** is typed as `ReadableStream<Uint8Array>`. A `ReadableStream<ArrayBuffer>` or `ReadableStream<string>` never parsed correctly and no longer type-checks. Any `ArrayBufferView`, including a `DataView`, is accepted.
--   **`addressParser`** no longer reads the undocumented `_depth` option.
--   **CommonJS TypeScript projects** get a declaration that matches what `require()` returns, see [CommonJS](#commonjs). A project that compiles with both `esModuleInterop` and `allowSyntheticDefaultImports` switched off has to use `import PostalMime = require('postal-mime')` instead of a default import.
+- **Browser deep imports.** The ES module build moved from `src/postal-mime.js` to `dist/esm/postal-mime.js`. Only code that loaded the file from `node_modules` by its path is affected, see [Browser](#browser).
+- **Node.js 20 or newer** is required.
+- **`Attachment.disposition`** is typed as `AttachmentDisposition | null`. The parser has always passed the Content-Disposition token through as it is, so the type now says so instead of claiming that only `attachment` and `inline` occur.
+- **Stream input** is typed as `ReadableStream<Uint8Array>`. A `ReadableStream<ArrayBuffer>` or `ReadableStream<string>` never parsed correctly and no longer type-checks. Any `ArrayBufferView`, including a `DataView`, is accepted.
+- **`addressParser`** no longer reads the undocumented `_depth` option.
+- **CommonJS TypeScript projects** get a declaration that matches what `require()` returns, see [CommonJS](#commonjs). A project that compiles with both `esModuleInterop` and `allowSyntheticDefaultImports` switched off has to use `import PostalMime = require('postal-mime')` instead of a default import.
 
 ## Usage
 
@@ -141,10 +141,13 @@ const options: PostalMimeOptions = {
     attachmentEncoding: 'base64'
 };
 
-const email: Email = await PostalMime.parse(`Subject: My awesome email 🤓
+const email: Email = await PostalMime.parse(
+    `Subject: My awesome email 🤓
 Content-Type: text/html; charset=utf-8
 
-<p>Hello world 😵‍💫</p>`, options);
+<p>Hello world 😵‍💫</p>`,
+    options
+);
 
 // Use 'util.inspect' for pretty-printing
 console.log(util.inspect(email, false, 22, true));
@@ -251,20 +254,20 @@ import type {
 
 ### Available Types
 
--   **`Email`** - The main parsed email object returned by `PostalMime.parse()`
--   **`Address`** - Union type representing either a `Mailbox` or an `AddressGroup`
--   **`Mailbox`** - Individual email address with name and address fields
--   **`AddressGroup`** - RFC 5322 address group with a name and a list of `Mailbox` members
--   **`Header`** - Email header with key, original key and value
--   **`HeaderLine`** - Raw header line with key and the complete line as it appeared in the message
--   **`Attachment`** - Email attachment with metadata and content
--   **`AttachmentDisposition`** - The lowercased Content-Disposition token of an attachment, `attachment` or `inline` for most parts
--   **`AttachmentEncoding`** - The accepted values of the `attachmentEncoding` option
--   **`PostalMimeOptions`** - Configuration options for parsing
--   **`AddressParserOptions`** - Configuration options for address parsing
--   **`RawEmail`** - Union type for all accepted email input formats
--   **`PostalMimeError`** - An error thrown by the parser, an `Error` with a `code` property
--   **`ErrorCode`** - Union of all error codes, see [Errors](#errors)
+- **`Email`** - The main parsed email object returned by `PostalMime.parse()`
+- **`Address`** - Union type representing either a `Mailbox` or an `AddressGroup`
+- **`Mailbox`** - Individual email address with name and address fields
+- **`AddressGroup`** - RFC 5322 address group with a name and a list of `Mailbox` members
+- **`Header`** - Email header with key, original key and value
+- **`HeaderLine`** - Raw header line with key and the complete line as it appeared in the message
+- **`Attachment`** - Email attachment with metadata and content
+- **`AttachmentDisposition`** - The lowercased Content-Disposition token of an attachment, `attachment` or `inline` for most parts
+- **`AttachmentEncoding`** - The accepted values of the `attachmentEncoding` option
+- **`PostalMimeOptions`** - Configuration options for parsing
+- **`AddressParserOptions`** - Configuration options for address parsing
+- **`RawEmail`** - Union type for all accepted email input formats
+- **`PostalMimeError`** - An error thrown by the parser, an `Error` with a `code` property
+- **`ErrorCode`** - Union of all error codes, see [Errors](#errors)
 
 Every optional property is declared as `T | undefined`, so the types also work in projects that compile with `exactOptionalPropertyTypes`.
 
@@ -295,21 +298,22 @@ if (email.from && isMailbox(email.from)) {
 PostalMime.parse(email, options) -> Promise<Email>
 ```
 
--   **email**: An RFC822 formatted email. This can be a `string`, an `ArrayBuffer`, a `Uint8Array` or any other `ArrayBufferView` (including a Node.js `Buffer` and a `DataView`), a `Blob`, or a [ReadableStream](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream). A stream is read to completion before parsing starts.
--   **options**: Optional configuration object:
-    -   **rfc822Attachments** (boolean, default: `false`): Treat `message/rfc822` attachments without a Content-Disposition as attachments.
-    -   **forceRfc822Attachments** (boolean, default: `false`): Treat _all_ `message/rfc822` parts as attachments.
-    -   **attachmentEncoding** (string, default: `"arraybuffer"`): Determines how attachment content is decoded in the parsed email:
-        -   `"base64"`
-        -   `"utf8"`
-        -   `"arraybuffer"` (no decoding, returns `ArrayBuffer`)
+- **email**: An RFC822 formatted email. This can be a `string`, an `ArrayBuffer`, a `Uint8Array` or any other `ArrayBufferView` (including a Node.js `Buffer` and a `DataView`), a `Blob`, or a [ReadableStream](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream). A stream is read to completion before parsing starts.
+- **options**: Optional configuration object:
+    - **rfc822Attachments** (boolean, default: `false`): Treat `message/rfc822` attachments without a Content-Disposition as attachments.
+    - **forceRfc822Attachments** (boolean, default: `false`): Treat _all_ `message/rfc822` parts as attachments.
+    - **attachmentEncoding** (string, default: `"arraybuffer"`): Determines how attachment content is decoded in the parsed email:
+        - `"base64"`
+        - `"utf8"`
+        - `"arraybuffer"` (no decoding, returns `ArrayBuffer`)
 
         Any other value throws an `EINVALIDOPTION` error.
-    -   **maxNestingDepth** (number, default: `256`): Maximum allowed MIME part nesting depth. Throws an `EMAXNESTINGDEPTH` error if exceeded.
-    -   **maxHeadersSize** (number, default: `2097152`): Maximum allowed total header size in bytes (default 2MB), counted across every part and every inline `message/rfc822` sub-message. Each header line counts for at least 64 bytes, since what the parser keeps of a line is far larger than a short line itself. Throws an `EMAXHEADERSIZE` error if exceeded.
-    -   **maxPartCount** (number, default: `10000`): Maximum allowed number of MIME parts in a message, the top-level part and the parts of inline `message/rfc822` sub-messages included. Throws an `EMAXPARTCOUNT` error if exceeded.
-    -   **maxRfc822NestingDepth** (number, default: `10`): Maximum allowed recursion depth for inline `message/rfc822` sub-messages. Nested messages deeper than this are treated as regular attachments instead of being parsed inline, and the resulting attachment has `rfc822DepthExceeded: true` set. Use `0` to disable inline parsing entirely.
-    -   **maxForwardedAddresses** (number, default: `10000`): Maximum allowed number of From, To, Cc and Bcc addresses across all inline `message/rfc822` sub-messages, a group and each of its members counted. These addresses are rendered into the `text` and `html` of the message, so the count is shared by every level of nesting. Throws an `EMAXFORWARDEDADDRESSES` error if exceeded.
+
+    - **maxNestingDepth** (number, default: `256`): Maximum allowed MIME part nesting depth. Throws an `EMAXNESTINGDEPTH` error if exceeded.
+    - **maxHeadersSize** (number, default: `2097152`): Maximum allowed total header size in bytes (default 2MB), counted across every part and every inline `message/rfc822` sub-message. Each header line counts for at least 64 bytes, since what the parser keeps of a line is far larger than a short line itself. Throws an `EMAXHEADERSIZE` error if exceeded.
+    - **maxPartCount** (number, default: `10000`): Maximum allowed number of MIME parts in a message, the top-level part and the parts of inline `message/rfc822` sub-messages included. Throws an `EMAXPARTCOUNT` error if exceeded.
+    - **maxRfc822NestingDepth** (number, default: `10`): Maximum allowed recursion depth for inline `message/rfc822` sub-messages. Nested messages deeper than this are treated as regular attachments instead of being parsed inline, and the resulting attachment has `rfc822DepthExceeded: true` set. Use `0` to disable inline parsing entirely.
+    - **maxForwardedAddresses** (number, default: `10000`): Maximum allowed number of From, To, Cc and Bcc addresses across all inline `message/rfc822` sub-messages, a group and each of its members counted. These addresses are rendered into the `text` and `html` of the message, so the count is shared by every level of nesting. Throws an `EMAXFORWARDEDADDRESSES` error if exceeded.
 
 The limit options must be non-negative integers. Any other value, including a numeric string, `NaN` or `Infinity`, throws an `EINVALIDOPTION` error. Passing `0` means a literal zero, not "use the default". The options are configuration: a large enough limit is as good as none, so do not pass an options object that comes from untrusted input as it is.
 
@@ -331,56 +335,59 @@ The limit options must be non-negative integers. Any other value, including a nu
 > ```
 
 > [!WARNING]
-> The parsed values are the sender's, decoded but not sanitized. `html` is the message's own markup: run it through a sanitizer such as DOMPurify, or render it in an iframe with `sandbox="allow-same-origin"` and without `allow-scripts`, as the demo in `example/` does. Otherwise a script in the message runs with the privileges of your page. `text` is plain text and has to be escaped before it is inserted into HTML. An attachment `filename` can hold path separators, control characters or bidirectional overrides, so treat it as untrusted before using it as a path or showing it.
+> The parsed values are the sender's, decoded but not sanitized. `html` is the message's own markup: run it through a sanitizer such as DOMPurify, or render it in an iframe with `sandbox="allow-same-origin"` and without `allow-scripts`, as the demo in `example/` does. Otherwise a script in the message runs with the privileges of your page. `text` is plain text and has to be escaped before it is inserted into HTML. An attachment `filename` can hold path separators, control characters or bidirectional overrides, so treat it as untrusted before using it as a path or showing it. `mimeType`, `disposition`, `contentId` and `method` are the lowercased header tokens as sent, free of CR and LF but otherwise unvalidated: a `mimeType` can hold whitespace, quotes or path separators, and a `contentId` can lack its angle brackets, hold whitespace or repeat across attachments, so validate them before using one as a path, a file extension or a lookup key.
+
+> [!NOTE]
+> A malformed message is read the way the parsers a mail scanner is usually built on read it, Python's `email` package and mailparser in particular, so that a scanner and this parser see the same message:
+>
+> - The header block ends at the first line that is neither a header field (`Name:`, an empty name or an mbox `From ` line included) nor a fold starting with SP or HTAB. That line and everything after it is the body, even when more header-like lines follow. A line of only whitespace is a fold unless the next line is not a header, in which case it ends the headers.
+> - A bare CR inside a header line is folded into a space in `value`, as Go and mailparser read it; it is not a line break, which Python reads it as.
+> - A `message/rfc822` part with a `base64` or `quoted-printable` transfer encoding, which RFC 2046 forbids, is an attachment with its content decoded, as mailparser returns it, rather than an inline forward.
+> - `format=flowed` is unfolded in `text/plain` parts only.
+> - A multipart whose `boundary` holds a non-ASCII character has no parts: its body is read as plain text, like that of a multipart without a boundary.
+> - The `Content-Transfer-Encoding` is the token at the start of the value, so `(comment) base64` and `base64 x` decode and a quoted `"base64"` does not.
+> - The UTF-16 charsets honoured are `utf-16`, `utf-16le`, `utf-16be` and `ucs-2`, with or without the hyphen. The labels `unicode`, `csunicode`, `iso-10646-ucs-2`, `unicodefeff` and `unicodefffe` fall back like an unknown charset, because neither Python nor iconv-lite knows them. A byte order mark decides the byte order under `utf-16` and `ucs-2` only.
 
 **Returns**: A Promise that resolves to a structured `Email` object with the following properties:
 
--   **headers**: An array of `Header` objects, each containing:
-    -   `key`: Lowercase header name (e.g., `"dkim-signature"`). The name is otherwise kept as written, so a line with whitespace around the name, such as a `From :` line or a first line that starts with a space, is listed under that spelling (`"from "`) and does not count as the `from` header.
-    -   `originalKey`: The header name as written in the message, preserving case.
-    -   `value`: Header value as a string, unfolded per RFC 5322 and otherwise unprocessed. Unfolding removes the line break of a folded header and keeps the folding whitespace, so `Subject: Hello\r\n    World` reads as `Hello    World`. Encoded words are not decoded here.
+- **headers**: An array of `Header` objects, each containing:
+    - `key`: Lowercase header name (e.g., `"dkim-signature"`). The name is otherwise kept as written, so a line with whitespace around the name, such as a `From :` line or a first line that starts with a space, is listed under that spelling (`"from "`) and does not count as the `from` header.
+    - `originalKey`: The header name as written in the message, preserving case.
+    - `value`: Header value as a string, unfolded per RFC 5322 and otherwise unprocessed. Unfolding removes the line break of a folded header and keeps the folding whitespace, so `Subject: Hello\r\n    World` reads as `Hello    World`. Encoded words are not decoded here.
 
     Headers appear in the order they were sent, including duplicates. Where a single value is exposed on its own property, such as `subject` or `from`, the first occurrence of the header wins.
 
--   **headerLines**: An array of `HeaderLine` objects in the same order as `headers`, each containing:
-    -   `key`: Lowercase header name.
-    -   `line`: The complete raw header line, including the name and the original line breaks of a folded header. The line is raw, so unlike `value` it can hold a bare CR; sanitize it before writing it into another message.
--   **from**, **sender**: Processed `Address` objects (can be a `Mailbox` or address group):
-    -   `name`: Decoded display name, or an empty string if not set.
-    -   `address`: Email address.
-    -   `group`: Array of `Mailbox` objects (only for address groups).
--   **deliveredTo**, **returnPath**: Single email addresses as strings.
--   **to**, **cc**, **bcc**, **replyTo**: Arrays of `Address` objects (same structure as `from`).
--   **subject**: Subject line of the email.
--   **messageId**, **inReplyTo**, **references**: Values from their corresponding headers.
--   **date**: The email's sending time in ISO 8601 format (or the original string if parsing fails).
--   **html**: String containing the HTML content of the email, with CRLF line endings normalized to LF.
--   **text**: String containing the plain text content of the email, with CRLF line endings normalized to LF. A text or HTML part that declares no charset is read as UTF-8, or as windows-1252 when its bytes are not valid UTF-8, and an HTML part without one may name its charset in a `<meta>` tag.
--   **attachments**: Array of `Attachment` objects:
-    -   `filename`: String or `null`
-    -   `mimeType`: String
-    -   `disposition`: The lowercased Content-Disposition token, usually `"attachment"` or `"inline"`, or `null` if the part had no such header. Other tokens a message carries are passed through as they are
-    -   `related`: Boolean (optional, `true` if the part sits in a `multipart/related` tree and has a Content-ID, such as an inline image)
-    -   `contentId`: String (optional)
-    -   `description`: String (optional, the decoded Content-Description header)
-    -   `method`: String (optional, the uppercased `method` parameter of a calendar part, such as `"REQUEST"`)
-    -   `rfc822DepthExceeded`: Boolean (optional, see the warning above)
-    -   `content`: `ArrayBuffer` or string, depending on `attachmentEncoding`. The decoded bytes of the part exactly as sent, line endings included. Calendar parts are the exception: they are normalized to UTF-8 text with LF line endings and returned as a `Uint8Array`
-    -   `encoding`: `"base64"` or `"utf8"` (optional)
+- **headerLines**: An array of `HeaderLine` objects in the same order as `headers`, each containing:
+    - `key`: Lowercase header name.
+    - `line`: The complete raw header line, including the name and the original line breaks of a folded header. The line is raw, so unlike `value` it can hold a bare CR; sanitize it before writing it into another message.
+- **from**, **sender**: Processed `Address` objects (can be a `Mailbox` or address group):
+    - `name`: Decoded display name, or an empty string if not set.
+    - `address`: Email address.
+    - `group`: Array of `Mailbox` objects (only for address groups).
+- **deliveredTo**, **returnPath**: Single email addresses as strings.
+- **to**, **cc**, **bcc**, **replyTo**: Arrays of `Address` objects (same structure as `from`).
+- **subject**: Subject line of the email.
+- **messageId**, **inReplyTo**, **references**: Values from their corresponding headers.
+- **date**: The email's sending time in ISO 8601 format (or the original string if parsing fails).
+- **html**: String containing the HTML content of the email, with CRLF line endings normalized to LF.
+- **text**: String containing the plain text content of the email, with CRLF line endings normalized to LF. A text or HTML part that declares no charset is read as UTF-8, or as windows-1252 when its bytes are not valid UTF-8, and an HTML part without one may name its charset in a `<meta>` tag.
+- **attachments**: Array of `Attachment` objects:
+    - `filename`: String or `null`
+    - `mimeType`: String, the lowercased Content-Type value as sent, not validated (see the warning above)
+    - `disposition`: The lowercased Content-Disposition token, usually `"attachment"` or `"inline"`, or `null` if the part had no such header. Other tokens a message carries are passed through as they are
+    - `related`: Boolean (optional, `true` if the part sits in a `multipart/related` tree and has a Content-ID, such as an inline image)
+    - `contentId`: String (optional, the Content-ID header value as sent, usually with its angle brackets, not validated)
+    - `description`: String (optional, the decoded Content-Description header)
+    - `method`: String (optional, the uppercased `method` parameter of a calendar part, such as `"REQUEST"`)
+    - `rfc822DepthExceeded`: Boolean (optional, see the warning above)
+    - `content`: `ArrayBuffer` or string, depending on `attachmentEncoding`. The decoded bytes of the part exactly as sent, line endings included. Calendar parts are the exception: they are normalized to UTF-8 text with LF line endings and returned as a `Uint8Array`
+    - `encoding`: `"base64"` or `"utf8"` (optional)
 
 <details>
 <summary><strong>TypeScript Types</strong></summary>
 
 ```typescript
-import type {
-    Email,
-    Address,
-    Mailbox,
-    Header,
-    Attachment,
-    PostalMimeOptions,
-    RawEmail
-} from 'postal-mime';
+import type { Email, Address, Mailbox, Header, Attachment, PostalMimeOptions, RawEmail } from 'postal-mime';
 
 // Main email parsing
 const email: Email = await PostalMime.parse(rawEmail);
@@ -425,15 +432,15 @@ email.attachments.forEach((att: Attachment) => {
 
 Every error the parser throws has a `code` property that identifies it. Match on `code` rather than on the message, which may change between releases. `PostalMime.parse()` reports all of them by rejecting the returned promise. `new PostalMime(options)` throws `EINVALIDOPTION` synchronously, and `parser.parse()` rejects with the rest.
 
-| Code                     | Error type  | Cause                                                                                                                                         |
-| ------------------------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `EINVALIDOPTION`         | `TypeError` | An option has an invalid value: a limit option that is not a non-negative integer, or an unknown `attachmentEncoding`                         |
+| Code                     | Error type  | Cause                                                                                                                                             |
+| ------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EINVALIDOPTION`         | `TypeError` | An option has an invalid value: a limit option that is not a non-negative integer, or an unknown `attachmentEncoding`                             |
 | `EINVALIDINPUT`          | `TypeError` | The email is not of a supported type, such as a number or a plain object, or a `ReadableStream` produced a chunk that is not an `ArrayBufferView` |
-| `EPARSERREUSED`          | `Error`     | `parse()` was called a second time on the same `PostalMime` instance                                                                          |
-| `EMAXNESTINGDEPTH`       | `Error`     | MIME parts are nested deeper than `maxNestingDepth`                                                                                           |
-| `EMAXHEADERSIZE`         | `Error`     | The headers of the message are larger than `maxHeadersSize`                                                                                   |
-| `EMAXPARTCOUNT`          | `Error`     | The message has more MIME parts than `maxPartCount`                                                                                           |
-| `EMAXFORWARDEDADDRESSES` | `Error`     | Inline `message/rfc822` sub-messages hold more addresses than `maxForwardedAddresses`                                                         |
+| `EPARSERREUSED`          | `Error`     | `parse()` was called a second time on the same `PostalMime` instance                                                                              |
+| `EMAXNESTINGDEPTH`       | `Error`     | MIME parts are nested deeper than `maxNestingDepth`                                                                                               |
+| `EMAXHEADERSIZE`         | `Error`     | The headers of the message are larger than `maxHeadersSize`                                                                                       |
+| `EMAXPARTCOUNT`          | `Error`     | The message has more MIME parts than `maxPartCount`                                                                                               |
+| `EMAXFORWARDEDADDRESSES` | `Error`     | Inline `message/rfc822` sub-messages hold more addresses than `maxForwardedAddresses`                                                             |
 
 Errors without a `code` do not come from the parser itself, for example an error from the `ReadableStream` or `Blob` the email is read from, which is passed through unchanged. Malformed message content is not an error: the parser recovers from it and returns what it could read. `null`, `undefined` and an empty string parse to an empty message.
 
@@ -471,9 +478,9 @@ import { addressParser } from 'postal-mime';
 addressParser(addressStr, opts) -> Address[]
 ```
 
--   **addressStr**: A raw address header string.
--   **opts**: Optional configuration:
-    -   **flatten** (boolean, default: `false`): If `true`, ignores address groups and returns a flat array of addresses.
+- **addressStr**: A raw address header string.
+- **opts**: Optional configuration:
+    - **flatten** (boolean, default: `false`): If `true`, ignores address groups and returns a flat array of addresses.
 
 **Returns**: An array of `Address` objects, which can be nested if address groups are present.
 
@@ -514,7 +521,7 @@ import { decodeWords } from 'postal-mime';
 decodeWords(encodedStr) -> string
 ```
 
--   **encodedStr**: A string that may contain MIME encoded-words.
+- **encodedStr**: A string that may contain MIME encoded-words.
 
 **Returns**: A Unicode string with all encoded-words decoded.
 

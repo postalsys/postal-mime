@@ -65,7 +65,7 @@ export type AttachmentDisposition = 'attachment' | 'inline' | (string & {});
 export type Attachment = {
     /** Decoded file name, or null if the part did not name one */
     filename: string | null;
-    /** Lowercase MIME type of the part */
+    /** Lowercase MIME type of the part, the Content-Type value as sent and not validated */
     mimeType: string;
     /** Value of the Content-Disposition header, or null if the part did not have one */
     disposition: AttachmentDisposition | null;
@@ -73,7 +73,7 @@ export type Attachment = {
     related?: boolean | undefined;
     /** Decoded Content-Description header */
     description?: string | undefined;
-    /** Content-ID header, angle brackets included */
+    /** Content-ID header value as sent, usually with its angle brackets, not validated */
     contentId?: string | undefined;
     /** Uppercased `method` parameter of a calendar part, eg. `REQUEST` */
     method?: string | undefined;
