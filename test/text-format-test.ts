@@ -521,3 +521,15 @@ test('formatHtmlHeader - the mailto link carries no header fields', () => {
     // the visible text is the address as it is, escaped
     assert.ok(result.includes('>&#x3C;&#x22;x y&#x22;@z.example&#x3E;</a>'), result);
 });
+
+test('formatHtmlHeader - a mailto address is percent encoded in runs', () => {
+    // safe runs are kept as they are, every other character is encoded byte by byte,
+    // multibyte characters and surrogate pairs included
+    const html = formatHtmlHeader({ from: { name: 'A', address: "a?b@c.example/é😀 x'y" } });
+    assert.ok(html.includes('href="mailto:a%3Fb@c.example%2F%C3%A9%F0%9F%98%80%20x&#x27;y"'), html);
+
+    // an address of nothing but unsafe characters, and one of nothing but safe ones
+    assert.ok(formatHtmlHeader({ from: { name: 'A', address: '%%%' } }).includes('href="mailto:%25%25%25"'));
+    assert.ok(formatHtmlHeader({ from: { name: 'A', address: 'a@b' } }).includes('href="mailto:a@b"'));
+    assert.ok(formatHtmlHeader({ from: { name: 'A', address: '' } }).includes('href="mailto:"'));
+});

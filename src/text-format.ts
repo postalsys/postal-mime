@@ -95,18 +95,46 @@ export function escapeHtml(str: string): string {
 // decodes the entities back before it reads the URL
 const MAILTO_SAFE = /^[A-Za-z0-9\-._~!$'()*+,;:@]$/;
 
+// the percent encoded form of every byte, so that an encoded run allocates nothing per byte
+const PERCENT_ENCODED = Array.from({ length: 256 }, (_, byte) => '%' + hexByte(byte));
+
 function encodeMailto(address: string): string {
-    let result = '';
+    // The address is copied in runs, a run of safe characters as a slice and a run of the
+    // others as the percent encoded bytes of its slice. Appended one character at a time
+    // the result was a cons string of a node per character, which escapeHtml then
+    // flattened: a long address of percent signs in a forwarded header held some sixty
+    // bytes of heap per byte of it until then
+    const parts: string[] = [];
+    let runStart = 0;
+    let runSafe = true;
+
+    const closeRun = (end: number): void => {
+        if (end === runStart) {
+            return;
+        }
+        const run = address.slice(runStart, end);
+        if (runSafe) {
+            parts.push(run);
+        } else {
+            for (const byte of textEncoder.encode(run)) {
+                parts.push(PERCENT_ENCODED[byte]);
+            }
+        }
+        runStart = end;
+    };
+
+    let pos = 0;
     for (const chr of address) {
-        if (MAILTO_SAFE.test(chr)) {
-            result += chr;
-            continue;
+        const safe = MAILTO_SAFE.test(chr);
+        if (safe !== runSafe) {
+            closeRun(pos);
+            runSafe = safe;
         }
-        for (const byte of textEncoder.encode(chr)) {
-            result += '%' + hexByte(byte);
-        }
+        pos += chr.length;
     }
-    return result;
+    closeRun(pos);
+
+    return parts.join('');
 }
 
 export function textToHtml(str: string): string {
