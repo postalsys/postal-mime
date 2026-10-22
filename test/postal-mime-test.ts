@@ -420,7 +420,8 @@ Body`;
     }
 });
 
-test('headerLines handles malformed header without colon', async () => {
+test('headerLines end at a malformed header without colon', async () => {
+    // the line is no field, so it ends the headers and starts the body, as for Python
     const mail = `From: test@example.com
 MalformedHeaderNoColon
 Subject: Test
@@ -429,9 +430,11 @@ Body`;
 
     const email = await PostalMime.parse(mail);
 
-    const malformed = email.headerLines.find(h => h.key === 'malformedheadernocolon');
-    assert.ok(malformed);
-    assert.strictEqual(malformed.line, 'MalformedHeaderNoColon');
+    assert.deepStrictEqual(
+        email.headerLines.map(h => h.key),
+        ['from']
+    );
+    assert.strictEqual(email.text, 'MalformedHeaderNoColon\nSubject: Test\n\nBody\n');
 });
 
 test('headerLines handles header with empty value', async () => {

@@ -65,10 +65,11 @@ const trimWsp = (str: string): string => {
 // A line of nothing but SP and HTAB, see feed
 const isBlankLine = (line: Uint8Array): boolean => line.every(isWsp);
 
-// The start of a header field: a field name of printable ASCII other than the colon
-// (RFC 5322 3.6.8 ftext) and the colon itself, with the whitespace in between that
-// processHeaders tolerates as well
-const FIELD_START = /^[!-9;-~]+[ \t]*:/;
+// The start of a header field, the shape Python's header pattern reads: a field name of
+// printable ASCII other than the colon (RFC 5322 3.6.8 ftext), an empty one included, and
+// the colon itself, with the whitespace in between that processHeaders tolerates as well,
+// or the `From ` of an mbox separator line, which every reader lets through
+const FIELD_START = /^(?:From |[!-9;-~]*[ \t]*:)/;
 
 // Headers that decide how this part's body is read, see processHeaders
 const CONTENT_HEADERS = new Set([
@@ -621,7 +622,8 @@ export default class MimeNode {
             // authenticated the one this parser ignored. The same put a Content-Type ahead
             // of the one every other parser reads the body by. Leaving the whitespace in
             // the key keeps the line visible without letting it collide with a genuine
-            // header, the way a non-ASCII space in a name stays in it as well.
+            // header. A line whose name holds anything else, a non-ASCII space say, is no
+            // field at all and ends the headers, see feed.
             let sep = rawLine.indexOf(':');
             let rawKey = sep < 0 ? rawLine : rawLine.slice(0, sep);
 
@@ -757,16 +759,22 @@ export default class MimeNode {
 
                 const text = decodeUtf8OrWindows1252(line, headerDecoder);
 
+                // A line that is neither a header field nor a fold ends the headers, as it
+                // does for Python and for an MTA that stores the header block on its own,
+                // and Go rejects the message for it. Read on as a header here, a Content-Type
+                // or a From behind such a line was honoured where a scanner built on Python
+                // had read it as the first line of a text/plain body.
+                //
                 // A line of nothing but whitespace is legal folding (RFC 5322 4.2, obs-FWS),
                 // but broken generators also put one where the empty line that ends the
                 // headers belongs, and reading it as a fold then turned the whole body into
                 // one more header. So the next line decides what it was: a continuation or
                 // another header keep it a fold, anything else means the headers ended with
-                // it, and it is taken back out of the header lines. Python and Go read such
-                // a line as the end of the headers outright, so the body is where the other
-                // parsers find it.
-                if (this.lastLineBlank && !isWsp(line[0]) && !FIELD_START.test(text)) {
-                    this.headerLines.pop();
+                // it, and it is taken back out of the header lines.
+                if (!isWsp(line[0]) && !FIELD_START.test(text)) {
+                    if (this.lastLineBlank) {
+                        this.headerLines.pop();
+                    }
                     this.endHeaders();
                     return true;
                 }

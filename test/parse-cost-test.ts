@@ -28,7 +28,9 @@ test('a header line with a long blank run is trimmed in linear time', async () =
     const email = await timed(() => PostalMime.parse(`From: a@b\r\nSubject: a${run}b\r\na${run}b\r\n\r\nx`));
 
     assert.strictEqual(email.subject, `a${run}b`);
-    assert.strictEqual(email.headers[2].key, `a${run}b`);
+    // the line without a colon ends the headers
+    assert.strictEqual(email.headers.length, 2);
+    assert.ok(email.text!.startsWith(`a${run}b\n`));
 });
 
 test('a header value is trimmed of SP and HTAB only', async () => {

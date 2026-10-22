@@ -801,7 +801,8 @@ Body with no headers`);
     assert.ok(email);
 });
 
-test('MimeNode - parse header without colon', async () => {
+test('MimeNode - a header line without a colon ends the headers', async () => {
+    // as Python reads it: the line is no field, so it is the first line of the body
     const mail = Buffer.from(`From: sender@example.com
 InvalidHeader
 Subject: Test
@@ -811,7 +812,9 @@ Body`);
     const parser = new PostalMime();
     const email = await parser.parse(mail);
 
-    assert.strictEqual(email.subject, 'Test');
+    assert.strictEqual(email.from!.address, 'sender@example.com');
+    assert.strictEqual(email.subject, undefined);
+    assert.strictEqual(email.text, 'InvalidHeader\nSubject: Test\n\nBody\n');
 });
 
 test('MimeNode - parse multiple same headers', async () => {

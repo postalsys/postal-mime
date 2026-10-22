@@ -55,30 +55,36 @@ test('a filename containing repeated spaces is preserved', async () => {
 
 test('only SP and HTAB continue a folded header', async () => {
     // A line opening with U+00A0 used to be absorbed into the header above it, which
-    // hid it from both headers and headerLines while a strict parser still saw a line
-    for (const chr of ['\u00a0', '\u000b', '\u000c', '\u2028']) {
+    // hid it from both headers and headerLines. It is neither a fold nor a field, so it
+    // ends the headers, as it does for Python, and the From on it names nobody
+    for (const chr of [' ', '\u000b', '\u000c', ' ']) {
         const email = await PostalMime.parse(
             `X-Filler: 1\r\n${chr}From: mallory@evil.example\r\nSubject: hi\r\n\r\nBody`
         );
-        assert.strictEqual(email.headers.length, 3, `expected 3 headers for ${JSON.stringify(chr)}`);
-        assert.strictEqual(email.headerLines.length, 3);
+        assert.strictEqual(email.headers.length, 1, `expected 1 header for ${JSON.stringify(chr)}`);
+        assert.strictEqual(email.headerLines.length, 1);
+        assert.strictEqual(email.from, undefined);
+        assert.ok(email.text!.startsWith(`${chr}From: mallory@evil.example\n`));
     }
 });
 
 test('a field name is not made canonical by stripping Unicode whitespace', async () => {
-    // These lines are not folds, and they are not valid headers either. They have to stay
-    // visible, but their key must not collide with a real header: a ` From:` line
-    // placed ahead of the genuine one would otherwise become the sender, because the
-    // first occurrence of a header wins.
-    for (const chr of [' ', '', '', ' ', '﻿', '　', ' ']) {
+    // These lines are not folds, and they are not valid headers either. Trimmed, a
+    // ` From:` line placed ahead of the genuine one became the sender, because the first
+    // occurrence of a header wins. The line ends the headers instead, as it does for
+    // Python, so neither From names the sender
+    for (const chr of [' ', '\u000b', '\u000c', ' ', '﻿', '　', ' ']) {
         const email = await PostalMime.parse(
             `Received: from mx.example.com\r\n${chr}From: security@paypal.example\r\n` +
                 `From: attacker@evil.example\r\nSubject: hi\r\n\r\nBody`
         );
-        assert.strictEqual(email.from!.address, 'attacker@evil.example', `spoofed via ${JSON.stringify(chr)}`);
-        assert.strictEqual(email.headers.length, 4);
-        assert.ok(email.headers.some(h => h.key === `${chr}from`));
-        assert.strictEqual(email.headers.filter(h => h.key === 'from').length, 1);
+        assert.strictEqual(email.from, undefined, `spoofed via ${JSON.stringify(chr)}`);
+        assert.deepStrictEqual(
+            email.headers.map(h => h.key),
+            ['received']
+        );
+        // includes rather than startsWith, since the UTF-8 decoder drops a leading BOM
+        assert.ok(email.text!.includes('From: security@paypal.example\nFrom: attacker@evil.example\n'));
     }
 });
 
@@ -88,9 +94,13 @@ test('a Content-Type cannot be smuggled in on a Unicode whitespace line', async 
             '--B\r\n Content-Type: text/html\r\nContent-Type: text/plain\r\n\r\n' +
             '<script>alert(1)</script>\r\n--B--\r\n'
     );
-    // the part is plain text, so it must not reach the caller as trusted HTML
+    // the line ends the headers of the part, so the part is plain text holding both
+    // lines, and it must not reach the caller as trusted HTML
     assert.strictEqual(email.html, undefined);
-    assert.strictEqual(email.text!.trim(), '<script>alert(1)</script>');
+    assert.strictEqual(
+        email.text,
+        ' Content-Type: text/html\nContent-Type: text/plain\n\n<script>alert(1)</script>'
+    );
 });
 
 test('a field name keeps the SP and HTAB around it', async () => {
@@ -156,6 +166,71 @@ test('a bare CR does not survive into a header value', async () => {
     assert.ok(!email.subject!.includes('\r'));
     assert.strictEqual(email.subject, 'hello Bcc: victim@example.com');
     assert.strictEqual(email.bcc, undefined);
+});
+
+// End of the header block
+
+test('a line that is neither a field nor a fold ends the headers', async () => {
+    // Python reads such a line as the first line of a text/plain body and Go rejects the
+    // message, so a Content-Type behind it was honoured here alone
+    const email = await PostalMime.parse(
+        'Subject: x\r\njunk line\r\nContent-Type: text/html\r\n\r\n<script>alert(1)</script>\r\n'
+    );
+    assert.strictEqual(email.subject, 'x');
+    assert.deepStrictEqual(
+        email.headers.map(h => h.key),
+        ['subject']
+    );
+    assert.strictEqual(email.html, undefined);
+    assert.strictEqual(email.text, 'junk line\nContent-Type: text/html\n\n<script>alert(1)</script>\n');
+});
+
+test('a From behind a line that is not a field is body text', async () => {
+    const email = await PostalMime.parse('Subject: x\r\nnot a header\r\nFrom: evil@example.com\r\n\r\nbody');
+    assert.strictEqual(email.from, undefined);
+    assert.ok(email.text!.startsWith('not a header\nFrom: evil@example.com\n'));
+});
+
+test('a byte order mark in front of the first field name ends the headers', async () => {
+    // Python has no headers for such a message at all, Go and mailparser read the From
+    const email = await PostalMime.parse('﻿X-Foo: bar\r\nFrom: evil@example.com\r\n\r\nbody');
+    assert.strictEqual(email.headers.length, 0);
+    assert.strictEqual(email.from, undefined);
+    assert.ok(email.text!.includes('X-Foo: bar\nFrom: evil@example.com\n\nbody\n'));
+});
+
+test('a header wrapped without folding whitespace ends the headers at the wrap', async () => {
+    // the continuation is no field, so it starts the body, as Python reads it
+    const email = await PostalMime.parse('Subject: a long\r\nsubject\r\nX-After: 1\r\n\r\nbody');
+    assert.strictEqual(email.subject, 'a long');
+    assert.ok(!email.headers.some(h => h.key === 'x-after'));
+    assert.strictEqual(email.text, 'subject\nX-After: 1\n\nbody\n');
+});
+
+test('an empty field name, a space before the colon and an mbox From line stay headers', async () => {
+    // the shapes Python's header pattern lets through, with the `From :` that Go and
+    // mailparser tolerate as well
+    const email = await PostalMime.parse(
+        'From sender@example.com Mon Jan  1 00:00:00 2024\r\n' +
+            'Subject: x\r\n' +
+            ': empty name\r\n' +
+            'X-Spaced : 1\r\n' +
+            'Content-Type: text/html\r\n\r\n<p>html</p>'
+    );
+    assert.strictEqual(email.subject, 'x');
+    assert.deepStrictEqual(
+        email.headers.map(h => h.key),
+        ['from sender@example.com mon jan  1 00', 'subject', '', 'x-spaced ', 'content-type']
+    );
+    assert.strictEqual(email.from, undefined);
+    assert.strictEqual(email.html, '<p>html</p>\n');
+});
+
+test('a whitespace-only line stays a fold when a field follows it', async () => {
+    const email = await PostalMime.parse('Subject: a\r\n \t\r\nX-After: 1\r\n\r\nbody');
+    assert.strictEqual(email.subject, 'a');
+    assert.ok(email.headers.some(h => h.key === 'x-after'));
+    assert.strictEqual(email.text, 'body\n');
 });
 
 // Header order and duplicate headers
