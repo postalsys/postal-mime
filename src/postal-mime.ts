@@ -137,13 +137,13 @@ function countAddresses(addresses: Address[] | Address | undefined): number {
 // every `size > limit` comparison against such a value is false. Callers that
 // forward a request supplied options object would otherwise hand an attacker a way
 // to turn the limits off.
-function parseLimitOption(value: unknown, defaultValue: number, name: string): number {
+function parseLimitOption(value: unknown, defaultValue: number, name: string, min = 0): number {
     if (value === undefined || value === null) {
         return defaultValue;
     }
 
-    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
-        throw createError('EINVALIDOPTION', `${name} must be a non-negative integer`);
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < min) {
+        throw createError('EINVALIDOPTION', `${name} must be a ${min ? 'positive' : 'non-negative'} integer`);
     }
 
     return value;
@@ -153,7 +153,10 @@ function parseLimits(options: PostalMimeOptions): Limits {
     return {
         maxNestingDepth: parseLimitOption(options.maxNestingDepth, MAX_NESTING_DEPTH, 'maxNestingDepth'),
         maxHeadersSize: parseLimitOption(options.maxHeadersSize, MAX_HEADERS_SIZE, 'maxHeadersSize'),
-        maxPartCount: parseLimitOption(options.maxPartCount, MAX_PART_COUNT, 'maxPartCount'),
+        // The root part is always counted, so a limit of zero can parse nothing, not even
+        // an empty message, and it threw EMAXPARTCOUNT from the constructor, where only
+        // EINVALIDOPTION is thrown
+        maxPartCount: parseLimitOption(options.maxPartCount, MAX_PART_COUNT, 'maxPartCount', 1),
         // A limit of 0 disables inline parsing entirely, so every message/rfc822 part
         // becomes an attachment.
         maxRfc822NestingDepth: parseLimitOption(

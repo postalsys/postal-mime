@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import PostalMime from '../src/postal-mime.js';
-import type { ErrorCode, PostalMimeOptions, RawEmail } from '../src/postal-mime.js';
+import type { ErrorCode, PostalMimeError, PostalMimeOptions, RawEmail } from '../src/postal-mime.js';
 
 const simple = 'Subject: test\r\n\r\nbody';
 
@@ -122,4 +122,14 @@ test('Errors - resource limits have their own codes', async () => {
     // the same messages parse within the limits
     await PostalMime.parse(nestMultipart(3), { maxNestingDepth: 3, maxPartCount: 4 });
     await PostalMime.parse(forward, { maxForwardedAddresses: 3 });
+});
+
+test('Errors - a maxPartCount of zero is an invalid option', () => {
+    // The root part is always counted, so zero can parse nothing. It used to throw
+    // EMAXPARTCOUNT from the constructor, where only EINVALIDOPTION is thrown
+    assert.throws(
+        () => new PostalMime({ maxPartCount: 0 }),
+        (err: PostalMimeError) => err.code === 'EINVALIDOPTION' && err instanceof TypeError
+    );
+    assert.doesNotThrow(() => new PostalMime({ maxPartCount: 1 }));
 });
