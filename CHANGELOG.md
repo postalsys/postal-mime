@@ -1,5 +1,22 @@
 # Changelog
 
+## [4.1.4](https://github.com/postalsys/postal-mime/compare/v4.1.3...v4.1.4) (2026-10-22)
+
+
+### Bug Fixes
+
+* end the header block at the first line that is neither a field nor a fold ([0018555](https://github.com/postalsys/postal-mime/commit/0018555e127262cafe255e706404c7df8efc2e55))
+* honour only the utf-16 charset labels Python or iconv-lite decode ([4d96a49](https://github.com/postalsys/postal-mime/commit/4d96a49c91cba1bc0b663e36c81d6d9489fbc860))
+* honour only the utf-16 charset labels that Python and iconv-lite both decode ([afbe5a9](https://github.com/postalsys/postal-mime/commit/afbe5a95e935670b2dbf59a0a8bbf5337a9aec07))
+* keep a base64 or quoted-printable message/rfc822 part as an attachment ([0e0582e](https://github.com/postalsys/postal-mime/commit/0e0582e2251ea9397df94c94c7191415f91dba25))
+* percent encode a mailto address in runs instead of one character at a time ([dd73f5c](https://github.com/postalsys/postal-mime/commit/dd73f5c9a3e0e6c8ff5fdceeac1a6d4236a52c98))
+* percent encode the mailto address in the demo ([7da508e](https://github.com/postalsys/postal-mime/commit/7da508e675d318b4ae510c07479fa090be601e2d))
+* read a multipart whose boundary holds a non-ASCII character as text/plain ([a7d4dad](https://github.com/postalsys/postal-mime/commit/a7d4dad9cb147c9da607e0bbe5bbfc4cc3ee72bf))
+* read the transfer encoding token from the start of the value only ([e66830a](https://github.com/postalsys/postal-mime/commit/e66830a20485d0468b31115c40b9dc5a73cb24c0))
+* reject a maxPartCount of zero as an invalid option ([35bde9d](https://github.com/postalsys/postal-mime/commit/35bde9dfc8cac75eba89c0c6b8fe62d37dab0079))
+* render the dates of forwarded headers with one shared formatter ([ca27168](https://github.com/postalsys/postal-mime/commit/ca2716898fac5d0dd4a576b167ec192d76956425))
+* unfold format=flowed text in a text/plain part only ([336378a](https://github.com/postalsys/postal-mime/commit/336378a220829f7ebdd8cfbe8a5063450b375590))
+
 ## [4.1.3](https://github.com/postalsys/postal-mime/compare/v4.1.2...v4.1.3) (2026-10-21)
 
 
