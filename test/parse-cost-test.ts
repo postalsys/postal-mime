@@ -286,7 +286,7 @@ test('html parts with unclosed tags are converted to text in linear time', async
 });
 
 test('TextDecoder accepts no charset label that is missing from the WHATWG list', () => {
-    assert.strictEqual(ENCODING_LABELS.size, 228);
+    assert.strictEqual(ENCODING_LABELS.size, 223);
 
     const accepts = (label: string): boolean => {
         try {
@@ -330,5 +330,12 @@ test('TextDecoder accepts no charset label that is missing from the WHATWG list'
 
     for (const label of ['iso-2022-kr', 'hz-gb-2312', 'replacement']) {
         assert.strictEqual(accepts(label), false, label);
+    }
+
+    // the UTF-16 labels left out on purpose, see ENCODING_LABELS: the runtime takes them,
+    // the list does not, so they fall back like an unknown label
+    for (const label of ['unicode', 'csunicode', 'iso-10646-ucs-2', 'unicodefeff', 'unicodefffe']) {
+        assert.strictEqual(accepts(label), true, label);
+        assert.strictEqual(ENCODING_LABELS.has(label), false, label);
     }
 });

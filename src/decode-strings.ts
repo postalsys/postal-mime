@@ -115,12 +115,19 @@ function normalizeCharset(charset: string): string {
     return charset.replace(/^(?:x-ms-|x-|cs)/, '').replace(/[\s._-]+/g, '');
 }
 
-// Every label of the WHATWG Encoding Standard, https://encoding.spec.whatwg.org/encodings.json
+// Every label of the WHATWG Encoding Standard, https://encoding.spec.whatwg.org/encodings.json,
+// but for the UTF-16 labels named below.
 //
 // TextDecoder accepts these and nothing else, so a label outside the list is turned away
 // without constructing a decoder for it. Letting the constructor throw instead costs
 // several times the decode itself, and a message controls how often it happens: once
 // per encoded word, twice when the label also fails after normalization.
+//
+// The standard also reads `unicode`, `csunicode`, `iso-10646-ucs-2` and `unicodefeff` as
+// UTF-16LE and `unicodefffe` as UTF-16BE. Neither Python nor iconv-lite knows any of
+// them, so a scanner built on either reads the bytes under such a label as single byte
+// text, NUL interleaved and inert, while they decoded to markup here. They are left out
+// and fall back like any unknown label, see UTF16_PLAIN_LABELS for the spellings kept.
 export const ENCODING_LABELS = new Set(
     [
         // UTF-8
@@ -204,9 +211,9 @@ export const ENCODING_LABELS = new Set(
         // replacement
         'csiso2022kr hz-gb-2312 iso-2022-cn iso-2022-cn-ext iso-2022-kr replacement',
         // UTF-16BE
-        'unicodefffe utf-16be',
+        'utf-16be',
         // UTF-16LE
-        'csunicode iso-10646-ucs-2 ucs-2 unicode unicodefeff utf-16 utf-16le',
+        'ucs-2 utf-16 utf-16le',
         // x-user-defined
         'x-user-defined'
     ]
@@ -239,6 +246,17 @@ const replacementDecoder: Decoder = {
     decode: input => (input && input.byteLength ? '�' : '')
 };
 
+// The spellings of the UTF-16 labels without their hyphen, which Python (`utf16` and
+// `utf_16`) or iconv-lite (all of them) decode. Matched as written only: normalization
+// would also bring `x-utf16` here, a label known to neither
+const UTF16_PLAIN_LABELS = new Map<string, string>([
+    ['utf16', 'utf-16'],
+    ['utf_16', 'utf-16'],
+    ['utf16le', 'utf-16le'],
+    ['utf16be', 'utf-16be'],
+    ['ucs2', 'ucs-2']
+]);
+
 /**
  * The label of the Encoding Standard a charset resolves to, as written or through the
  * alias tables, or null when it names no encoding the standard lists
@@ -250,6 +268,11 @@ function resolveLabel(charset?: string | null): string | null {
     // lists instead of shadowing it
     if (ENCODING_LABELS.has(charset)) {
         return charset;
+    }
+
+    const utf16 = UTF16_PLAIN_LABELS.get(charset);
+    if (utf16) {
+        return utf16;
     }
 
     const normalized = normalizeCharset(charset);
@@ -309,12 +332,11 @@ const UTF16_ENCODINGS = new Set(['utf-16le', 'utf-16be']);
 
 // The labels of UTF-16 that leave the byte order to the bytes, which a byte order mark
 // then decides, as it does for Python's utf-16 codec and for iconv-lite. The labels that
-// name the order, utf-16le, utf-16be, unicodefeff and unicodefffe, are read as they say
-// whatever mark the bytes carry, and no label honours a UTF-8 mark. The Encoding Standard
-// lets any mark override any label, but Python and mailparser do not, and following it
-// here rendered as markup under charset=utf-16be a body that a scanner built on either
-// reads as CJK text.
-const UTF16_UNORDERED_LABELS = new Set(['utf-16', 'ucs-2', 'unicode', 'csunicode', 'iso-10646-ucs-2']);
+// name the order, utf-16le and utf-16be, are read as they say whatever mark the bytes
+// carry, and no label honours a UTF-8 mark. The Encoding Standard lets any mark override
+// any label, but Python and mailparser do not, and following it here rendered as markup
+// under charset=utf-16be a body that a scanner built on either reads as CJK text.
+const UTF16_UNORDERED_LABELS = new Set(['utf-16', 'ucs-2']);
 
 /**
  * The byte order a UTF-16 byte order mark at the start of the bytes names, or null without one

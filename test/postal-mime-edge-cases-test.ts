@@ -550,7 +550,7 @@ test('Edge case - a byte order mark decides the byte order of a utf-16 label', a
         );
     // a document under a label that leaves the byte order open, which read as little
     // endian without the mark
-    for (const label of ['utf-16', 'ucs-2', 'unicode', 'UTF-16']) {
+    for (const label of ['utf-16', 'ucs-2', 'UTF-16', 'utf16', 'utf_16', 'ucs2']) {
         assert.strictEqual((await parse(label, [0xfe, 0xff], be)).html, markup, label);
         assert.strictEqual((await parse(label, [0xff, 0xfe], le)).html, markup, label);
     }
@@ -560,7 +560,8 @@ test('Edge case - a byte order mark decides the byte order of a utf-16 label', a
     for (const [label, bom, bytes] of [
         ['utf-16le', [0xfe, 0xff], be],
         ['utf-16be', [0xff, 0xfe], le],
-        ['unicodefffe', [0xff, 0xfe], le],
+        ['utf16le', [0xfe, 0xff], be],
+        ['utf16be', [0xff, 0xfe], le],
         ['utf-16', [0xef, 0xbb, 0xbf], Buffer.from(markup)],
         ['utf-16be', [0xef, 0xbb, 0xbf], Buffer.from(markup)]
     ] as const) {
@@ -576,6 +577,44 @@ test('Edge case - a byte order mark decides the byte order of a utf-16 label', a
     // a mark does not override a single byte charset
     const latin = await parse('iso-8859-1', [0xfe, 0xff], Buffer.from('A'));
     assert.strictEqual(latin.html, 'þÿA');
+});
+
+test('Edge case - a utf-16 label neither Python nor iconv-lite knows is not utf-16', async () => {
+    // The Encoding Standard reads these as UTF-16, Python raises LookupError on every one
+    // and iconv-lite knows none, so a scanner built on either sees NUL interleaved single
+    // byte text where the markup rendered here. x-utf-16 and x-utf16 only reach a UTF-16
+    // label through the vendor prefix being stripped, which neither reader does
+    const markup = '<img src=x onerror=alert(1)>';
+    const le = Buffer.from(markup, 'utf16le');
+    const parse = (label: string, bytes: Buffer) =>
+        PostalMime.parse(
+            `Content-Type: text/html; charset=${label}\r\nContent-Transfer-Encoding: base64\r\n\r\n` +
+                bytes.toString('base64')
+        );
+
+    for (const label of [
+        'unicode',
+        'csunicode',
+        'iso-10646-ucs-2',
+        'unicodefeff',
+        'unicodefffe',
+        'x-unicode',
+        'x-utf-16',
+        'x-utf16',
+        'x-ucs2'
+    ]) {
+        const email = await parse(label, le);
+        assert.ok(!email.html!.includes('<img'), `${label}: ${email.html}`);
+        // read as single byte text, the ASCII letters are still there
+        assert.ok(email.html!.includes('i\u0000m\u0000g\u0000'), label);
+    }
+
+    // the spellings without a hyphen that Python or iconv-lite decode are UTF-16 here too
+    for (const label of ['utf16', 'utf_16', 'utf16le', 'ucs2']) {
+        assert.strictEqual((await parse(label, le)).html, markup, label);
+    }
+    const be = Buffer.from(le.map((_, i, bytes) => bytes[i ^ 1]));
+    assert.strictEqual((await parse('utf16be', be)).html, markup);
 });
 
 // Attachment Edge Cases
