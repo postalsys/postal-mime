@@ -53,26 +53,12 @@ test('a filename containing repeated spaces is preserved', async () => {
     assert.strictEqual(email.attachments[0].filename, 'my  file.txt');
 });
 
-test('only SP and HTAB continue a folded header', async () => {
-    // A line opening with U+00A0 used to be absorbed into the header above it, which
-    // hid it from both headers and headerLines. It is neither a fold nor a field, so it
-    // ends the headers, as it does for Python, and the From on it names nobody
-    for (const chr of [' ', '\u000b', '\u000c', ' ']) {
-        const email = await PostalMime.parse(
-            `X-Filler: 1\r\n${chr}From: mallory@evil.example\r\nSubject: hi\r\n\r\nBody`
-        );
-        assert.strictEqual(email.headers.length, 1, `expected 1 header for ${JSON.stringify(chr)}`);
-        assert.strictEqual(email.headerLines.length, 1);
-        assert.strictEqual(email.from, undefined);
-        assert.ok(email.text!.startsWith(`${chr}From: mallory@evil.example\n`));
-    }
-});
-
-test('a field name is not made canonical by stripping Unicode whitespace', async () => {
-    // These lines are not folds, and they are not valid headers either. Trimmed, a
-    // ` From:` line placed ahead of the genuine one became the sender, because the first
-    // occurrence of a header wins. The line ends the headers instead, as it does for
-    // Python, so neither From names the sender
+test('a line starting with Unicode whitespace is neither a fold nor a field', async () => {
+    // Only SP and HTAB continue a folded header. A line opening with U+00A0 used to be
+    // absorbed into the header above it, which hid it from both headers and headerLines,
+    // and trimmed into a field name it put a ` From:` ahead of the genuine one as the
+    // sender, since the first occurrence of a header wins. The line is no field, so it
+    // ends the headers as it does for Python, and neither From names the sender
     for (const chr of [' ', '\u000b', '\u000c', ' ', '﻿', '　', ' ']) {
         const email = await PostalMime.parse(
             `Received: from mx.example.com\r\n${chr}From: security@paypal.example\r\n` +
@@ -83,6 +69,7 @@ test('a field name is not made canonical by stripping Unicode whitespace', async
             email.headers.map(h => h.key),
             ['received']
         );
+        assert.strictEqual(email.headerLines.length, 1);
         // includes rather than startsWith, since the UTF-8 decoder drops a leading BOM
         assert.ok(email.text!.includes('From: security@paypal.example\nFrom: attacker@evil.example\n'));
     }
@@ -169,23 +156,21 @@ test('a bare CR does not survive into a header value', async () => {
 
 test('a line that is neither a field nor a fold ends the headers', async () => {
     // Python reads such a line as the first line of a text/plain body and Go rejects the
-    // message, so a Content-Type behind it was honoured here alone
+    // message, so a From or a Content-Type behind it was honoured here alone
     const email = await PostalMime.parse(
-        'Subject: x\r\njunk line\r\nContent-Type: text/html\r\n\r\n<script>alert(1)</script>\r\n'
+        'Subject: x\r\njunk line\r\nFrom: evil@example.com\r\nContent-Type: text/html\r\n\r\n<script>alert(1)</script>\r\n'
     );
     assert.strictEqual(email.subject, 'x');
+    assert.strictEqual(email.from, undefined);
     assert.deepStrictEqual(
         email.headers.map(h => h.key),
         ['subject']
     );
     assert.strictEqual(email.html, undefined);
-    assert.strictEqual(email.text, 'junk line\nContent-Type: text/html\n\n<script>alert(1)</script>\n');
-});
-
-test('a From behind a line that is not a field is body text', async () => {
-    const email = await PostalMime.parse('Subject: x\r\nnot a header\r\nFrom: evil@example.com\r\n\r\nbody');
-    assert.strictEqual(email.from, undefined);
-    assert.ok(email.text!.startsWith('not a header\nFrom: evil@example.com\n'));
+    assert.strictEqual(
+        email.text,
+        'junk line\nFrom: evil@example.com\nContent-Type: text/html\n\n<script>alert(1)</script>\n'
+    );
 });
 
 test('a byte order mark in front of the first field name ends the headers', async () => {

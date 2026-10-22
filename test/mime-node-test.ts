@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import PostalMime from '../src/postal-mime.js';
 import type { PostalMimeOptions } from '../src/postal-mime.js';
+import { attachmentBytes } from './helpers.js';
 
 // MIME Node Header Parsing Tests
 test('MimeNode - parse simple headers', async () => {
@@ -755,17 +756,15 @@ test('MimeNode - a base64 or quoted-printable message/rfc822 part is an attachme
     const base64 = Buffer.from(inner).toString('base64');
     const quotedPrintable = inner.replace(/=/g, '=3D');
 
-    for (const [name, encoding, body] of [
-        ['base64', 'base64', base64],
-        ['quoted-printable', 'quoted-printable', quotedPrintable],
+    for (const [name, subtype, contentType, encoding, body] of [
+        ['base64', 'mixed', 'Content-Type: message/rfc822\r\n', 'base64', base64],
+        ['quoted-printable', 'mixed', 'Content-Type: message/rfc822\r\n', 'quoted-printable', quotedPrintable],
         // a part of a multipart/digest is a message/rfc822 without saying so
-        ['digest', 'base64', base64]
+        ['digest', 'digest', '', 'base64', base64]
     ] as const) {
-        const mail =
-            name === 'digest'
-                ? `Content-Type: multipart/digest; boundary=B\r\n\r\n--B\r\nContent-Transfer-Encoding: ${encoding}\r\n\r\n${body}\r\n--B--\r\n`
-                : `Content-Type: multipart/mixed; boundary=B\r\n\r\n--B\r\nContent-Type: message/rfc822\r\nContent-Transfer-Encoding: ${encoding}\r\n\r\n${body}\r\n--B--\r\n`;
-        const email = await PostalMime.parse(mail);
+        const email = await PostalMime.parse(
+            `Content-Type: multipart/${subtype}; boundary=B\r\n\r\n--B\r\n${contentType}Content-Transfer-Encoding: ${encoding}\r\n\r\n${body}\r\n--B--\r\n`
+        );
 
         assert.strictEqual(email.html, undefined, name);
         assert.strictEqual(email.text, undefined, name);
@@ -773,7 +772,7 @@ test('MimeNode - a base64 or quoted-printable message/rfc822 part is an attachme
         assert.strictEqual(email.attachments[0].mimeType, 'message/rfc822', name);
         assert.strictEqual(email.attachments[0].filename, null, name);
         // the content is the decoded message, so a consumer can parse it on purpose
-        assert.strictEqual(Buffer.from(email.attachments[0].content as ArrayBuffer).toString(), inner, name);
+        assert.strictEqual(attachmentBytes(email.attachments[0]).toString(), inner, name);
     }
 
     // the identity encodings keep the part inline

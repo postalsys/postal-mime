@@ -550,44 +550,46 @@ test('Edge case - a charset of the replacement encoding decodes to the replaceme
     assert.strictEqual(empty.text, undefined);
 });
 
+// a utf-16 document in both byte orders, and a parse of it under a charset label, as
+// base64 so that no line break of the transport is appended
+const UTF16_MARKUP = '<img src=x onerror=alert(1)>';
+const UTF16_LE = Buffer.from(UTF16_MARKUP, 'utf16le');
+const UTF16_BE = Buffer.from(UTF16_LE).swap16();
+const parseUtf16 = (label: string, bytes: Buffer, bom: readonly number[] = []) =>
+    PostalMime.parse(
+        `Content-Type: text/html; charset=${label}\r\nContent-Transfer-Encoding: base64\r\n\r\n` +
+            Buffer.concat([Buffer.from(bom), bytes]).toString('base64')
+    );
+
 test('Edge case - a byte order mark decides the byte order of a utf-16 label', async () => {
-    const markup = '<img src=x onerror=alert(1)>';
-    const le = Buffer.from(markup, 'utf16le');
-    const be = Buffer.from(le.map((_, i, bytes) => bytes[i ^ 1]));
-    // base64, as a utf-16 body travels, so that no line break of the transport is appended
-    const parse = (label: string, bom: readonly number[], bytes: Buffer) =>
-        PostalMime.parse(
-            `Content-Type: text/html; charset=${label}\r\nContent-Transfer-Encoding: base64\r\n\r\n` +
-                Buffer.concat([Buffer.from(bom), bytes]).toString('base64')
-        );
     // a document under a label that leaves the byte order open, which read as little
     // endian without the mark
     for (const label of ['utf-16', 'ucs-2', 'UTF-16', 'utf16', 'utf_16', 'ucs2']) {
-        assert.strictEqual((await parse(label, [0xfe, 0xff], be)).html, markup, label);
-        assert.strictEqual((await parse(label, [0xff, 0xfe], le)).html, markup, label);
+        assert.strictEqual((await parseUtf16(label, UTF16_BE, [0xfe, 0xff])).html, UTF16_MARKUP, label);
+        assert.strictEqual((await parseUtf16(label, UTF16_LE, [0xff, 0xfe])).html, UTF16_MARKUP, label);
     }
     // A label that names the order is read as it says, as Python and mailparser read it,
     // and no label honours a UTF-8 mark. A scanner built on either sees CJK text in these,
     // so none of them may be markup here
     for (const [label, bom, bytes] of [
-        ['utf-16le', [0xfe, 0xff], be],
-        ['utf-16be', [0xff, 0xfe], le],
-        ['utf16le', [0xfe, 0xff], be],
-        ['utf16be', [0xff, 0xfe], le],
-        ['utf-16', [0xef, 0xbb, 0xbf], Buffer.from(markup)],
-        ['utf-16be', [0xef, 0xbb, 0xbf], Buffer.from(markup)]
+        ['utf-16le', [0xfe, 0xff], UTF16_BE],
+        ['utf-16be', [0xff, 0xfe], UTF16_LE],
+        ['utf16le', [0xfe, 0xff], UTF16_BE],
+        ['utf16be', [0xff, 0xfe], UTF16_LE],
+        ['utf-16', [0xef, 0xbb, 0xbf], Buffer.from(UTF16_MARKUP)],
+        ['utf-16be', [0xef, 0xbb, 0xbf], Buffer.from(UTF16_MARKUP)]
     ] as const) {
-        const email = await parse(label, bom, bytes);
+        const email = await parseUtf16(label, bytes, bom);
         assert.ok(
             !email.html!.includes('<img'),
             `${label} with ${bom.map(b => b.toString(16)).join(' ')}: ${email.html}`
         );
     }
     // without a mark the label decides, as before
-    assert.strictEqual((await parse('utf-16', [], le)).html, markup);
-    assert.strictEqual((await parse('utf-16be', [], be)).html, markup);
+    assert.strictEqual((await parseUtf16('utf-16', UTF16_LE)).html, UTF16_MARKUP);
+    assert.strictEqual((await parseUtf16('utf-16be', UTF16_BE)).html, UTF16_MARKUP);
     // a mark does not override a single byte charset
-    const latin = await parse('iso-8859-1', [0xfe, 0xff], Buffer.from('A'));
+    const latin = await parseUtf16('iso-8859-1', Buffer.from('A'), [0xfe, 0xff]);
     assert.strictEqual(latin.html, 'þÿA');
 });
 
@@ -596,14 +598,6 @@ test('Edge case - a utf-16 label neither Python nor iconv-lite knows is not utf-
     // and iconv-lite knows none, so a scanner built on either sees NUL interleaved single
     // byte text where the markup rendered here. x-utf-16 and x-utf16 only reach a UTF-16
     // label through the vendor prefix being stripped, which neither reader does
-    const markup = '<img src=x onerror=alert(1)>';
-    const le = Buffer.from(markup, 'utf16le');
-    const parse = (label: string, bytes: Buffer) =>
-        PostalMime.parse(
-            `Content-Type: text/html; charset=${label}\r\nContent-Transfer-Encoding: base64\r\n\r\n` +
-                bytes.toString('base64')
-        );
-
     for (const label of [
         'unicode',
         'csunicode',
@@ -615,18 +609,11 @@ test('Edge case - a utf-16 label neither Python nor iconv-lite knows is not utf-
         'x-utf16',
         'x-ucs2'
     ]) {
-        const email = await parse(label, le);
+        const email = await parseUtf16(label, UTF16_LE);
         assert.ok(!email.html!.includes('<img'), `${label}: ${email.html}`);
         // read as single byte text, the ASCII letters are still there
         assert.ok(email.html!.includes('i\u0000m\u0000g\u0000'), label);
     }
-
-    // the spellings without a hyphen that Python or iconv-lite decode are UTF-16 here too
-    for (const label of ['utf16', 'utf_16', 'utf16le', 'ucs2']) {
-        assert.strictEqual((await parse(label, le)).html, markup, label);
-    }
-    const be = Buffer.from(le.map((_, i, bytes) => bytes[i ^ 1]));
-    assert.strictEqual((await parse('utf16be', be)).html, markup);
 });
 
 // Attachment Edge Cases
