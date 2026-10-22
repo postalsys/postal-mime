@@ -225,6 +225,34 @@ export const SHAPES: Shape[] = [
             ])
     },
     {
+        // A dated forward renders its header block in both forms, and a date formatter per
+        // header held ICU state off the V8 heap that no heap limit saw
+        name: 'dated inline forwards',
+        size: 100,
+        max: MAX_FORWARDS,
+        build: n =>
+            mixed([
+                headers(['Content-Type: text/html']) + '<p>hi</p>',
+                ...Array<string>(n).fill(
+                    headers(['Content-Type: message/rfc822']) +
+                        headers(['Subject: s', 'Date: Mon, 1 Jan 2024 00:00:00 +0000']) +
+                        'body'
+                )
+            ])
+    },
+    {
+        // every character of the address is percent encoded into the mailto href
+        name: 'a long percent-encoded address in an inline forward',
+        size: 1000,
+        build: n =>
+            mixed([
+                headers(['Content-Type: text/html']) + '<p>hi</p>',
+                headers(['Content-Type: message/rfc822']) +
+                    headers(['Subject: s', 'To: <' + '%'.repeat(n) + '@b>', 'Content-Type: text/plain']) +
+                    'leaf'
+            ])
+    },
+    {
         name: 'a chain of nested forwards with long subjects',
         size: 1000,
         build: n => {
