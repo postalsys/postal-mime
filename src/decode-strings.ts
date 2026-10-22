@@ -236,26 +236,23 @@ const replacementDecoder: Decoder = {
     decode: input => (input && input.byteLength ? '�' : '')
 };
 
-// The UTF-16 labels honoured and the label of the standard each stands for: those of
-// the standard that Python or iconv-lite decode as well, and the spellings without the
-// hyphen that one of the two knows (Python `utf16` and `utf_16`, iconv-lite all of them).
-// Matched as written only, never after normalization: `x-utf16` is known to neither.
+// The UTF-16 labels honoured and the label of the standard each stands for: the spellings
+// that Python and iconv-lite both decode, and nothing else. Matched as written only, never
+// after normalization: `x-utf16` is known to neither.
 //
-// The standard also reads `unicode`, `csunicode`, `iso-10646-ucs-2` and `unicodefeff` as
-// UTF-16LE and `unicodefffe` as UTF-16BE. Neither Python nor iconv-lite knows any of
-// them, so a scanner built on either reads the bytes under such a label as single byte
-// text, NUL interleaved and inert, while they decoded to markup here. They are left out
-// and fall back like any unknown label.
+// A label that one of the two reads and the other does not is the split this table
+// exists to close: under it a scanner built on the other reads the bytes as single byte
+// text, NUL interleaved and inert, where they decoded to markup here. So the standard's
+// `unicode`, `csunicode`, `iso-10646-ucs-2`, `unicodefeff` and `unicodefffe`, which
+// neither knows, are out, and so are `ucs-2`, `ucs2`, `utf16le` and `utf16be`, which
+// iconv-lite alone knows (and `ucs-2` as little endian whatever mark the bytes carry).
+// They all fall back like any unknown label.
 const UTF16_LABELS = new Map<string, string>([
     ['utf-16', 'utf-16'],
     ['utf16', 'utf-16'],
     ['utf_16', 'utf-16'],
     ['utf-16le', 'utf-16le'],
-    ['utf16le', 'utf-16le'],
-    ['utf-16be', 'utf-16be'],
-    ['utf16be', 'utf-16be'],
-    ['ucs-2', 'ucs-2'],
-    ['ucs2', 'ucs-2']
+    ['utf-16be', 'utf-16be']
 ]);
 
 /**
@@ -331,13 +328,13 @@ export function getDecoder(charset?: string | null): Decoder {
 
 const UTF16_ENCODINGS = new Set(['utf-16le', 'utf-16be']);
 
-// The labels of UTF-16 that leave the byte order to the bytes, which a byte order mark
+// The label of UTF-16 that leaves the byte order to the bytes, which a byte order mark
 // then decides, as it does for Python's utf-16 codec and for iconv-lite. The labels that
 // name the order, utf-16le and utf-16be, are read as they say whatever mark the bytes
 // carry, and no label honours a UTF-8 mark. The Encoding Standard lets any mark override
 // any label, but Python and mailparser do not, and following it here rendered as markup
 // under charset=utf-16be a body that a scanner built on either reads as CJK text.
-const UTF16_UNORDERED_LABELS = new Set(['utf-16', 'ucs-2']);
+const UTF16_UNORDERED_LABELS = new Set(['utf-16']);
 
 /**
  * The byte order a UTF-16 byte order mark at the start of the bytes names, or null without one

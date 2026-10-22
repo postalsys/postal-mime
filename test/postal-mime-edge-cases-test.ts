@@ -564,7 +564,7 @@ const parseUtf16 = (label: string, bytes: Buffer, bom: readonly number[] = []) =
 test('Edge case - a byte order mark decides the byte order of a utf-16 label', async () => {
     // a document under a label that leaves the byte order open, which read as little
     // endian without the mark
-    for (const label of ['utf-16', 'ucs-2', 'UTF-16', 'utf16', 'utf_16', 'ucs2']) {
+    for (const label of ['utf-16', 'UTF-16', 'utf16', 'utf_16']) {
         assert.strictEqual((await parseUtf16(label, UTF16_BE, [0xfe, 0xff])).html, UTF16_MARKUP, label);
         assert.strictEqual((await parseUtf16(label, UTF16_LE, [0xff, 0xfe])).html, UTF16_MARKUP, label);
     }
@@ -574,8 +574,6 @@ test('Edge case - a byte order mark decides the byte order of a utf-16 label', a
     for (const [label, bom, bytes] of [
         ['utf-16le', [0xfe, 0xff], UTF16_BE],
         ['utf-16be', [0xff, 0xfe], UTF16_LE],
-        ['utf16le', [0xfe, 0xff], UTF16_BE],
-        ['utf16be', [0xff, 0xfe], UTF16_LE],
         ['utf-16', [0xef, 0xbb, 0xbf], Buffer.from(UTF16_MARKUP)],
         ['utf-16be', [0xef, 0xbb, 0xbf], Buffer.from(UTF16_MARKUP)]
     ] as const) {
@@ -593,9 +591,11 @@ test('Edge case - a byte order mark decides the byte order of a utf-16 label', a
     assert.strictEqual(latin.html, 'þÿA');
 });
 
-test('Edge case - a utf-16 label neither Python nor iconv-lite knows is not utf-16', async () => {
-    // The Encoding Standard reads these as UTF-16, Python raises LookupError on every one
-    // and iconv-lite knows none, so a scanner built on either sees NUL interleaved single
+test('Edge case - a utf-16 label Python and iconv-lite do not both know is not utf-16', async () => {
+    // The Encoding Standard reads the first five as UTF-16 and Python raises LookupError
+    // on every one of them, as it does on ucs-2, ucs2, utf16le and utf16be, which
+    // iconv-lite alone knows, and ucs-2 as little endian whatever mark the bytes carry.
+    // Under any of them a scanner built on one of the two sees NUL interleaved single
     // byte text where the markup rendered here. x-utf-16 and x-utf16 only reach a UTF-16
     // label through the vendor prefix being stripped, which neither reader does
     for (const label of [
@@ -604,6 +604,10 @@ test('Edge case - a utf-16 label neither Python nor iconv-lite knows is not utf-
         'iso-10646-ucs-2',
         'unicodefeff',
         'unicodefffe',
+        'ucs-2',
+        'ucs2',
+        'utf16le',
+        'utf16be',
         'x-unicode',
         'x-utf-16',
         'x-utf16',

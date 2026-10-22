@@ -346,7 +346,7 @@ The limit options must be non-negative integers, and `maxPartCount` a positive o
 > - `format=flowed` is unfolded in `text/plain` parts only.
 > - A multipart whose `boundary` holds a non-ASCII character has no parts: its body is read as plain text, like that of a multipart without a boundary.
 > - The `Content-Transfer-Encoding` is the token at the start of the value, so `(comment) base64` and `base64 x` decode and a quoted `"base64"` does not.
-> - The UTF-16 charsets honoured are `utf-16`, `utf-16le`, `utf-16be` and `ucs-2`, with or without the hyphen. The labels `unicode`, `csunicode`, `iso-10646-ucs-2`, `unicodefeff` and `unicodefffe` fall back like an unknown charset, because neither Python nor iconv-lite knows them. A byte order mark decides the byte order under `utf-16` and `ucs-2` only.
+> - The UTF-16 charset labels honoured are the ones Python and iconv-lite both decode: `utf-16`, `utf16`, `utf_16`, `utf-16le` and `utf-16be`. The labels `unicode`, `csunicode`, `iso-10646-ucs-2`, `unicodefeff` and `unicodefffe`, which neither knows, and `ucs-2`, `ucs2`, `utf16le` and `utf16be`, which only iconv-lite knows, fall back like an unknown charset. A byte order mark decides the byte order under `utf-16` only.
 
 **Returns**: A Promise that resolves to a structured `Email` object with the following properties:
 

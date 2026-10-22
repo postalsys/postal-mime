@@ -334,7 +334,7 @@ test('TextDecoder accepts no charset label that is missing from the WHATWG list'
 
     // The UTF-16 family is resolved by a table of its own, as written only, see
     // UTF16_LABELS: the runtime takes every one of these, the list holds none. The first
-    // four resolve through that table, the rest fall back like an unknown label
+    // three resolve through that table, the rest fall back like an unknown label
     for (const label of [
         'utf-16',
         'utf-16le',
