@@ -447,6 +447,52 @@ test('Edge case - trailing whitespace of a boundary parameter is not part of it'
     assert.strictEqual(email.text, '--\ntext\n');
 });
 
+test('Edge case - a boundary holding a non-ASCII character is no boundary', async () => {
+    // RFC 2046 bchars are ASCII, and Python matches no line against such a boundary. A
+    // header line that is not UTF-8 is read as windows-1252 and the boundary re-encoded
+    // as UTF-8, so `boundary="ab\xE9cd"` matched lines of `--ab\xC3\xA9cd` that Python
+    // and Go never find, and with \xE9 on both sides nothing matched and the body was
+    // dropped without a trace
+    const parts = (boundary: Buffer): Buffer =>
+        Buffer.concat([
+            Buffer.from('--'),
+            boundary,
+            Buffer.from('\r\nContent-Type: text/html\r\n\r\n<script>alert(1)</script>\r\n--'),
+            boundary,
+            Buffer.from('\r\nContent-Type: application/octet-stream; name=x.exe\r\n\r\nMZ\r\n--'),
+            boundary,
+            Buffer.from('--\r\n')
+        ]);
+    const message = (header: Buffer, body: Buffer): Buffer =>
+        Buffer.concat([
+            Buffer.from('Content-Type: multipart/mixed; boundary="'),
+            header,
+            Buffer.from('"\r\n\r\n'),
+            parts(body)
+        ]);
+    const latin1 = Buffer.from([0x61, 0x62, 0xe9, 0x63, 0x64]);
+    const utf8 = Buffer.from('abécd');
+
+    for (const [name, header, body] of [
+        ['windows-1252 header, UTF-8 body', latin1, utf8],
+        ['windows-1252 header and body', latin1, latin1],
+        ['UTF-8 header and body', utf8, utf8]
+    ] as const) {
+        const email = await PostalMime.parse(message(header, body));
+        assert.strictEqual(email.html, undefined, name);
+        assert.strictEqual(email.attachments.length, 0, name);
+        // the body reads as plain text, as that of a multipart without a boundary does
+        assert.ok(email.text!.includes('<script>alert(1)</script>'), name);
+        assert.ok(email.text!.includes('name=x.exe'), name);
+    }
+
+    // the ASCII specials a boundary may carry still make one
+    const ascii = Buffer.from("b#$@'()+_,-./:=?");
+    const email = await PostalMime.parse(message(ascii, ascii));
+    assert.strictEqual(email.html, '<script>alert(1)</script>');
+    assert.strictEqual(email.attachments.length, 1);
+});
+
 test('Edge case - the disposition type ends at the first whitespace', async () => {
     // `attachment garbage` is an attachment to Python and mailparser, so the html is not
     // the body here either

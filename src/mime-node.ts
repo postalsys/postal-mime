@@ -688,15 +688,25 @@ export default class MimeNode {
         // written it matched no delimiter line and the whole body was dropped without a
         // trace, an attachment included. A delimiter line written with the space still
         // matches, since a boundary line may end in whitespace. trimEnd rather than
-        // trimWsp, because Python strips any whitespace here and a boundary holds no
-        // non-ASCII character in the first place
-        const boundary = this.contentType.multipart ? (this.contentType.parsed.params.boundary || '').trimEnd() : '';
+        // trimWsp, because Python strips any whitespace here.
+        //
+        // A boundary is ASCII as well (RFC 2046 5.1.1, bchars), and Python matches no line
+        // against one that is not. One holding a non-ASCII character came out of a header
+        // line decoded as windows-1252 and re-encoded as UTF-8, or was written in UTF-8 to
+        // begin with. Matched here, `boundary="ab\xE9cd"` found the parts under lines of
+        // `--ab\xC3\xA9cd` that a scanner built on Python never saw, and with the same byte
+        // on both sides nothing matched and the body was dropped without a trace. Such a
+        // boundary counts as none, so the body reads as text below
+        let boundary = this.contentType.multipart ? (this.contentType.parsed.params.boundary || '').trimEnd() : '';
+        if (/[\u0080-￿]/.test(boundary)) {
+            boundary = '';
+        }
 
         if (this.contentType.multipart && !boundary) {
-            // A multipart without the boundary RFC 2046 5.1.1 requires has no parts to find,
-            // and its body used to be dropped without a trace. RFC 2045 5.2 recommends
-            // reading an invalid Content-Type as plain text, which is also what the body of
-            // such a message usually is
+            // A multipart without the boundary RFC 2046 5.1.1 requires, or with one it does
+            // not allow, has no parts to find, and its body used to be dropped without a
+            // trace. RFC 2045 5.2 recommends reading an invalid Content-Type as plain text,
+            // which is also what the body of such a message usually is
             this.contentType.parsed.value = 'text/plain';
             this.contentType.multipart = false;
         }
