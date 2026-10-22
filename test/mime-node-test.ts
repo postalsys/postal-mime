@@ -33,6 +33,19 @@ Body`);
     assert.ok(email.text);
 });
 
+test('MimeNode - format=flowed unfolds a text/plain part only', async () => {
+    // RFC 3676 defines format=flowed for text/plain, and a browser never unfolds an html
+    // part, so `<scri \r\npt>` is no tag to it or to Python. Unfolded here under delsp=yes
+    // it became one
+    const body = '<scri \r\npt>alert(1)</scri \r\npt><a href="jav \r\nascript:x">x</a>\r\n';
+
+    const html = await PostalMime.parse(`Content-Type: text/html; format=flowed; delsp=yes\r\n\r\n${body}`);
+    assert.strictEqual(html.html, body.replace(/\r\n/g, '\n'));
+
+    const plain = await PostalMime.parse(`Content-Type: text/plain; format=flowed; delsp=yes\r\n\r\n${body}`);
+    assert.strictEqual(plain.text, '<script>alert(1)</script><a href="javascript:x">x</a>\n');
+});
+
 test('MimeNode - parse Content-Disposition header', async () => {
     const mail = Buffer.from(`Content-Type: application/pdf
 Content-Disposition: attachment; filename="test.pdf"

@@ -577,7 +577,13 @@ export default class MimeNode {
             this.contentType.parsed.value === 'text/html'
         ).replace(/\r\n/g, '\n');
 
-        if (/^flowed$/i.test(this.contentType.parsed.params.format)) {
+        // format=flowed is defined for text/plain (RFC 3676), and a browser never unfolds
+        // an html part. Unfolded here anyway, `<scri \r\npt>` under delsp=yes was joined
+        // into a tag that neither Python nor a browser given the raw bytes sees
+        if (
+            this.contentType.parsed.value === 'text/plain' &&
+            /^flowed$/i.test(this.contentType.parsed.params.format)
+        ) {
             str = this.decodeFlowedText(str, /^yes$/i.test(this.contentType.parsed.params.delsp));
         }
 
