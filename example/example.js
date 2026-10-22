@@ -47,7 +47,10 @@ function formatAddress(address) {
     const a = document.createElement('a');
     a.classList.add('email-address');
     a.textContent = address.name || `<${address.address}>`;
-    a.href = `mailto:${address.address}`;
+    // Percent encoded, as the parser encodes the addresses of forwarded headers: a `?` or
+    // `&` in the address would otherwise start the header fields of the mailto URL, so
+    // `help@bank.example?cc=evil@example` opened a compose window with a Cc the sender chose
+    a.href = 'mailto:' + encodeURIComponent(address.address).replace(/%40/g, '@');
     return a;
 }
 
