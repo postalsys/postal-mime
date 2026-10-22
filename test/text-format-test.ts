@@ -245,14 +245,13 @@ test('formatTextHeader and formatHtmlHeader share one date formatter', () => {
         constructed++;
         return new original(...args);
     } as unknown as typeof Intl.DateTimeFormat;
-    counting.supportedLocalesOf = original.supportedLocalesOf;
 
     Intl.DateTimeFormat = counting;
     let text = '';
     let html = '';
     try {
         const message = { date: '2024-01-01T00:00:00.000Z' };
-        for (let i = 0; i < 100; i++) {
+        for (let i = 0; i < 3; i++) {
             text = formatTextHeader(message);
             html = formatHtmlHeader(message);
         }

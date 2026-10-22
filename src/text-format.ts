@@ -93,48 +93,19 @@ export function escapeHtml(str: string): string {
 // as the address of a forwarded message opened a compose window with a Cc and a body the
 // sender chose once the link was clicked. Html escaping alone does not help, the browser
 // decodes the entities back before it reads the URL
-const MAILTO_SAFE = /^[A-Za-z0-9\-._~!$'()*+,;:@]$/;
+const MAILTO_UNSAFE = /[^A-Za-z0-9\-._~!$'()*+,;:@]+/g;
 
 // the percent encoded form of every byte, so that an encoded run allocates nothing per byte
 const PERCENT_ENCODED = Array.from({ length: 256 }, (_, byte) => '%' + hexByte(byte));
 
+// Each unsafe run is encoded whole and the result is built flat by replace. Appended one
+// character at a time it was a cons string of a node per character, which escapeHtml then
+// flattened: a long address of percent signs in a forwarded header held some sixty bytes
+// of heap per byte of it until then
 function encodeMailto(address: string): string {
-    // The address is copied in runs, a run of safe characters as a slice and a run of the
-    // others as the percent encoded bytes of its slice. Appended one character at a time
-    // the result was a cons string of a node per character, which escapeHtml then
-    // flattened: a long address of percent signs in a forwarded header held some sixty
-    // bytes of heap per byte of it until then
-    const parts: string[] = [];
-    let runStart = 0;
-    let runSafe = true;
-
-    const closeRun = (end: number): void => {
-        if (end === runStart) {
-            return;
-        }
-        const run = address.slice(runStart, end);
-        if (runSafe) {
-            parts.push(run);
-        } else {
-            for (const byte of textEncoder.encode(run)) {
-                parts.push(PERCENT_ENCODED[byte]);
-            }
-        }
-        runStart = end;
-    };
-
-    let pos = 0;
-    for (const chr of address) {
-        const safe = MAILTO_SAFE.test(chr);
-        if (safe !== runSafe) {
-            closeRun(pos);
-            runSafe = safe;
-        }
-        pos += chr.length;
-    }
-    closeRun(pos);
-
-    return parts.join('');
+    return address.replace(MAILTO_UNSAFE, run =>
+        Array.from(textEncoder.encode(run), byte => PERCENT_ENCODED[byte]).join('')
+    );
 }
 
 export function textToHtml(str: string): string {
