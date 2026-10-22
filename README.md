@@ -315,7 +315,7 @@ PostalMime.parse(email, options) -> Promise<Email>
     - **maxRfc822NestingDepth** (number, default: `10`): Maximum allowed recursion depth for inline `message/rfc822` sub-messages. Nested messages deeper than this are treated as regular attachments instead of being parsed inline, and the resulting attachment has `rfc822DepthExceeded: true` set. Use `0` to disable inline parsing entirely.
     - **maxForwardedAddresses** (number, default: `10000`): Maximum allowed number of From, To, Cc and Bcc addresses across all inline `message/rfc822` sub-messages, a group and each of its members counted. These addresses are rendered into the `text` and `html` of the message, so the count is shared by every level of nesting. Throws an `EMAXFORWARDEDADDRESSES` error if exceeded.
 
-The limit options must be non-negative integers. Any other value, including a numeric string, `NaN` or `Infinity`, throws an `EINVALIDOPTION` error. Passing `0` means a literal zero, not "use the default". The options are configuration: a large enough limit is as good as none, so do not pass an options object that comes from untrusted input as it is.
+The limit options must be non-negative integers, and `maxPartCount` a positive one, since the message itself is a part. Any other value, including a numeric string, `NaN` or `Infinity`, throws an `EINVALIDOPTION` error. Passing `0` means a literal zero, not "use the default". The options are configuration: a large enough limit is as good as none, so do not pass an options object that comes from untrusted input as it is.
 
 > [!IMPORTANT]
 > The `maxNestingDepth`, `maxHeadersSize`, `maxPartCount`, `maxRfc822NestingDepth` and `maxForwardedAddresses` options provide built-in security against malicious emails with deeply nested or very wide MIME structures or oversized headers that could cause performance issues or memory exhaustion. `maxHeadersSize` and `maxPartCount` count the header bytes and the parts of every level of a message together, so a multipart cannot carry the budget again for each part it declares. Each inline `message/rfc822` sub-message is parsed by a new parser instance that continues the counts of its parent, so the limits hold for the message as a whole however many sub-messages it carries. `maxRfc822NestingDepth` bounds how deep such sub-parsers can be nested, and `maxForwardedAddresses` bounds the addresses that all of them together render into the parent.
@@ -432,15 +432,15 @@ email.attachments.forEach((att: Attachment) => {
 
 Every error the parser throws has a `code` property that identifies it. Match on `code` rather than on the message, which may change between releases. `PostalMime.parse()` reports all of them by rejecting the returned promise. `new PostalMime(options)` throws `EINVALIDOPTION` synchronously, and `parser.parse()` rejects with the rest.
 
-| Code                     | Error type  | Cause                                                                                                                                             |
-| ------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `EINVALIDOPTION`         | `TypeError` | An option has an invalid value: a limit option that is not a non-negative integer, or an unknown `attachmentEncoding`                             |
-| `EINVALIDINPUT`          | `TypeError` | The email is not of a supported type, such as a number or a plain object, or a `ReadableStream` produced a chunk that is not an `ArrayBufferView` |
-| `EPARSERREUSED`          | `Error`     | `parse()` was called a second time on the same `PostalMime` instance                                                                              |
-| `EMAXNESTINGDEPTH`       | `Error`     | MIME parts are nested deeper than `maxNestingDepth`                                                                                               |
-| `EMAXHEADERSIZE`         | `Error`     | The headers of the message are larger than `maxHeadersSize`                                                                                       |
-| `EMAXPARTCOUNT`          | `Error`     | The message has more MIME parts than `maxPartCount`                                                                                               |
-| `EMAXFORWARDEDADDRESSES` | `Error`     | Inline `message/rfc822` sub-messages hold more addresses than `maxForwardedAddresses`                                                             |
+| Code                     | Error type  | Cause                                                                                                                                                  |
+| ------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `EINVALIDOPTION`         | `TypeError` | An option has an invalid value: a limit option that is not a non-negative integer (`maxPartCount`: a positive one), or an unknown `attachmentEncoding` |
+| `EINVALIDINPUT`          | `TypeError` | The email is not of a supported type, such as a number or a plain object, or a `ReadableStream` produced a chunk that is not an `ArrayBufferView`      |
+| `EPARSERREUSED`          | `Error`     | `parse()` was called a second time on the same `PostalMime` instance                                                                                   |
+| `EMAXNESTINGDEPTH`       | `Error`     | MIME parts are nested deeper than `maxNestingDepth`                                                                                                    |
+| `EMAXHEADERSIZE`         | `Error`     | The headers of the message are larger than `maxHeadersSize`                                                                                            |
+| `EMAXPARTCOUNT`          | `Error`     | The message has more MIME parts than `maxPartCount`                                                                                                    |
+| `EMAXFORWARDEDADDRESSES` | `Error`     | Inline `message/rfc822` sub-messages hold more addresses than `maxForwardedAddresses`                                                                  |
 
 Errors without a `code` do not come from the parser itself, for example an error from the `ReadableStream` or `Blob` the email is read from, which is passed through unchanged. Malformed message content is not an error: the parser recovers from it and returns what it could read. `null`, `undefined` and an empty string parse to an empty message.
 
