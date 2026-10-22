@@ -116,18 +116,12 @@ function normalizeCharset(charset: string): string {
 }
 
 // Every label of the WHATWG Encoding Standard, https://encoding.spec.whatwg.org/encodings.json,
-// but for the UTF-16 labels named below.
+// but for the UTF-16 family, which UTF16_LABELS resolves on its own.
 //
 // TextDecoder accepts these and nothing else, so a label outside the list is turned away
 // without constructing a decoder for it. Letting the constructor throw instead costs
 // several times the decode itself, and a message controls how often it happens: once
 // per encoded word, twice when the label also fails after normalization.
-//
-// The standard also reads `unicode`, `csunicode`, `iso-10646-ucs-2` and `unicodefeff` as
-// UTF-16LE and `unicodefffe` as UTF-16BE. Neither Python nor iconv-lite knows any of
-// them, so a scanner built on either reads the bytes under such a label as single byte
-// text, NUL interleaved and inert, while they decoded to markup here. They are left out
-// and fall back like any unknown label, see UTF16_PLAIN_LABELS for the spellings kept.
 export const ENCODING_LABELS = new Set(
     [
         // UTF-8
@@ -210,10 +204,6 @@ export const ENCODING_LABELS = new Set(
         'windows-949',
         // replacement
         'csiso2022kr hz-gb-2312 iso-2022-cn iso-2022-cn-ext iso-2022-kr replacement',
-        // UTF-16BE
-        'utf-16be',
-        // UTF-16LE
-        'ucs-2 utf-16 utf-16le',
         // x-user-defined
         'x-user-defined'
     ]
@@ -246,14 +236,25 @@ const replacementDecoder: Decoder = {
     decode: input => (input && input.byteLength ? '�' : '')
 };
 
-// The spellings of the UTF-16 labels without their hyphen, which Python (`utf16` and
-// `utf_16`) or iconv-lite (all of them) decode. Matched as written only: normalization
-// would also bring `x-utf16` here, a label known to neither
-const UTF16_PLAIN_LABELS = new Map<string, string>([
+// The UTF-16 labels honoured and the label of the standard each stands for: those of
+// the standard that Python or iconv-lite decode as well, and the spellings without the
+// hyphen that one of the two knows (Python `utf16` and `utf_16`, iconv-lite all of them).
+// Matched as written only, never after normalization: `x-utf16` is known to neither.
+//
+// The standard also reads `unicode`, `csunicode`, `iso-10646-ucs-2` and `unicodefeff` as
+// UTF-16LE and `unicodefffe` as UTF-16BE. Neither Python nor iconv-lite knows any of
+// them, so a scanner built on either reads the bytes under such a label as single byte
+// text, NUL interleaved and inert, while they decoded to markup here. They are left out
+// and fall back like any unknown label.
+const UTF16_LABELS = new Map<string, string>([
+    ['utf-16', 'utf-16'],
     ['utf16', 'utf-16'],
     ['utf_16', 'utf-16'],
+    ['utf-16le', 'utf-16le'],
     ['utf16le', 'utf-16le'],
+    ['utf-16be', 'utf-16be'],
     ['utf16be', 'utf-16be'],
+    ['ucs-2', 'ucs-2'],
     ['ucs2', 'ucs-2']
 ]);
 
@@ -270,7 +271,7 @@ function resolveLabel(charset?: string | null): string | null {
         return charset;
     }
 
-    const utf16 = UTF16_PLAIN_LABELS.get(charset);
+    const utf16 = UTF16_LABELS.get(charset);
     if (utf16) {
         return utf16;
     }
