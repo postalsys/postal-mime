@@ -729,6 +729,52 @@ test('MimeNode - forceRfc822Attachments does not leak into nested parsers', asyn
     assert.strictEqual(email.attachments[0].mimeType, 'message/rfc822');
 });
 
+test('MimeNode - a base64 or quoted-printable message/rfc822 part is an attachment', async () => {
+    // RFC 2046 5.2.1 forbids both encodings for a message/rfc822 body. Python reads the
+    // encoded lines as the nested message and finds no headers, html or attachments in it,
+    // and mailparser keeps the part as one attachment, so a scanner built on either sees
+    // nothing of the message. It used to be decoded and inlined here, its html rendered
+    // and its attachments listed
+    const inner =
+        'From: inner@example.com\r\nSubject: inner\r\nContent-Type: multipart/mixed; boundary=I\r\n\r\n' +
+        '--I\r\nContent-Type: text/html\r\n\r\n<p>inner html</p>\r\n' +
+        '--I\r\nContent-Type: application/octet-stream; name=payload.exe\r\n\r\nMZ\r\n--I--\r\n';
+    const base64 = Buffer.from(inner).toString('base64');
+    const quotedPrintable = inner.replace(/=/g, '=3D');
+
+    for (const [name, encoding, body] of [
+        ['base64', 'base64', base64],
+        ['quoted-printable', 'quoted-printable', quotedPrintable],
+        // a part of a multipart/digest is a message/rfc822 without saying so
+        ['digest', 'base64', base64]
+    ] as const) {
+        const mail =
+            name === 'digest'
+                ? `Content-Type: multipart/digest; boundary=B\r\n\r\n--B\r\nContent-Transfer-Encoding: ${encoding}\r\n\r\n${body}\r\n--B--\r\n`
+                : `Content-Type: multipart/mixed; boundary=B\r\n\r\n--B\r\nContent-Type: message/rfc822\r\nContent-Transfer-Encoding: ${encoding}\r\n\r\n${body}\r\n--B--\r\n`;
+        const email = await PostalMime.parse(mail);
+
+        assert.strictEqual(email.html, undefined, name);
+        assert.strictEqual(email.text, undefined, name);
+        assert.strictEqual(email.attachments.length, 1, name);
+        assert.strictEqual(email.attachments[0].mimeType, 'message/rfc822', name);
+        assert.strictEqual(email.attachments[0].filename, null, name);
+        // the content is the decoded message, so a consumer can parse it on purpose
+        assert.strictEqual(Buffer.from(email.attachments[0].content as ArrayBuffer).toString(), inner, name);
+    }
+
+    // the identity encodings keep the part inline
+    for (const encoding of ['7bit', '8bit', 'binary', '']) {
+        const header = encoding ? `Content-Transfer-Encoding: ${encoding}\r\n` : '';
+        const email = await PostalMime.parse(
+            `Content-Type: multipart/mixed; boundary=B\r\n\r\n--B\r\nContent-Type: message/rfc822\r\n${header}\r\n${inner}\r\n--B--\r\n`
+        );
+        assert.ok(email.html!.includes('<p>inner html</p>'), encoding);
+        assert.strictEqual(email.attachments.length, 1, encoding);
+        assert.strictEqual(email.attachments[0].filename, 'payload.exe', encoding);
+    }
+});
+
 test('MimeNode - nesting limits apply inside an inline message/rfc822', async () => {
     // Each sub-message is parsed by its own parser, so the limits bound each
     // sub-message individually rather than the message as a whole.

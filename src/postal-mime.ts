@@ -579,6 +579,16 @@ export default class PostalMime {
         if (this.forceRfc822Attachments || node.contentType.parsed.value !== 'message/rfc822') {
             return false;
         }
+        // RFC 2046 5.2.1 allows no encoding but 7bit, 8bit and binary for a message/rfc822
+        // body. Python parses the lines of a base64 or quoted-printable part as they are, so
+        // the nested message it sees has no headers and holds the encoded text, and
+        // mailparser keeps the part as one attachment. Decoding and inlining it here
+        // rendered the html and listed the attachments of a message no scanner built on
+        // either reads, so such a part is an attachment, with its content decoded
+        const encoding = node.contentTransferEncoding.encoding;
+        if (encoding === 'base64' || encoding === 'quoted-printable') {
+            return false;
+        }
         let disposition =
             node.contentDisposition.parsed.value || (this.options.rfc822Attachments ? 'attachment' : 'inline');
         return disposition === 'inline';
