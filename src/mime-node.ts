@@ -62,9 +62,6 @@ const trimWsp = (str: string): string => {
     return str.slice(start, end);
 };
 
-// A line of nothing but SP and HTAB, see feed
-const isBlankLine = (line: Uint8Array): boolean => line.every(isWsp);
-
 // The start of a header field, the shape Python's header pattern reads: a field name of
 // printable ASCII other than the colon (RFC 5322 3.6.8 ftext), an empty one included, and
 // the colon itself, with the whitespace in between that processHeaders tolerates as well,
@@ -89,8 +86,6 @@ export default class MimeNode {
     depth: number;
     state: 'header' | 'body' | 'finished';
     headerLines: string[];
-    /** whether the last header line was nothing but whitespace, see feed */
-    lastLineBlank: boolean;
     contentType: { value: string; parsed: StructuredHeader; multipart: string | false };
     contentTransferEncoding: { value: string; encoding: string };
     contentDisposition: { value: string; parsed: StructuredHeader };
@@ -141,7 +136,6 @@ export default class MimeNode {
         this.state = 'header';
 
         this.headerLines = [];
-        this.lastLineBlank = false;
 
         // RFC 2046 Section 5.1.5: multipart/digest defaults to message/rfc822
         const parentMultipartType = options.parentMultipartType || null;
@@ -695,7 +689,7 @@ export default class MimeNode {
         // on both sides nothing matched and the body was dropped without a trace. Such a
         // boundary counts as none, so the body reads as text below
         let boundary = this.contentType.multipart ? (this.contentType.parsed.params.boundary || '').trimEnd() : '';
-        if (/[\u0080-￿]/.test(boundary)) {
+        if (/[^\x00-\x7f]/.test(boundary)) {
             boundary = '';
         }
 
@@ -779,22 +773,17 @@ export default class MimeNode {
                 // or a From behind such a line was honoured where a scanner built on Python
                 // had read it as the first line of a text/plain body.
                 //
-                // A line of nothing but whitespace is legal folding (RFC 5322 4.2, obs-FWS),
-                // but broken generators also put one where the empty line that ends the
-                // headers belongs, and reading it as a fold then turned the whole body into
-                // one more header. So the next line decides what it was: a continuation or
-                // another header keep it a fold, anything else means the headers ended with
-                // it, and it is taken back out of the header lines.
+                // A line of nothing but whitespace is a fold (RFC 5322 4.2, obs-FWS), but
+                // broken generators also put one where the empty line that ends the headers
+                // belongs, and reading it as a fold used to turn the whole body into one
+                // more header. The next line decides: a field or a fold keeps it a fold,
+                // anything else ends the headers, as it does for Python
                 if (!isWsp(line[0]) && !FIELD_START.test(text)) {
-                    if (this.lastLineBlank) {
-                        this.headerLines.pop();
-                    }
                     this.endHeaders();
                     return true;
                 }
 
                 this.headerLines.push(text);
-                this.lastLineBlank = isBlankLine(line);
                 break;
             }
             case 'body':
