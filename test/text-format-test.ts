@@ -235,6 +235,36 @@ test('htmlToText - table elements', () => {
 });
 
 // Message Header Formatting Tests
+test('formatTextHeader and formatHtmlHeader share one date formatter', () => {
+    // Each Intl.DateTimeFormat holds ICU state outside the V8 heap, so one per rendered
+    // header made a message of a few thousand dated forwards cost hundreds of megabytes
+    // that no heap limit saw
+    const original = Intl.DateTimeFormat;
+    let constructed = 0;
+    const counting = function (...args: ConstructorParameters<typeof Intl.DateTimeFormat>) {
+        constructed++;
+        return new original(...args);
+    } as unknown as typeof Intl.DateTimeFormat;
+    counting.supportedLocalesOf = original.supportedLocalesOf;
+
+    Intl.DateTimeFormat = counting;
+    let text = '';
+    let html = '';
+    try {
+        const message = { date: '2024-01-01T00:00:00.000Z' };
+        for (let i = 0; i < 100; i++) {
+            text = formatTextHeader(message);
+            html = formatHtmlHeader(message);
+        }
+    } finally {
+        Intl.DateTimeFormat = original;
+    }
+
+    assert.ok(constructed <= 1, `constructed ${constructed} formatters`);
+    assert.ok(text.includes('Date:'));
+    assert.ok(html.includes('data-date="2024-01-01T00:00:00.000Z"'));
+});
+
 test('formatTextHeader - basic message', () => {
     const message = {
         from: { name: 'John Doe', address: 'john@example.com' },

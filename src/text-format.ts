@@ -399,6 +399,13 @@ export function htmlToText(str: string): string {
     return str;
 }
 
+// The formatter the dates of forwarded headers are rendered with, created on first use.
+// One instance serves every date, a formatter is immutable. Constructing one per rendered
+// header held some 30 KB of ICU state outside the V8 heap for each, so a message of a few
+// thousand dated forwards took hundreds of megabytes that no heap limit saw, and several
+// times the time of the same message without the dates
+let dateFormatter: Intl.DateTimeFormat | null = null;
+
 // A message date is not always a date. PostalMime keeps the raw header value when it does
 // not parse, and Intl.DateTimeFormat throws a RangeError on that, which used to reject the
 // whole parse of any message carrying a forwarded copy with a broken Date header.
@@ -412,7 +419,7 @@ function formatDate(date: string): string {
         return date;
     }
 
-    return new Intl.DateTimeFormat('default', {
+    dateFormatter ??= new Intl.DateTimeFormat('default', {
         year: 'numeric',
         month: 'numeric',
         day: 'numeric',
@@ -420,7 +427,9 @@ function formatDate(date: string): string {
         minute: 'numeric',
         second: 'numeric',
         hour12: false
-    }).format(parsed);
+    });
+
+    return dateFormatter.format(parsed);
 }
 
 function formatTextAddress(address: Mailbox): string {
