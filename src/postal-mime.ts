@@ -4,6 +4,7 @@ import addressParser from './address-parser.js';
 import { decodeWords, foldLineBreaks, isWsp, textEncoder, blobToArrayBuffer } from './decode-strings.js';
 import { base64ArrayBuffer } from './base64-encoder.js';
 import { createError } from './errors.js';
+import { getOtp } from './otp-token.js';
 import type { Address, Attachment, AttachmentEncoding, Email, PostalMimeOptions, RawEmail } from './types.js';
 
 export { addressParser, decodeWords };
@@ -18,6 +19,7 @@ export type {
     Header,
     HeaderLine,
     Mailbox,
+    Otp,
     PostalMimeOptions,
     RawEmail
 } from './types.js';
@@ -764,6 +766,11 @@ export default class PostalMime {
             let date = new Date(dateHeader.value);
             // enforce ISO format if seems to be a valid date
             message.date = date.toString() === 'Invalid Date' ? dateHeader.value : date.toISOString();
+        }
+
+        const otp = getOtp(headers);
+        if (otp) {
+            message.otp = otp;
         }
 
         if (this.textContent.html) {

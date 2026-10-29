@@ -89,6 +89,18 @@ export type Attachment = {
     encoding?: 'base64' | 'utf8' | undefined;
 };
 
+/**
+ * A one-time passcode from the OTP-Token header (draft-goto-otp-token), so that a mail
+ * client can offer it for the origin it is bound to. The header is set by the sender and not
+ * authenticated by the parser, check the DKIM signature of the message before trusting it
+ */
+export type Otp = {
+    /** The passcode, printable ASCII */
+    code: string;
+    /** Canonical ASCII serialization of the origin the code is bound to, eg. `https://example.com` */
+    origin: string;
+};
+
 export type Email = {
     /** Every header of the message, in document order, duplicates included */
     headers: Header[];
@@ -108,6 +120,16 @@ export type Email = {
     references?: string | undefined;
     /** Sending time as an ISO 8601 string, or the raw header value if it does not parse as a date */
     date?: string | undefined;
+    /**
+     * One-time passcode from the OTP-Token header of the message. Set only when the header
+     * section has exactly one OTP-Token header and it is valid. The header is not
+     * authenticated, verify that the message is signed by the domain of the origin before
+     * trusting it.
+     *
+     * @experimental The header is defined by an Internet-Draft, so this property may change
+     * in a minor release when the draft does
+     */
+    otp?: Otp | undefined;
     html?: string | undefined;
     text?: string | undefined;
     attachments: Attachment[];

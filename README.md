@@ -370,6 +370,7 @@ The limit options must be non-negative integers, and `maxPartCount` a positive o
 - **subject**: Subject line of the email.
 - **messageId**, **inReplyTo**, **references**: Values from their corresponding headers.
 - **date**: The email's sending time in ISO 8601 format (or the original string if parsing fails).
+- **otp**: One-time passcode from the `OTP-Token` header ([draft-goto-otp-token](https://datatracker.ietf.org/doc/draft-goto-otp-token/)), an object with `code` (the passcode) and `origin` (the origin it is bound to, such as `"https://example.com"`). Set only when the message header has exactly one `OTP-Token` header and its value is valid: a structured field String with an `origin` parameter holding a canonical `https` origin, or an `http` origin on a loopback host. An `OTP-Token` header of a MIME part or a forwarded message is ignored. The header is not authenticated, so check that the message carries a valid DKIM signature from the domain of the origin before offering the code. The header comes from an Internet-Draft, so `otp` is experimental and may change in a minor release when the draft does.
 - **html**: String containing the HTML content of the email, with CRLF line endings normalized to LF.
 - **text**: String containing the plain text content of the email, with CRLF line endings normalized to LF. A text or HTML part that declares no charset is read as UTF-8, or as windows-1252 when its bytes are not valid UTF-8, and an HTML part without one may name its charset in a `<meta>` tag.
 - **attachments**: Array of `Attachment` objects:
