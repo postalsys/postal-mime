@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.2.0](https://github.com/postalsys/postal-mime/compare/v4.1.4...v4.2.0) (2026-10-29)
+
+
+### Features
+
+* parse the OTP-Token header into email.otp ([740b3ab](https://github.com/postalsys/postal-mime/commit/740b3ab712ab41362853b153c5e310f5bc5f4258))
+
 ## [4.1.4](https://github.com/postalsys/postal-mime/compare/v4.1.3...v4.1.4) (2026-10-22)
 
 
