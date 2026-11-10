@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.2.1](https://github.com/postalsys/postal-mime/compare/v4.2.0...v4.2.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* look a boundary line up instead of comparing it with every open boundary ([3c3fd9e](https://github.com/postalsys/postal-mime/commit/3c3fd9e72eeb0008bab3c8582c54a89966d84df7))
+* read whitespace and comments around a dot of the domain as CFWS ([6467257](https://github.com/postalsys/postal-mime/commit/646725704463839f233472453b7c8306bd1dde21))
+
 ## [4.2.0](https://github.com/postalsys/postal-mime/compare/v4.1.4...v4.2.0) (2026-10-29)
 
 
