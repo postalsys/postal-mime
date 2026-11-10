@@ -447,7 +447,8 @@ test('addressParser - control characters do not crash', () => {
     const result = addressParser('user\x00\x01\x02@example.com');
     assert.ok(Array.isArray(result));
     assert.strictEqual(result.length, 1);
-    assert.ok(result[0].address!.includes('@example.com'));
+    // an addr-spec holding a control character names no mailbox
+    assert.deepStrictEqual(result[0], { address: '', name: '' });
 });
 
 test('addressParser - angle bracket immediately followed by comment', () => {
@@ -609,5 +610,58 @@ test('addressParser - comment holding an encoded angle-addr names no mailbox', (
         assert.strictEqual(result.length, 1, input);
         assert.strictEqual(result[0].address, '', input);
         assert.strictEqual(result[0].name, '<evil@evil.com>', input);
+    }
+});
+
+// A control character inside an addr-spec. It used to be left out, so 'ceo@vic\x01tim.example'
+// read as ceo@victim.example where Python keeps it and reads a domain no one authenticates
+// for. Nodemailer still leaves it out, this is a deliberate divergence
+test('addressParser - an addr-spec holding a control character names no mailbox', () => {
+    for (const [input, expected] of [
+        ['ceo@vic\x01tim.example', [{ address: '', name: '' }]],
+        ['c\x1feo@victim.example', [{ address: '', name: '' }]],
+        ['ceo@victim.example\x0b.evil.example', [{ address: '', name: '' }]],
+        ['CEO <ceo@vic\x00tim.example>', [{ address: '', name: 'CEO' }]],
+        ['G: a@b\x01c;', [{ name: 'G', group: [{ address: '', name: '' }] }]],
+        // decided for the whole run, so a control character read as a delimiter leaves no
+        // clean address beside it
+        ['ceo@victim.example \x01.evil.example', [{ address: '', name: '' }]],
+        ['x <ceo@victim.example \x01>', [{ address: '', name: 'x' }]],
+        ['"a\x01b"@x.example', [{ address: '', name: '' }]],
+        ['C\x01EO ceo@victim.example', [{ address: '', name: 'CEO' }]],
+        [
+            'x <a@b.example>, ceo@vic\x01tim.example, y <c@d.example>',
+            [
+                { address: 'a@b.example', name: 'x' },
+                { address: '', name: '' },
+                { address: 'c@d.example', name: 'y' }
+            ]
+        ]
+    ] as [string, Address[]][]) {
+        assert.deepStrictEqual(addressParser(input), expected, JSON.stringify(input));
+    }
+});
+
+test('addressParser - a control character is still left out of a name', () => {
+    for (const [input, expected] of [
+        ['C\x01EO <ceo@victim.example>', [{ address: 'ceo@victim.example', name: 'CEO' }]],
+        ['"C\x01EO" <ceo@victim.example>', [{ address: 'ceo@victim.example', name: 'CEO' }]],
+        ['ceo@victim.example (C\x02EO)', [{ address: 'ceo@victim.example', name: 'CEO' }]],
+        ['=?utf-8?Q?C\x01EO?=', [{ address: '', name: 'CEO' }]],
+        ['G\x01: a@b.example;', [{ name: 'G', group: [{ address: 'a@b.example', name: '' }] }]],
+        // a run of nothing but a control character is no entry at all
+        ['=?utf-8?q?a?= \x01', [{ address: '', name: 'a' }]],
+        [
+            'a@b.example, \x01, c@d.example',
+            [
+                { address: 'a@b.example', name: '' },
+                { address: 'c@d.example', name: '' }
+            ]
+        ],
+        ['G: \x01;', [{ name: 'G', group: [] }]],
+        // a line break is whitespace and a carriage return is left out, as before
+        ['ceo@victim.example\r\n .evil.example', [{ address: 'ceo@victim.example.evil.example', name: '' }]]
+    ] as [string, Address[]][]) {
+        assert.deepStrictEqual(addressParser(input), expected, JSON.stringify(input));
     }
 });

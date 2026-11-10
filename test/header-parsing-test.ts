@@ -764,3 +764,19 @@ test('an address field with long whitespace runs parses in linear time', async (
     addressParser('x' + ' '.repeat(50000) + 'a'.repeat(50000));
     assert.ok(Date.now() - started < 5000, `took ${Date.now() - started}ms`);
 });
+
+test('a From domain with whitespace or a comment beside a dot is read whole', async () => {
+    // obs-domain allows CFWS around the dots (RFC 5322 4.4), Python reads the whole domain
+    for (const from of [
+        'ceo@victim.example .evil.example',
+        'ceo@victim.example(x).evil.example',
+        'CEO <ceo@victim.example .evil.example>',
+        'CEO <ceo@victim.example(x).evil.example>'
+    ]) {
+        const email = await PostalMime.parse(`From: ${from}\r\nSubject: x\r\n\r\nx`);
+        assert.strictEqual(email.from!.address, 'ceo@victim.example.evil.example', from);
+    }
+
+    const control = await PostalMime.parse('From: CEO <ceo@vic\x01tim.example>\r\nSubject: x\r\n\r\nx');
+    assert.deepStrictEqual(control.from, { address: '', name: 'CEO' });
+});
