@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import assert from 'node:assert';
@@ -349,4 +350,36 @@ test('TextDecoder accepts no charset label that is missing from the WHATWG list'
         assert.strictEqual(accepts(label), true, label);
         assert.strictEqual(ENCODING_LABELS.has(label), false, label);
     }
+});
+
+test('lines that nearly match every open boundary cost no more than other lines', async () => {
+    // Every line of the innermost part starts like each of the 250 open boundaries and
+    // matches none. Compared with each open boundary in turn, such a line cost the depth
+    // times the shared prefix, some twenty times a line of any other text
+    const depth = 250;
+    const prefix = 'B'.repeat(60);
+    const nested =
+        `Content-Type: multipart/mixed; boundary="${prefix}0"\r\n\r\n` +
+        Array.from(
+            { length: depth - 1 },
+            (_, i) => `--${prefix}${i}\r\nContent-Type: multipart/mixed; boundary="${prefix}${i + 1}"\r\n\r\n`
+        ).join('') +
+        `--${prefix}${depth - 1}\r\nContent-Type: text/plain\r\n\r\n`;
+    const lines = 16000;
+
+    const fastest = async (line: string): Promise<number> => {
+        const mail = nested + line.repeat(lines);
+        let best = Infinity;
+        for (let i = 0; i < 3; i++) {
+            const started = performance.now();
+            const email = await PostalMime.parse(mail);
+            best = Math.min(best, performance.now() - started);
+            assert.strictEqual(email.text!.length, line.length * lines - lines);
+        }
+        return best;
+    };
+
+    const nearMiss = await fastest(`--${prefix}_NOMATCH\r\n`);
+    const control = await fastest(`xx${prefix}_NOMATCH\r\n`);
+    assert.ok(nearMiss < control * 4 + 20, `near-miss lines took ${nearMiss}ms, other lines ${control}ms`);
 });

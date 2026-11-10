@@ -1,7 +1,8 @@
 import MimeNode from './mime-node.js';
+import BoundaryStack from './boundary-stack.js';
 import { textToHtml, htmlToText, formatTextHeader, formatHtmlHeader } from './text-format.js';
 import addressParser from './address-parser.js';
-import { decodeWords, foldLineBreaks, isWsp, textEncoder, blobToArrayBuffer } from './decode-strings.js';
+import { decodeWords, foldLineBreaks, textEncoder, blobToArrayBuffer } from './decode-strings.js';
 import { base64ArrayBuffer } from './base64-encoder.js';
 import { createError } from './errors.js';
 import { getOtp } from './otp-token.js';
@@ -24,11 +25,6 @@ export type {
     RawEmail
 } from './types.js';
 export type { ErrorCode, PostalMimeError } from './errors.js';
-
-interface Boundary {
-    value: Uint8Array;
-    node: MimeNode;
-}
 
 function isReadableStream(value: unknown): value is ReadableStream<Uint8Array> {
     return !!value && typeof (value as ReadableStream<Uint8Array>).getReader === 'function';
@@ -182,7 +178,7 @@ export default class PostalMime {
     /** @internal */ counters: LimitCounters;
     /** @internal */ root: MimeNode;
     /** @internal */ currentNode: MimeNode;
-    /** @internal */ boundaries: Boundary[];
+    /** @internal */ boundaries: BoundaryStack;
     /** @internal */ textContent: Record<string, string>;
     /** @internal */ textMap: Map<MimeNode, TextEntry>;
     /** @internal */ textTypes: Set<TextType>;
@@ -227,7 +223,7 @@ export default class PostalMime {
         this.counters = parent ? parent.counters : { headerSize: 0, partCount: 0, forwardedAddresses: 0 };
 
         this.root = this.currentNode = new MimeNode({ postalMime: this });
-        this.boundaries = [];
+        this.boundaries = new BoundaryStack();
 
         this.textContent = {};
         this.textMap = new Map();
@@ -252,85 +248,28 @@ export default class PostalMime {
         lineBreak: Uint8Array<ArrayBuffer>,
         isFinal: boolean
     ): Promise<void> {
-        let boundaries = this.boundaries;
+        const match = this.boundaries.match(line);
+        if (match) {
+            if (match.isTerminator) {
+                await match.node.finalize(true);
 
-        // check if this is a mime boundary
-        if (boundaries.length && line.length > 2 && line[0] === 0x2d && line[1] === 0x2d) {
-            // Could be a boundary marker. The open boundaries are checked outermost first:
-            // a boundary may not appear inside the parts it delimits (RFC 2046 5.1.1), and
-            // when a nested multipart declares the boundary of an ancestor anyway, or one
-            // that ancestor's terminator matches, the ancestor's delimiter is the one every
-            // other parser reads the line as. Reading it as the nested one instead gave the
-            // nested multipart parts, and an attachment after the ancestor's terminator, that
-            // Python and Go leave in the epilogue, which hid it from a scanner built on
-            // either while it was shown here. Legal boundaries match one line at most, the
-            // order changes nothing for them.
-            for (let i = 0; i < boundaries.length; i++) {
-                let boundary = boundaries[i];
+                this.currentNode = match.node.parentNode || this.root;
+            } else {
+                // finalize any open child nodes (should be just one though)
+                await match.node.finalizeChildNodes(true);
 
-                // Line must be at least long enough for "--" + boundary
-                if (line.length < boundary.value.length + 2) {
-                    continue;
-                }
-
-                // Check if boundary value matches
-                let boundaryMatches = true;
-                for (let j = 0; j < boundary.value.length; j++) {
-                    if (line[j + 2] !== boundary.value[j]) {
-                        boundaryMatches = false;
-                        break;
-                    }
-                }
-                if (!boundaryMatches) {
-                    continue;
-                }
-
-                // Check for terminator (-- after boundary) and determine where boundary ends
-                let boundaryEnd = boundary.value.length + 2;
-                let isTerminator = false;
-
-                if (
-                    line.length >= boundary.value.length + 4 &&
-                    line[boundary.value.length + 2] === 0x2d &&
-                    line[boundary.value.length + 3] === 0x2d
-                ) {
-                    isTerminator = true;
-                    boundaryEnd = boundary.value.length + 4;
-                }
-
-                // RFC 2046: boundary line may have trailing whitespace (space/tab) before CRLF
-                let hasValidTrailing = true;
-                for (let j = boundaryEnd; j < line.length; j++) {
-                    if (!isWsp(line[j])) {
-                        hasValidTrailing = false;
-                        break;
-                    }
-                }
-                if (!hasValidTrailing) {
-                    continue;
-                }
-
-                if (isTerminator) {
-                    await boundary.node.finalize(true);
-
-                    this.currentNode = boundary.node.parentNode || this.root;
-                } else {
-                    // finalize any open child nodes (should be just one though)
-                    await boundary.node.finalizeChildNodes(true);
-
-                    this.currentNode = new MimeNode({
-                        postalMime: this,
-                        parentNode: boundary.node,
-                        parentMultipartType: boundary.node.contentType.multipart
-                    });
-                }
-
-                if (isFinal) {
-                    return this.finalize();
-                }
-
-                return;
+                this.currentNode = new MimeNode({
+                    postalMime: this,
+                    parentNode: match.node,
+                    parentMultipartType: match.node.contentType.multipart
+                });
             }
+
+            if (isFinal) {
+                return this.finalize();
+            }
+
+            return;
         }
 
         if (this.currentNode.feed(line, lineBreak)) {

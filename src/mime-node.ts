@@ -3,8 +3,7 @@ import {
     decodeText,
     decodeUtf8OrWindows1252,
     foldLineBreaks,
-    isWsp,
-    textEncoder
+    isWsp
 } from './decode-strings.js';
 import type { StructuredHeader } from './decode-strings.js';
 import PassThroughDecoder from './pass-through-decoder.js';
@@ -192,14 +191,7 @@ export default class MimeNode {
         }
 
         // remove self from boundary listing
-        let boundaries = this.postalMime.boundaries;
-        for (let i = boundaries.length - 1; i >= 0; i--) {
-            let boundary = boundaries[i];
-            if (boundary.node === this) {
-                boundaries.splice(i, 1);
-                break;
-            }
-        }
+        this.postalMime.boundaries.remove(this);
 
         await this.finalizeChildNodes(boundaryEnded);
 
@@ -704,10 +696,7 @@ export default class MimeNode {
 
         if (this.contentType.multipart) {
             // add self to boundary terminator listing
-            this.postalMime.boundaries.push({
-                value: textEncoder.encode(boundary),
-                node: this
-            });
+            this.postalMime.boundaries.push(boundary, this);
         }
 
         this.contentDisposition.parsed = this.parseStructuredHeader(this.contentDisposition.value);
