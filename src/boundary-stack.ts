@@ -31,7 +31,8 @@ export default class BoundaryStack {
     private byValue = new Map<string, Boundary[]>();
     private byNode = new Map<MimeNode, Boundary>();
     // how many open boundaries have each byte length, so that a line of a length no boundary
-    // can match is turned away before it is decoded
+    // can match is turned away before it is decoded. A boundary is ASCII, so its string
+    // length is its byte length
     private lengths = new Map<number, number>();
     private nextOrder = 0;
 
