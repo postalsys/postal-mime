@@ -52,10 +52,13 @@
         "@types/node": "26.6.6",
         "eslint": "10.14.0",
         "globals": "17.14.0",
-        "nodemailer": "10.4.0",
-        "prettier": "3.9.10",
+        "nodemailer": "10.5.0",
+        "prettier": "3.10.1",
         "tsx": "4.23.15",
         "typescript": "6.0.3",
         "typescript-eslint": "8.72.2"
+    },
+    "overrides": {
+        "minimatch": "^11.0.1"
     }
 }
